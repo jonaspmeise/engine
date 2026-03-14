@@ -1,0 +1,11 @@
+{
+  "extends": ["config:base"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "groupName": "all dependencies",
+      "schedule": ["before 3am on monday"]
+    }
+  ]
+}
