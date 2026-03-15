@@ -8,5 +8,3 @@ export type TicTacToeState = {
 export type TicTacToeParameters = {
   readonly firstPlayer: Mark;
 };
-
-export type LaneAlignment = 'horizontal' | 'vertical' | 'diagonal-topleft' | 'diagonal-bottomleft';

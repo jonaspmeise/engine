@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Wisp",
+    "cost": 0,
+    "type": "minion",
+    "rarity": "common",
+    "attack": 1,
+    "health": 1
+  },
+  {
+    "name": "Fire Imp",
+    "cost": 1,
+    "type": "minion",
+    "rarity": "common",
+    "text": "Battlecry: Deal 1 damage to your hero.",
+    "attack": 3,
+    "health": 2
+  },
+  {
+    "name": "River Crocolisk",
+    "cost": 2,
+    "type": "minion",
+    "rarity": "common",
+    "attack": 2,
+    "health": 3
+  },
+  {
+    "name": "Ironforge Rifleman",
+    "cost": 3,
+    "type": "minion",
+    "rarity": "common",
+    "text": "Battlecry: Deal 1 damage.",
+    "attack": 2,
+    "health": 2
+  },
+  {
+    "name": "Chillwind Yeti",
+    "cost": 4,
+    "type": "minion",
+    "rarity": "common",
+    "attack": 4,
+    "health": 5
+  },
+  {
+    "name": "Boulderfist Ogre",
+    "cost": 6,
+    "type": "minion",
+    "rarity": "common",
+    "attack": 6,
+    "health": 7
+  },
+  {
+    "name": "Stormwind Champion",
+    "cost": 7,
+    "type": "minion",
+    "rarity": "common",
+    "text": "Your other minions have +1/+1.",
+    "attack": 6,
+    "health": 6
+  },
+  {
+    "name": "Arcane Missiles",
+    "cost": 1,
+    "type": "spell",
+    "rarity": "common",
+    "text": "Deal 3 damage randomly split among all enemies."
+  },
+  {
+    "name": "Fireball",
+    "cost": 4,
+    "type": "spell",
+    "rarity": "common",
+    "text": "Deal 6 damage."
+  },
+  {
+    "name": "Mind Control",
+    "cost": 10,
+    "type": "spell",
+    "rarity": "common",
+    "text": "Take control of an enemy minion."
+  }
+]

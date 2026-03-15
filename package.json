@@ -2,17 +2,26 @@
   "name": "my-engine",
   "private": true,
   "version": "0.0.0",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "bun --filter '*' build",
     "test": "bun --filter '*' test",
     "typecheck": "tsc -b",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,json,md}\""
+    "format:check": "prettier --check \"**/*.{ts,json,md}\"",
+    "lint": "eslint \"**/*.ts\"",
+    "lint:fix": "eslint \"**/*.ts\" --fix"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
     "@types/bun": "^1.2.0",
-    "prettier": "^3.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
     "typescript": "^5.8.0"
   }
 }
