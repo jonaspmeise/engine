@@ -15,7 +15,7 @@ export class TicTacToePlayer extends Entity<TicTacToeState> {
     // Player state is not changed during runtime!
   }
 
-  identify(): EntityID {
+  generateId(): EntityID {
     return `player-${this.mark}`;
   }
 }

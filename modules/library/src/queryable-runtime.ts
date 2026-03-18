@@ -11,6 +11,9 @@ export interface QueryableRuntime<
   STATE extends GameState,
   PARAMETERS extends GameParameters | undefined,
 > {
-  entities<TYPE extends Entity<STATE>>(type?: Class<TYPE>): ReadonlyArray<TYPE>;
-  entitySet<TYPE extends Entity<STATE>>(type?: Class<TYPE>): Set<TYPE>;
+  entities<TYPE extends Entity<STATE>>(type: Class<TYPE>): ReadonlyArray<TYPE>;
+  entities(): ReadonlyArray<Entity<STATE>>;
+
+  entitySet<TYPE extends Entity<STATE>>(type: Class<TYPE>): ReadonlySet<TYPE>;
+  entitySet(): ReadonlySet<Entity<STATE>>;
 }

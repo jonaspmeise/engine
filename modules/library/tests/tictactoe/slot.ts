@@ -14,9 +14,10 @@ export class Slot extends Entity<TicTacToeState> {
   }
 
   persist(state: TicTacToeState): void {
+    // TODO: The "3" is implied through the parameters, but should be passed.
     state.board[this.y * 3 + this.x] = this.markedBy?.mark || null;
   }
-  identify(): EntityID {
+  generateId(): EntityID {
     return `slot-${this.x}-${this.y}`;
   }
 }

@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { test, expect } from 'bun:test';
 import { TicTacToe } from './tictactoe';
 import { TicTacToeState, TicTacToeParameters } from './tictactoe.typed';
 import { Slot } from './slot';
@@ -17,6 +17,7 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
     test('board initializes with 9 empty slots.', () => {
       // THEN
       expect(this.game.entitySet(Slot)).toHaveLength(9);
+      expect(this.game.entities(Slot)).toHaveLength(9);
       expect(
         Array.from(this.game.entities(Slot)).every(
           (slot) => slot.markedBy === null,
@@ -34,7 +35,7 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
 
     test('lanes are initialized correctly.', () => {
       // THEN
-      expect(this.game.entities(Lane)).toHaveLength(3);
+      expect(this.game.entities(Lane)).toHaveLength(3 + 3 + 2);
     });
 
     test('initial current player matches parameter.', () => {

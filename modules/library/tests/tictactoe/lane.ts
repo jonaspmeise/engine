@@ -19,7 +19,7 @@ export abstract class Lane extends Entity<TicTacToeState> {
     // non-readonly properties.
   }
 
-  public identify(): EntityID {
+  public generateId(): EntityID {
     return `lane-${this.constructor.name}-${this.index}`;
   }
 }

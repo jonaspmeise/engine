@@ -7,6 +7,8 @@ import { Action } from '../../src/action';
 import { TicTacToePlayer } from './player';
 import { VerticalLane } from './vertical-lane';
 import { QueryableRuntime } from '../../src/queryable-runtime';
+import { HorizontalLane } from './horizontal-lane';
+import { DiagonalLane } from './diagonal-lane';
 
 export class TicTacToe extends Game<TicTacToeState, TicTacToeParameters> {
   actions(): Set<Action<TicTacToeState, any>> {
@@ -19,19 +21,28 @@ export class TicTacToe extends Game<TicTacToeState, TicTacToeParameters> {
     state: TicTacToeState,
     runtime: QueryableRuntime<TicTacToe, TicTacToeState, TicTacToeParameters>,
   ): Generator<Entity<TicTacToeState>, void, undefined> {
-    for (let x = 0; x < 3; x++) {
-      for (let y = 0; y < 3; y++) {
+    // Instead of hardcoding "3" here, we use the length of the board to determine its size.
+    // This is a little overmodeled for a default Tic-Tac-Toe game, but showcases the possibility.
+    const size = Math.sqrt(state.board.length);
+
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
         yield new Slot(x, y);
       }
     }
 
     // Lanes.
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < size; i++) {
       // Horizontal.
+      yield new HorizontalLane(i);
 
       // Vertical.
       yield new VerticalLane(i);
     }
+
+    // Diagonal lanes.
+    yield new DiagonalLane(0);
+    yield new DiagonalLane(1);
 
     // Players.
     const marks: Mark[] = ['X', 'O'];

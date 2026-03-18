@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "esnext",
     "lib": ["ESNext", "ESNext.Iterator"],
-    "types": ["bun-types", "bun"],
+    "types": ["bun-types", "bun", "bun-types/globals"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "declaration": true,

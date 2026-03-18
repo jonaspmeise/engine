@@ -1,14 +1,21 @@
-import { dirty, EntityID } from './entity.types';
+import { dirty, EntityID, id } from './entity.types';
 import { GameState } from './game.types';
 
 export abstract class Entity<STATE extends GameState> {
-  public readonly id: EntityID;
+  private [id]: EntityID | undefined;
   public [dirty]: boolean = false;
 
-  constructor() {
-    this.id = this.identify();
-  }
+  constructor() {}
 
   abstract persist(state: STATE): void;
-  abstract identify(): EntityID;
+
+  public id(): EntityID {
+    if (this[id] === undefined) {
+      this[id] = this.generateId();
+    }
+
+    return this[id] as EntityID;
+  }
+
+  protected abstract generateId(): EntityID;
 }
