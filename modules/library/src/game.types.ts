@@ -30,6 +30,16 @@ export const DEFAULT_LOGGER_METHOD = (
     method(message);
   }
 };
+
+export const NO_OP_LOGGER_METHOD: LoggerMethod = () => {};
+export const NO_OP_LOGGER: ResolvedGameConfig['logger'] = {
+  log: NO_OP_LOGGER_METHOD,
+  warn: NO_OP_LOGGER_METHOD,
+  error: NO_OP_LOGGER_METHOD,
+  info: NO_OP_LOGGER_METHOD,
+  debug: NO_OP_LOGGER_METHOD,
+};
+
 export const DEFAULT_GAME_CONFIG: GameConfig = {
   logger: {
     log: (message) => DEFAULT_LOGGER_METHOD(message, console.log),

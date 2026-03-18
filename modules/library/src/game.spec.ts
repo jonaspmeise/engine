@@ -69,7 +69,7 @@ describe('game', () => {
       const initializeMock = spyOn(TestGame.prototype, 'initialize');
 
       // WHEN
-      const game = new TestGame();
+      new TestGame();
 
       // THEN
       expect(initializeMock).toHaveBeenCalledTimes(1);
