@@ -49,3 +49,9 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
     debug: (message) => DEFAULT_LOGGER_METHOD(message, console.debug),
   },
 };
+
+export type DeepReadonly<T> = {
+  readonly [P in keyof T]: T[P] extends object | Function
+    ? DeepReadonly<T[P]>
+    : T[P];
+};

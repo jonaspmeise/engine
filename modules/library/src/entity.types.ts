@@ -1,4 +1,4 @@
 export type EntityID = string;
-export type Dirty = symbol;
-export const dirty: Dirty = Symbol('dirty');
-export const id: symbol = Symbol('id');
+export const dirty: unique symbol = Symbol('dirty');
+export type Dirty = typeof dirty;
+export const id: unique symbol = Symbol('id');

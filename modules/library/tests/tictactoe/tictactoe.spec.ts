@@ -9,6 +9,7 @@ import { Lane } from './lane';
 class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
   readonly name = 'TicTacToe';
   readonly GameClass = TicTacToe;
+  readonly randomPlayDepth = 100;
   readonly parameters = {
     firstPlayer: 'X' as const,
   };

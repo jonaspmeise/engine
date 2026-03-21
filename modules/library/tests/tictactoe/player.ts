@@ -1,14 +1,21 @@
 import { Entity } from '../../src/entity';
 import { EntityID } from '../../src/entity.types';
+import { PlayerInterface, stateHandler } from '../../src/player-interface';
 import { Mark, TicTacToeState } from './tictactoe.typed';
 
-// TODO: A player should be easily markeable as PlayerInstance<>, so that we can link an entity to be an Avatar of a player...
-export class TicTacToePlayer extends Entity<TicTacToeState> {
+export class TicTacToePlayer
+  extends Entity<TicTacToeState>
+  implements PlayerInterface<TicTacToeState>
+{
   constructor(
     public readonly mark: Mark,
     public isCurrentPlayer: boolean,
   ) {
     super();
+  }
+
+  [stateHandler](state: TicTacToeState): void {
+    // TODO: Handle the state update here.
   }
 
   persist(state: TicTacToeState): void {

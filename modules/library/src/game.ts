@@ -1,8 +1,10 @@
 import { Action } from './action';
 import { Entity } from './entity';
 import { EntityID } from './entity.types';
+import { FlushableRuntime } from './flushable-runtime';
 import {
   Class,
+  DeepReadonly,
   DEFAULT_GAME_CONFIG,
   GameConfig,
   GameParameters,
@@ -11,16 +13,20 @@ import {
 } from './game.types';
 import { QueryableRuntime } from './queryable-runtime';
 import { EntityService } from './services/entity-service';
+import { isPlayerInterface, PlayerInterface } from './player-interface';
 
 export abstract class Game<
   STATE extends GameState,
   PARAMETERS extends GameParameters | undefined = undefined,
-> implements QueryableRuntime<Game<STATE, PARAMETERS>, STATE, PARAMETERS> {
-  private _started: boolean = false;
+>
+  implements
+    QueryableRuntime<Game<STATE, PARAMETERS>, STATE, PARAMETERS>,
+    FlushableRuntime<STATE>
+{
   private _state: STATE = {} as STATE;
   private _logger: ResolvedGameConfig['logger'];
 
-  private readonly _entityService;
+  private readonly _entityService: EntityService<STATE>;
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
   // TODO: ... handle drivers (for MTCS / replays).
@@ -36,10 +42,27 @@ export abstract class Game<
       ...config.logger,
     } as ResolvedGameConfig['logger']; // FIXME: "as" needed here...?
 
-    this._entityService = new EntityService<STATE>(this._logger);
+    this._entityService = new EntityService<STATE>(
+      this._logger,
+      this.flush.bind(this),
+    );
 
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
     this._start(parameters as PARAMETERS);
+  }
+
+  /**
+   * Flushes the current state of an entity to the engine.
+   * This should be called, when that entity is changed or a new entity is spawned.
+   * @param entity The entity to flush.
+   */
+  public flush(entity: Entity<STATE>): void {
+    this._logger.debug(
+      () =>
+        `Flushing entity ${entity.constructor.name} with ID ${entity.id()} in game ${this.constructor.name}.`,
+    );
+
+    entity.persist(this._state, this);
   }
 
   /**
@@ -70,17 +93,24 @@ export abstract class Game<
 
     let spawnCount = 0;
     for (const entity of this.enrichen(state, this)) {
-      this._entityService.spawnEntity(entity);
+      this._entityService.spawn(entity);
       spawnCount++;
     }
 
+    // Are any player interfaces spawned?
+    // These are necessary to communicate with a player. The player is always part of the game.
+    const playerInterfaces = Array.from(this.entitySet().values()).filter(
+      isPlayerInterface,
+    );
+
+    if (playerInterfaces.length === 0) {
+      throw new Error(
+        `No entities were spawned that are assignable to the interface "PlayerInterface". Please create entities that implement PlayerInterface, since they are used to communicate with your players.`,
+      );
+    }
+
     this._logger.info(() => `Spawned a total of ${spawnCount} entities.`);
-
-    this._started = true;
   }
-
-  // TODO: Entities should be spawnable, if wanted. This would cause a full refresh on the next state evaluation.
-  // TODO: Unless the state is empty initially, we only operate on our entity set. A developer may enforce a "refresh" to re-create all entities from the state, if they wish to. This is an expensive operation.
 
   /**
    * The method that initializes the game state.
@@ -88,14 +118,14 @@ export abstract class Game<
    * @param parameters The parameters to initialize the game with.
    * @returns The initial game state.
    */
-  abstract initialize(parameters: PARAMETERS): STATE;
+  protected abstract initialize(parameters: PARAMETERS): STATE;
 
   /**
    * The name of the game.
    */
   public abstract readonly name: string;
 
-  abstract enrichen(
+  protected abstract enrichen(
     state: STATE,
     runtime: QueryableRuntime<Game<STATE, PARAMETERS>, STATE, PARAMETERS>,
   ): Generator<Entity<STATE>, void, undefined>;
@@ -115,10 +145,6 @@ export abstract class Game<
   public entitySet<TYPE extends Entity<STATE>>(
     type?: Class<TYPE>,
   ): ReadonlySet<TYPE> | ReadonlySet<Entity<STATE>> {
-    if (!this._started) {
-      throw new Error('Game has not been started yet.');
-    }
-
     return this._entityService.entitySet(type as Class<Entity<STATE>>);
   }
 
@@ -135,10 +161,31 @@ export abstract class Game<
   public entities<TYPE extends Entity<STATE>>(
     type?: Class<TYPE>,
   ): ReadonlyArray<TYPE> | ReadonlyArray<Entity<STATE>> {
-    if (!this._started) {
-      throw new Error('Game has not been started yet.');
-    }
-
     return this._entityService.entities(type as Class<Entity<STATE>>);
+  }
+
+  /**
+   * Returns any entity that is assignable to a wanted type @param type.
+   * If there are multiple entities of the wanted type, one of them is returned non-deterministically.
+   * Use this method to quickly access an entity of a certain type, where either:
+   * - you know only one entity of that type exists, or
+   * - it does not matter which entity of that type is returned.
+   * If you want to access all entities of a certain type, use @method entities or @method entitySet instead.
+   * @param type The type of entity to return.
+   * @returns An entity of the wanted type, or null if no such entity exists.
+   */
+  public entity<TYPE extends Entity<STATE>>(type: Class<TYPE>): TYPE | null {
+    return this._entityService.anyEntity(type);
+  }
+
+  /**
+   * Fetches the raw state object of the game, which is used to communicate with clients.
+   * This is a raw object, without any ergonomics provided by entity abstractions.
+   * This method should only be used for debugging purposes.
+   * Don't modify this state object directly, as it will lead to client desync and inconcistencies.
+   * @returns The raw state object of the game.
+   */
+  public state(): DeepReadonly<STATE> {
+    return this._state as DeepReadonly<STATE>;
   }
 }

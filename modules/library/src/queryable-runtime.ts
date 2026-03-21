@@ -16,4 +16,6 @@ export interface QueryableRuntime<
 
   entitySet<TYPE extends Entity<STATE>>(type: Class<TYPE>): ReadonlySet<TYPE>;
   entitySet(): ReadonlySet<Entity<STATE>>;
+
+  entity<TYPE extends Entity<STATE>>(type: Class<TYPE>): TYPE | null;
 }

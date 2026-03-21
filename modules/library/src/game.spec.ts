@@ -2,7 +2,9 @@ import { jest, describe, test, expect, spyOn, afterEach } from 'bun:test';
 import { Game } from './game';
 import { Action } from './action';
 import { Entity } from './entity';
-import { EntityID } from './entity.types';
+import { EntityID, id } from './entity.types';
+import { QueryableRuntime } from './queryable-runtime';
+import { PlayerInterface, stateHandler } from './player-interface';
 
 class TestEntityA extends Entity<any> {
   constructor(protected readonly _id: number) {
@@ -29,29 +31,68 @@ class TestEntityB extends Entity<any> {
 }
 
 class TestEntityC extends TestEntityB {
+  public volatileNumber: number = 0;
+
   generateId(): EntityID {
     return `testentityC-${this._id}`;
   }
+
+  persist(state: TestGameState): void {
+    state.c.values[this._id - 1] = this.volatileNumber;
+  }
 }
 
-class TestGame extends Game<any> {
+class TestPlayerEntity extends Entity<any> implements PlayerInterface<any> {
+  constructor(protected readonly _id: number) {
+    super();
+  }
+
+  [stateHandler](state: any): void {
+    //
+  }
+
+  persist(state: any, runtime: QueryableRuntime<any, any, any>): void {
+    //
+  }
+  protected generateId(): EntityID {
+    return `testPlayerEntity-${this._id}`;
+  }
+}
+
+type TestGameState = {
+  [key in 'a' | 'b' | 'c']: {
+    count: number;
+    values: number[];
+  };
+};
+
+class TestGame extends Game<TestGameState, undefined> {
   public name = 'TestGame';
 
   initialize() {
     return {
-      value: 42,
+      // Simple encoding: {TestEntityClassName} -> # of entities of that class.
+      a: { count: 3, values: [] },
+      b: { count: 2, values: [] },
+      c: { count: 1, values: [0] },
     };
   }
-  *enrichen() {
-    yield new TestEntityA(1);
-    yield new TestEntityA(2);
-    yield new TestEntityA(3);
+  *enrichen(state: TestGameState) {
+    for (let a = 1; a <= state.a.count; a++) {
+      yield new TestEntityA(a);
+    }
 
-    yield new TestEntityB(1);
-    yield new TestEntityB(2);
+    for (let b = 1; b <= state.b.count; b++) {
+      yield new TestEntityB(b);
+    }
 
-    // TestEntityC also should count as TestEntityB since its a subclass!
-    yield new TestEntityC(1);
+    for (let c = 1; c <= state.c.count; c++) {
+      // TestEntityC also should count as TestEntityB since its a subclass!
+      yield new TestEntityC(c);
+    }
+
+    yield new TestPlayerEntity(1);
+    yield new TestPlayerEntity(2);
   }
   actions() {
     return new Set<Action<any, any>>();
@@ -84,12 +125,34 @@ describe('game', () => {
     test('throws an error if an entity is registered with an ID that is already taken by another entity.', () => {
       // GIVEN
       spyOn(TestGame.prototype, 'enrichen').mockReturnValue([
-        { id: () => 'entity1' },
-        { id: () => 'entity1' },
+        new TestEntityA(1),
+        new TestEntityA(1),
       ]);
 
       // WHEN / THEN
       expect(() => new TestGame()).toThrowError(/duplicate/gi);
+    });
+
+    test.each([null, undefined, {}])(
+      'throws an error if a game does not initialize a correct state object and instead returns %p.',
+      (invalid: any) => {
+        // GIVEN
+        spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(invalid);
+
+        // WHEN / THEN
+        expect(() => new TestGame()).toThrowError(/invalid/gi);
+      },
+    );
+
+    test('throws an error if no PlayerInterface-capable entity is spawned. These interfaces are needed to communicate with a player.', () => {
+      // GIVEN
+      spyOn(TestGame.prototype, 'enrichen').mockReturnValueOnce([
+        new TestEntityA(1),
+        new TestEntityA(2),
+      ]);
+
+      // WHEN / THEN
+      expect(() => new TestGame()).toThrowError(/player/i);
     });
   });
 
@@ -99,10 +162,42 @@ describe('game', () => {
       const game = new TestGame();
 
       // THEN
-      expect(game.entitySet()).toHaveLength(6);
+      expect(game.entitySet()).toHaveLength(8);
       expect(game.entitySet(TestEntityA)).toHaveLength(3);
       expect(game.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
       expect(game.entitySet(TestEntityC)).toHaveLength(1);
+      expect(game.entitySet(TestPlayerEntity)).toHaveLength(2);
+    });
+  });
+
+  describe('entity', () => {
+    test('returns any entity of the given type if there are multiple entities of that type.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
+
+      // THEN
+      expect(game.entity(TestEntityA)).toMatchObject({
+        [id]: expect.stringMatching(/testentityA-[1-3]/),
+      });
+    });
+
+    test('returns null if there are no entities of the given type.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
+
+      // THEN
+      expect(
+        game.entity(
+          class NonExistingEntity extends Entity<any> {
+            protected generateId(): EntityID {
+              throw new Error('Method not implemented.');
+            }
+            persist(): void {
+              throw new Error('Method not implemented.');
+            }
+          },
+        ),
+      ).toBeNull();
     });
   });
 
@@ -112,21 +207,51 @@ describe('game', () => {
       const game = new TestGame();
 
       // THEN
-      expect(game.entities()).toHaveLength(6);
+      expect(game.entities()).toHaveLength(8);
       expect(game.entities(TestEntityA)).toHaveLength(3);
       expect(game.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
       expect(game.entitySet(TestEntityC)).toHaveLength(1);
+      expect(game.entitySet(TestPlayerEntity)).toHaveLength(2);
     });
   });
 
-  test.each([null, undefined, {}])(
-    'throws an error if a game does not initialize a correct state object and instead returns %p.',
-    (invalid: any) => {
-      // GIVEN
-      spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(invalid);
+  describe('state', () => {
+    test('is initialized with the object returned by the initialize method.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
 
-      // WHEN / THEN
-      expect(() => new TestGame()).toThrowError(/invalid/gi);
-    },
-  );
+      // THEN
+      expect(game.state()).toEqual({
+        a: {
+          count: 3,
+          values: [],
+        },
+        b: {
+          count: 2,
+          values: [],
+        },
+        c: {
+          count: 1,
+          values: [0],
+        },
+      });
+    });
+  });
+
+  describe('flush', () => {
+    test('when an entity is spawned, and that entity is modified, it is flushed.', () => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      game.entity(TestEntityC)!.volatileNumber = 42;
+
+      // THEN
+      expect(game.state()).toEqual({
+        a: { count: 3, values: [] },
+        b: { count: 2, values: [] },
+        c: { count: 1, values: [42] },
+      });
+    });
+  });
 });
