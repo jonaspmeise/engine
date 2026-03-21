@@ -1,10 +1,15 @@
-import { Entity } from './entity';
-import { GameState } from './game.types';
+import { GameState, PlayerInterfaceCallback } from './game.types';
 
-export const stateHandler: unique symbol = Symbol('stateHandler');
+export const handler: unique symbol = Symbol('handler');
+export const playerId: unique symbol = Symbol('playerId');
+export const playerInterfaceMarker: unique symbol = Symbol(
+  'playerInterfaceMarker',
+);
 
 export interface PlayerInterface<STATE extends GameState> {
-  [stateHandler]: (state: STATE) => void;
+  [playerInterfaceMarker]: true;
+  [handler]?: PlayerInterfaceCallback<STATE>;
+  [playerId]?: string;
 }
 
 export function isPlayerInterface<STATE extends GameState>(
@@ -13,7 +18,7 @@ export function isPlayerInterface<STATE extends GameState>(
   return (
     typeof entity === 'object' &&
     entity !== null &&
-    stateHandler in entity &&
-    typeof (entity as any)[stateHandler] === 'function'
+    playerInterfaceMarker in entity &&
+    (entity as PlayerInterface<STATE>)[playerInterfaceMarker] === true
   );
 }

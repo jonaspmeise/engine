@@ -1,3 +1,5 @@
+import { Action } from './action';
+
 export type GameState = Record<string, unknown>;
 
 export type GameParameters = Record<string, unknown>;
@@ -55,3 +57,8 @@ export type DeepReadonly<T> = {
     ? DeepReadonly<T[P]>
     : T[P];
 };
+
+export type PlayerInterfaceCallback<STATE extends GameState> = (
+  delta: DeepReadonly<STATE>,
+  choices: Action<STATE, any>[],
+) => void;

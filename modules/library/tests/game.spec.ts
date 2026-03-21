@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { Game } from '../src/game';
 import { GameState, GameParameters } from '../src/game.types';
+import { PlayerInterface } from '../src/player-interface';
 
 type Constructor<T, P> = new (params: P) => T;
 

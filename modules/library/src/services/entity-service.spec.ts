@@ -3,7 +3,6 @@ import {
   describe,
   test,
   expect,
-  spyOn,
   afterEach,
   beforeEach,
   mock,
@@ -11,8 +10,13 @@ import {
 import { Entity } from '../entity';
 import { EntityID } from '../entity.types';
 import { EntityService } from './entity-service';
-import { NO_OP_LOGGER } from '../game.types';
+import { NO_OP_LOGGER, PlayerInterfaceCallback } from '../game.types';
 import { EntityFlushCallback } from './entity-service.types';
+import {
+  playerId,
+  PlayerInterface,
+  playerInterfaceMarker,
+} from '../player-interface';
 
 class TestEntityA extends Entity<any> {
   public volatileNumber: number = 0;
@@ -44,6 +48,10 @@ class TestEntityC extends TestEntityB {
   protected generateId(): EntityID {
     return `TestEntityC-${this._id}`;
   }
+}
+
+class TestPlayerEntity extends TestEntityA implements PlayerInterface<any> {
+  [playerInterfaceMarker] = true as const;
 }
 
 describe('entityService', () => {
@@ -114,6 +122,34 @@ describe('entityService', () => {
       // THEN
       expect(callback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
     });
+
+    test('when a symbol property of an entity is modified, the flush callback is not called.', () => {
+      // GIVEN
+      const symbolKey = Symbol('test');
+
+      class TestEntityE extends TestEntityA {
+        public [symbolKey]: number = 0;
+      }
+
+      // WHEN
+      const entity = service.spawn(new TestEntityE(1));
+      entity[symbolKey] = 42;
+
+      // THEN
+      expect(callback).toHaveBeenCalledTimes(1); // Only the initial spawn, not the symbol property change
+    });
+
+    test('when a player entity is spawned, it receives an unique player ID.', () => {
+      // GIVEN
+      const playerEntity = service.spawn(
+        new TestPlayerEntity(1),
+      ) as Entity<any> & PlayerInterface<any>;
+
+      // THEN
+      expect(playerEntity[playerId]).toBeDefined();
+      expect(typeof playerEntity[playerId]).toBe('string');
+      expect(playerEntity[playerId]!.length).toBeGreaterThan(0);
+    });
   });
 
   describe('entitySet', () => {
@@ -134,6 +170,27 @@ describe('entityService', () => {
       expect(service.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
       expect(service.entitySet(TestEntityC)).toHaveLength(1);
     });
+
+    test('has the keys of all types of entities.', () => {
+      // GIVEN / WHEN
+      service.spawn(new TestEntityA(1));
+      service.spawn(new TestEntityB(1));
+      service.spawn(new TestEntityC(1));
+
+      // THEN
+      expect(service.entitySet(TestEntityA).size).toBe(1);
+      expect(service.entitySet(TestEntityB).size).toBe(2); // TestEntityB + TestEntityC
+      expect(service.entitySet(TestEntityC).size).toBe(1);
+      expect(service.entitySet(Entity).size).toBe(3);
+
+      // This is a little bit cheating, but we care about that no unnecessary types are created.
+      const types = Array.from(service['_entities'].types.keys());
+      expect(types).toContain(TestEntityA);
+      expect(types).toContain(TestEntityB);
+      expect(types).toContain(TestEntityC);
+      expect(types).toContain(Entity);
+      expect(types).toHaveLength(4);
+    });
   });
 
   describe('entities', () => {
@@ -151,8 +208,24 @@ describe('entityService', () => {
       // THEN
       expect(service.entities()).toHaveLength(6);
       expect(service.entities(TestEntityA)).toHaveLength(3);
-      expect(service.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityAB + 1x TestEntityAC
+      expect(service.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
       expect(service.entitySet(TestEntityC)).toHaveLength(1);
+    });
+  });
+
+  describe('players', () => {
+    test('returns an empty array if no players are registered.', () => {
+      // THEN
+      expect(service.players()).toHaveLength(0);
+    });
+
+    test('returns spawned entities that implement the PlayerInterface.', () => {
+      // GIVEN / WHEN
+      service.spawn(new TestPlayerEntity(1));
+      service.spawn(new TestPlayerEntity(2));
+
+      // THEN
+      expect(service.players()).toHaveLength(2);
     });
   });
 });

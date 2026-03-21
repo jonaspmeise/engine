@@ -3,21 +3,36 @@ import { EntityID } from '../entity.types';
 import { Class, GameState, ResolvedGameConfig } from '../game.types';
 import { spawnEntity } from '../../../client-singleplayer/src/index';
 import { EntityFlushCallback } from './entity-service.types';
+import {
+  isPlayerInterface,
+  playerId,
+  PlayerInterface,
+} from '../player-interface';
+import { Clearable } from '../clearable';
 
 /**
  * This class manages only the aspects that are related to entities.
  * The main game class delegates to here, sometimes.
  */
-export class EntityService<STATE extends GameState> {
+export class EntityService<STATE extends GameState> implements Clearable {
   constructor(
     private readonly _logger: ResolvedGameConfig['logger'],
     private readonly _flushCallback: EntityFlushCallback,
   ) {}
 
-  // TODO: Pass this into a separate component...?
+  clear(): void {
+    this._entities = {
+      types: new Map<Class<Entity<STATE>>, Set<Entity<STATE>>>(),
+      ids: new Map<EntityID, Entity<STATE>>(),
+      players: [],
+    };
+  }
+
+  // TODO: Make this entire class cloneable for MCTS?
   private _entities = {
     types: new Map<Class<Entity<STATE>>, Set<Entity<STATE>>>(),
     ids: new Map<EntityID, Entity<STATE>>(),
+    players: [] as Array<Entity<STATE> & PlayerInterface<STATE>>,
   };
 
   /**
@@ -43,6 +58,21 @@ export class EntityService<STATE extends GameState> {
     }
     this._entities.ids.set(id, proxy);
 
+    // This entity might potentially be a player...
+    if (isPlayerInterface(proxy)) {
+      const playerInterface = proxy as Entity<STATE> & PlayerInterface<STATE>;
+      playerInterface[playerId] = crypto.randomUUID();
+
+      this._logger.debug(
+        () =>
+          `Assigned unique player ID ${playerInterface[playerId]} to player interface ${playerInterface.constructor.name}.`,
+      );
+
+      this._entities.players.push(
+        proxy as Entity<STATE> & PlayerInterface<STATE>,
+      );
+    }
+
     // Set Type -> Entity mapping for quick lookup of entities by type.
     // Since we want individual classes to be respected, but also subclasses
     // (if A extends B, then querying for B should also return A),
@@ -50,7 +80,8 @@ export class EntityService<STATE extends GameState> {
     let currentConstructor: Function | null = entity.constructor;
     while (
       currentConstructor !== null &&
-      currentConstructor !== Object.prototype
+      currentConstructor !== Object.prototype &&
+      currentConstructor.name !== '' // this is some native code, that we don't care about!
     ) {
       if (
         !this._entities.types.has(currentConstructor as Class<Entity<STATE>>)
@@ -118,6 +149,11 @@ export class EntityService<STATE extends GameState> {
     return null;
   }
 
+  public players(): ReadonlyArray<Entity<STATE> & PlayerInterface<STATE>> {
+    // TODO: Other return type that is more performant than array? Maybe set? Map access?
+    return this._entities.players;
+  }
+
   // FIXME: PERFORMANCE: Check, whether this is actually performant enough.
   // While being ergonomic and easy to implement, it might cause performance issues if entities have a lot of nested objects or arrays that are modified frequently.
   // Alternatively, we can either:
@@ -132,7 +168,7 @@ export class EntityService<STATE extends GameState> {
       get: (target, prop, receiver) => {
         const value = Reflect.get(target, prop, receiver);
 
-        // If the value is an object (and not null), wrap it in a proxy too
+        // If the value is an object (and not null), wrap it in a proxy once.
         if (typeof value === 'object' && value !== null) {
           return EntityService._createRecursiveProxy(
             value,
@@ -146,8 +182,11 @@ export class EntityService<STATE extends GameState> {
       set: (target, prop, value, receiver) => {
         const result = Reflect.set(target, prop, value, receiver);
 
-        // Trigger the callback using the original root proxy
-        callback(rootProxy || receiver);
+        // Trigger the callback using the original root proxy only for non-symbol properties.
+        // Symbols should not be communicated to the client anyhow and are only for internal state.
+        if (typeof prop !== 'symbol') {
+          callback(rootProxy || receiver);
+        }
 
         return result;
       },

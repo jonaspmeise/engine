@@ -1,10 +1,14 @@
-import { jest, describe, test, expect, spyOn, afterEach } from 'bun:test';
+import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Game } from './game';
 import { Action } from './action';
 import { Entity } from './entity';
 import { EntityID, id } from './entity.types';
 import { QueryableRuntime } from './queryable-runtime';
-import { PlayerInterface, stateHandler } from './player-interface';
+import {
+  playerId,
+  PlayerInterface,
+  playerInterfaceMarker,
+} from './player-interface';
 
 class TestEntityA extends Entity<any> {
   constructor(protected readonly _id: number) {
@@ -46,10 +50,7 @@ class TestPlayerEntity extends Entity<any> implements PlayerInterface<any> {
   constructor(protected readonly _id: number) {
     super();
   }
-
-  [stateHandler](state: any): void {
-    //
-  }
+  [playerInterfaceMarker] = true as const;
 
   persist(state: any, runtime: QueryableRuntime<any, any, any>): void {
     //
@@ -154,6 +155,20 @@ describe('game', () => {
       // WHEN / THEN
       expect(() => new TestGame()).toThrowError(/player/i);
     });
+
+    test('player interfaces are assigned a unique ID upon creation.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
+
+      // THEN
+      const playerInterfaces = game.entities(TestPlayerEntity);
+
+      expect(playerInterfaces).toHaveLength(2);
+      expect(playerInterfaces[0][playerId]).not.toBeNull();
+      expect(playerInterfaces[0][playerId]).not.toBeUndefined();
+      expect(playerInterfaces[1][playerId]).not.toBeNull();
+      expect(playerInterfaces[1][playerId]).not.toBeUndefined();
+    });
   });
 
   describe('entitySet', () => {
@@ -253,5 +268,47 @@ describe('game', () => {
         c: { count: 1, values: [42] },
       });
     });
+  });
+
+  describe('registerPlayerCallback', () => {
+    test.todo(
+      'issues a warning if a callback is registered when another callback is already registered.',
+      () => {},
+    );
+
+    // TODO: Maybe move this into the more general part.
+    test.todo(
+      'the game does not start the game until all players interfaces have handlers registered.',
+    );
+
+    test('starts the game when all player interfaces have handlers registered.', () => {
+      // GIVEN
+      const game = new TestGame();
+
+      const playerCallback1 = mock(() => {});
+      const playerCallback2 = mock(() => {});
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0],
+        playerCallback1,
+      );
+
+      expect(playerCallback1).toHaveBeenCalledTimes(0);
+      expect(playerCallback2).toHaveBeenCalledTimes(0);
+
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1],
+        playerCallback2,
+      );
+
+      // THEN
+      expect(playerCallback1).toHaveBeenCalledTimes(1);
+      expect(playerCallback2).toHaveBeenCalledTimes(1);
+    });
+
+    test.todo(
+      'if a player interface registers a callback while the game is already running, only the callback is replaced.',
+    );
   });
 });

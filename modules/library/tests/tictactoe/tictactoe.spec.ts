@@ -5,6 +5,7 @@ import { Slot } from './slot';
 import { GameTest } from '../game.spec';
 import { TicTacToePlayer } from './player';
 import { Lane } from './lane';
+import { timeout } from '../utility.spec';
 
 class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
   readonly name = 'TicTacToe';
@@ -47,6 +48,57 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
           .filter((player) => player.isCurrentPlayer)[0].mark,
       ).toEqual('X');
     });
+
+    test.todo(
+      'the initial state for each player is correctly transmitted.',
+      (done) => {
+        // TODO: How to initiate players here?
+        // Once the game is constructed, the players are already initialized due to their entities.
+
+        // GIVEN
+        // Hook up players to the game. We can connect external callbacks to the player entities,
+        // even after they are spawned.
+
+        // TODO: We need to map each player's interface secret ID to an external callback (e.g. a websocket connection).
+        // This should be used to also reconnect to the player to the same player instance if they rejoin the game.
+        // That temporarily created ID serves as the key to connect the player to a game.
+        const playerX = this.game
+          .entities(TicTacToePlayer)
+          .filter((player) => player.mark === 'X')[0];
+        const playerO = this.game
+          .entities(TicTacToePlayer)
+          .filter((player) => player.mark === 'O')[0];
+
+        let playerXinformed = false;
+        let playerOinformed = false;
+
+        // WHEN / THEN
+        // Here, the websocket connection could be handed into the callback function.
+        this.game.registerPlayerCallback(playerX, (delta, choices) => {
+          // X is the first player, thus they should have choices!
+          expect(choices).toBeDefined();
+          expect(choices).toHaveLength(9); // 9 possible slots to mark.
+
+          playerXinformed = true;
+          if (playerOinformed) {
+            done();
+          }
+        });
+        this.game.registerPlayerCallback(playerO, (delta, choices) => {
+          // O is the second player, thus they should not have any choices.
+          expect(choices).toBeDefined();
+          expect(choices).toHaveLength(0);
+
+          playerOinformed = true;
+          if (playerXinformed) {
+            done();
+          }
+        });
+
+        // OTHERWISE
+        timeout(done);
+      },
+    );
   }
 }
 

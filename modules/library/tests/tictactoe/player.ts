@@ -1,6 +1,9 @@
 import { Entity } from '../../src/entity';
 import { EntityID } from '../../src/entity.types';
-import { PlayerInterface, stateHandler } from '../../src/player-interface';
+import {
+  PlayerInterface,
+  playerInterfaceMarker,
+} from '../../src/player-interface';
 import { Mark, TicTacToeState } from './tictactoe.typed';
 
 export class TicTacToePlayer
@@ -13,10 +16,7 @@ export class TicTacToePlayer
   ) {
     super();
   }
-
-  [stateHandler](state: TicTacToeState): void {
-    // TODO: Handle the state update here.
-  }
+  [playerInterfaceMarker] = true as const;
 
   persist(state: TicTacToeState): void {
     // Player state is not changed during runtime!

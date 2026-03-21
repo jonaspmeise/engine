@@ -9,11 +9,17 @@ import {
   GameConfig,
   GameParameters,
   GameState,
+  PlayerInterfaceCallback,
   ResolvedGameConfig,
 } from './game.types';
 import { QueryableRuntime } from './queryable-runtime';
 import { EntityService } from './services/entity-service';
-import { isPlayerInterface, PlayerInterface } from './player-interface';
+import {
+  isPlayerInterface,
+  PlayerInterface,
+  handler,
+  playerId,
+} from './player-interface';
 
 export abstract class Game<
   STATE extends GameState,
@@ -32,6 +38,13 @@ export abstract class Game<
   // TODO: ... handle drivers (for MTCS / replays).
   // TODO: Should parameters be serialized within the game, or be discarded after initializing?
 
+  // TODO: Seed, randomize method, ... for deterministic behavior and testing.
+
+  /**
+   * Creates a new game instance and starts it.
+   * @param parameters The parameters to start the game with. This is dependent on the game.
+   * @param config The configuration for the game.
+   */
   constructor(
     // Parameters optional when `PARAMETERS` is `undefined`.
     parameters?: PARAMETERS extends undefined ? undefined : PARAMETERS,
@@ -48,7 +61,7 @@ export abstract class Game<
     );
 
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
-    this._start(parameters as PARAMETERS);
+    this._setup(parameters as PARAMETERS);
   }
 
   /**
@@ -66,10 +79,10 @@ export abstract class Game<
   }
 
   /**
-   * Starts the game and validates the initial state.
-   * @param parameters The parameters to start the game with.
+   * Sets up the game and validates the initial state.
+   * @param parameters The parameters to set up the game with.
    */
-  private _start(parameters: PARAMETERS): void {
+  private _setup(parameters: PARAMETERS): void {
     const state = this.initialize(parameters);
     this._state = state;
 
@@ -99,9 +112,7 @@ export abstract class Game<
 
     // Are any player interfaces spawned?
     // These are necessary to communicate with a player. The player is always part of the game.
-    const playerInterfaces = Array.from(this.entitySet().values()).filter(
-      isPlayerInterface,
-    );
+    const playerInterfaces = this._entityService.players();
 
     if (playerInterfaces.length === 0) {
       throw new Error(
@@ -154,6 +165,9 @@ export abstract class Game<
    * @returns An iterable of entities of the wanted type.
    *          If the wanted type is not provided, all entities are returned.
    */
+  public entities<TYPE extends Entity<STATE> & PlayerInterface<STATE>>(
+    type: Class<TYPE>,
+  ): ReadonlyArray<TYPE & PlayerInterface<STATE>>;
   public entities<TYPE extends Entity<STATE>>(
     type: Class<TYPE>,
   ): ReadonlyArray<TYPE>;
@@ -187,5 +201,40 @@ export abstract class Game<
    */
   public state(): DeepReadonly<STATE> {
     return this._state as DeepReadonly<STATE>;
+  }
+
+  /**
+   * Starts the actual game loop.
+   */
+  private _nextSnapshot(): void {
+    this._logger.info(() => `Calculating next tick...`);
+
+    // FIXME: Implement correctly.
+    for(const player of this._entityService.players()) {
+      player[handler]!(this.state(), []);
+    }
+  }
+
+  public registerPlayerCallback(
+    player: PlayerInterface<STATE>,
+    callback: PlayerInterfaceCallback<STATE>,
+  ): void {
+    this._logger.info(
+      `Registering player callback for player interface with ID ${player[playerId]}.`,
+    );
+
+    player[handler] = callback;
+
+    // Do all players have a handler? If so, the game can start, since all players "joined".
+    const players = this._entityService.players();
+    // TODO: If a player simply reconnects here, we don't want to issue a new tick.
+    // Instead, that player should just be re-informed about their _entire_ state and their choices.
+    // No internal transitions of snapshots happen inside the game.
+    if (players.every((p) => p[handler] !== undefined)) {
+      this._logger.info(
+        `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
+      );
+      this._nextSnapshot();
+    }
   }
 }
