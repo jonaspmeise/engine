@@ -52,16 +52,6 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
     test.todo(
       'the initial state for each player is correctly transmitted.',
       (done) => {
-        // TODO: How to initiate players here?
-        // Once the game is constructed, the players are already initialized due to their entities.
-
-        // GIVEN
-        // Hook up players to the game. We can connect external callbacks to the player entities,
-        // even after they are spawned.
-
-        // TODO: We need to map each player's interface secret ID to an external callback (e.g. a websocket connection).
-        // This should be used to also reconnect to the player to the same player instance if they rejoin the game.
-        // That temporarily created ID serves as the key to connect the player to a game.
         const playerX = this.game
           .entities(TicTacToePlayer)
           .filter((player) => player.mark === 'X')[0];
@@ -74,6 +64,7 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
 
         // WHEN / THEN
         // Here, the websocket connection could be handed into the callback function.
+        // FIXME: This is not quite ergonomic, but it works. Think about how the state is constructed.
         this.game.registerPlayerCallback(playerX, (delta, choices) => {
           // X is the first player, thus they should have choices!
           expect(choices).toBeDefined();
@@ -99,6 +90,8 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
         timeout(done);
       },
     );
+
+    test.todo('if a player reconnects, they receive their full state again.');
   }
 }
 

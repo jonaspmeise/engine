@@ -9,6 +9,7 @@ import {
   PlayerInterface,
   playerInterfaceMarker,
 } from './player-interface';
+import { ResolvedGameConfig } from './game.types';
 
 class TestEntityA extends Entity<any> {
   constructor(protected readonly _id: number) {
@@ -105,6 +106,14 @@ describe('game', () => {
     jest.restoreAllMocks();
   });
 
+  const logger: ResolvedGameConfig['logger'] = {
+    log: mock(() => {}),
+    warn: mock(() => {}),
+    error: mock(() => {}),
+    info: mock(() => {}),
+    debug: mock(() => {}),
+  };
+
   describe('setup', () => {
     test('calls initialize on game instantiation.', () => {
       // GIVEN when we instantiate an instance of our Testgame, initialize is called once.
@@ -119,10 +128,6 @@ describe('game', () => {
   });
 
   describe('initialize', () => {
-    test.todo(
-      'issues a warning if a game that is already initialized, is initialized again.',
-    );
-
     test('throws an error if an entity is registered with an ID that is already taken by another entity.', () => {
       // GIVEN
       spyOn(TestGame.prototype, 'enrichen').mockReturnValue([
@@ -271,15 +276,53 @@ describe('game', () => {
   });
 
   describe('registerPlayerCallback', () => {
-    test.todo(
-      'issues a warning if a callback is registered when another callback is already registered.',
-      () => {},
-    );
+    test('issues a warning if a callback is registered when another callback is already registered.', () => {
+      // GIVEN
+      const game = new TestGame(undefined, { logger });
 
-    // TODO: Maybe move this into the more general part.
-    test.todo(
-      'the game does not start the game until all players interfaces have handlers registered.',
-    );
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0], () => {});
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1], () => {});
+
+      // THEN #1
+      expect(logger.warn).toHaveBeenCalledTimes(0);
+
+      // WHEN
+      // The same player interface is overwritten!
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0], () => {});
+
+      // THEN #2
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/overwrit/gi),
+      );
+    });
+
+    test('the game does not start the game until all players interfaces have handlers registered.', () => {
+      // GIVEN
+      const game = new TestGame();
+
+      const player1Callback = mock(() => {});
+      const player2Callback = mock(() => {});
+
+      // WHEN #1
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0],
+        player1Callback,
+      );
+
+      // THEN #1
+      expect(player1Callback).toHaveBeenCalledTimes(0);
+      expect(player2Callback).toHaveBeenCalledTimes(0);
+
+      // WHEN #2
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1],
+        player2Callback,
+      );
+
+      // THEN #2
+      expect(player1Callback).toHaveBeenCalledTimes(1);
+      expect(player2Callback).toHaveBeenCalledTimes(1);
+    });
 
     test('starts the game when all player interfaces have handlers registered.', () => {
       // GIVEN
@@ -307,8 +350,37 @@ describe('game', () => {
       expect(playerCallback2).toHaveBeenCalledTimes(1);
     });
 
-    test.todo(
-      'if a player interface registers a callback while the game is already running, only the callback is replaced.',
-    );
+    test('if a player interface registers a callback while the game is already running, only the callback is replaced.', () => {
+      // GIVEN
+      const player1Callback = mock(() => {});
+      const player2Callback = mock(() => {});
+
+      const game = new TestGame();
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0],
+        player1Callback,
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1],
+        player2Callback,
+      );
+
+      // THEN #1
+      expect(player1Callback).toHaveBeenCalledTimes(1);
+      expect(player2Callback).toHaveBeenCalledTimes(1);
+
+      // WHEN
+      // A single player callback is overwritten, maybe because the client disconnected and reconnected.
+      // In this case, the second player should not be informed about this, and only the reconnected
+      // player should be informed about their state again.
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0],
+        player1Callback,
+      );
+
+      // THEN
+      expect(player1Callback).toHaveBeenCalledTimes(2);
+      expect(player2Callback).toHaveBeenCalledTimes(1);
+    });
   });
 });

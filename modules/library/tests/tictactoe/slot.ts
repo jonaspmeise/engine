@@ -18,9 +18,12 @@ export class Slot extends Entity<TicTacToeState> {
     state: TicTacToeState,
     runtime: QueryableRuntime<any, TicTacToeState, any>,
   ): void {
-    // TODO: The "3" is implied through the parameters, but should be passed.
+    // TODO: This number should come from the parameters - how do we access them?
+    // Do we just register an entity that is the game configuration, or is that the task of the developer?
+    // Or maybe a separate access method to the game parameters...?
+    const boardSize: number = runtime.entities(Slot).length;
 
-    state.board[this.y * 3 + this.x] = this.markedBy?.mark || null;
+    state.board[this.y * boardSize + this.x] = this.markedBy?.mark || null;
   }
   generateId(): EntityID {
     return `slot-${this.x}-${this.y}`;

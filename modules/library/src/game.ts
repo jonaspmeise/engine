@@ -31,6 +31,7 @@ export abstract class Game<
 {
   private _state: STATE = {} as STATE;
   private _logger: ResolvedGameConfig['logger'];
+  private _started: boolean = false;
 
   private readonly _entityService: EntityService<STATE>;
 
@@ -53,7 +54,7 @@ export abstract class Game<
     this._logger = {
       ...DEFAULT_GAME_CONFIG.logger,
       ...config.logger,
-    } as ResolvedGameConfig['logger']; // FIXME: "as" needed here...?
+    };
 
     this._entityService = new EntityService<STATE>(
       this._logger,
@@ -207,12 +208,27 @@ export abstract class Game<
    * Starts the actual game loop.
    */
   private _nextSnapshot(): void {
+    this._started = true;
     this._logger.info(() => `Calculating next tick...`);
 
     // FIXME: Implement correctly.
-    for(const player of this._entityService.players()) {
-      player[handler]!(this.state(), []);
+    for (const player of this._entityService.players()) {
+      this._informPlayer(player);
     }
+  }
+
+  /**
+   * Informs a player about their current state.
+   * @param player The player to inform about their state.
+   * @param sendFullState Whether to send the full state to the player, or only a diff.
+   * For example, if a player disconnected and reconnected, they should be informed about their full state.
+   * Normally, only the diff is sent.
+   */
+  private _informPlayer(
+    player: PlayerInterface<STATE>,
+    sendFullState: boolean = false,
+  ): void {
+    player[handler]!(this.state(), []);
   }
 
   public registerPlayerCallback(
@@ -223,18 +239,31 @@ export abstract class Game<
       `Registering player callback for player interface with ID ${player[playerId]}.`,
     );
 
+    if (player[handler] !== undefined) {
+      this._logger.warn(
+        `Player interface with ID ${player[playerId]} already has a registered callback. Overwriting it...`,
+      );
+    }
     player[handler] = callback;
 
     // Do all players have a handler? If so, the game can start, since all players "joined".
     const players = this._entityService.players();
-    // TODO: If a player simply reconnects here, we don't want to issue a new tick.
-    // Instead, that player should just be re-informed about their _entire_ state and their choices.
-    // No internal transitions of snapshots happen inside the game.
+
     if (players.every((p) => p[handler] !== undefined)) {
-      this._logger.info(
-        `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
-      );
-      this._nextSnapshot();
+      if (!this._started) {
+        this._logger.info(
+          () =>
+            `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
+        );
+        this._nextSnapshot();
+      } else {
+        this._logger.info(
+          () =>
+            `Player interface with ID ${player[playerId]} reconnected. Informing them about their state...`,
+        );
+
+        this._informPlayer(player, true);
+      }
     }
   }
 }

@@ -42,7 +42,7 @@ export const NO_OP_LOGGER: ResolvedGameConfig['logger'] = {
   debug: NO_OP_LOGGER_METHOD,
 };
 
-export const DEFAULT_GAME_CONFIG: GameConfig = {
+export const DEFAULT_GAME_CONFIG: ResolvedGameConfig = {
   logger: {
     log: (message) => DEFAULT_LOGGER_METHOD(message, console.log),
     warn: (message) => DEFAULT_LOGGER_METHOD(message, console.warn),
