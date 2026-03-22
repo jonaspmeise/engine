@@ -8,6 +8,7 @@ import {
   GameConfig,
   GameParameters,
   GameState,
+  Logger,
   PlayerInterfaceCallback,
   ResolvedGameConfig,
 } from './game.types';
@@ -26,7 +27,7 @@ export abstract class Game<
   implements QueryableRuntime<STATE>, FlushableRuntime<STATE>
 {
   private _state: STATE = {} as STATE;
-  private _logger: ResolvedGameConfig['logger'];
+  private _logger: Logger;
   private _started: boolean = false;
 
   private readonly _entityService: EntityService<STATE>;
@@ -132,7 +133,7 @@ export abstract class Game<
 
     let spawnCount = 0;
     for (const entity of this.enrichen(state, this)) {
-      this._entityService.spawnEntity(entity);
+      this._entityService.create(entity);
       spawnCount++;
     }
 

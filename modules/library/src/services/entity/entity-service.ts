@@ -1,6 +1,6 @@
 import { Entity } from '../../components/entity';
 import { EntityID } from '../../components/entity.types';
-import { Class, GameState, ResolvedGameConfig } from '../../game.types';
+import { Class, GameState, Logger } from '../../game.types';
 import { EntityFlushCallback } from './entity-service.types';
 import {
   isPlayerInterface,
@@ -8,17 +8,18 @@ import {
   PlayerInterface,
 } from '../../interfaces/player-interface';
 import { Clearable } from '../../interfaces/clearable';
-import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
+import { Creator } from '../../interfaces/creator';
+import { Destroyer } from '../../interfaces/destroyer';
 
 /**
  * This class manages only the aspects that are related to entities.
  * The main game class delegates to here, sometimes.
  */
 export class EntityService<STATE extends GameState>
-  implements Clearable, ModifiableRuntime<STATE>
+  implements Clearable, Creator<Entity<STATE>>, Destroyer<Entity<STATE>>
 {
   constructor(
-    private readonly _logger: ResolvedGameConfig['logger'], // FIXME: Make this an own type!
+    private readonly _logger: Logger, // FIXME: Make this an own type!
     private readonly _flushCallback: EntityFlushCallback,
   ) {}
 
@@ -43,7 +44,7 @@ export class EntityService<STATE extends GameState>
    * @param entity The entity to spawn.
    * @returns The same entity, but enhanced to automatically notice when its state is changed.
    */
-  public spawnEntity<ENTITY extends Entity<STATE>>(entity: ENTITY): ENTITY {
+  public create<ENTITY extends Entity<STATE>>(entity: ENTITY): ENTITY {
     // Set ID -> Entity mapping for extremely quick lookup of entities by singular IDs.
     const id = entity.id();
     this._logger.debug(
@@ -110,6 +111,26 @@ export class EntityService<STATE extends GameState>
     this._flushCallback(proxy);
 
     return proxy as ENTITY;
+  }
+
+  public destroy(component: Entity<STATE>): void {
+    const id = component.id();
+
+    this._logger.info(
+      () => `Destroying entity ${component.constructor.name} with ID ${id}.`,
+    );
+
+    if (!this._entities.ids.has(id)) {
+      throw new Error(
+        `Entity with ID ${id} is not registered and thus can't be deleted!`,
+      );
+    }
+
+    this._entities.ids.delete(id);
+    for (const type of this._entities.types.values()) {
+      // FIXME: Only access the types that this entity is actually part of, instead of looping through all types.
+      type.delete(component);
+    }
   }
 
   public entities<TYPE extends Entity<STATE>>(

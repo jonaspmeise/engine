@@ -9,17 +9,19 @@ export type Class<T> = abstract new (...args: any[]) => T;
 export type LoggerMethod = (message: unknown | (() => unknown)) => void;
 
 export type GameConfig = {
-  logger?: Partial<ResolvedGameConfig['logger']>;
+  logger?: Partial<Logger>;
+};
+
+export type Logger = {
+  log: LoggerMethod;
+  warn: LoggerMethod;
+  error: LoggerMethod;
+  info: LoggerMethod;
+  debug: LoggerMethod;
 };
 
 export type ResolvedGameConfig = {
-  logger: {
-    log: LoggerMethod;
-    warn: LoggerMethod;
-    error: LoggerMethod;
-    info: LoggerMethod;
-    debug: LoggerMethod;
-  };
+  logger: Logger;
 };
 
 export const DEFAULT_LOGGER_METHOD = (
@@ -34,7 +36,7 @@ export const DEFAULT_LOGGER_METHOD = (
 };
 
 export const NO_OP_LOGGER_METHOD: LoggerMethod = () => {};
-export const NO_OP_LOGGER: ResolvedGameConfig['logger'] = {
+export const NO_OP_LOGGER: Logger = {
   log: NO_OP_LOGGER_METHOD,
   warn: NO_OP_LOGGER_METHOD,
   error: NO_OP_LOGGER_METHOD,

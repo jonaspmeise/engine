@@ -9,13 +9,13 @@ import {
   PlayerInterface,
   playerInterfaceMarker,
 } from './interfaces/player-interface';
-import { ResolvedGameConfig } from './game.types';
+import { Logger } from './game.types';
 
 class TestEntityA extends Entity<TestGameState> {
   constructor(protected readonly _id: number) {
     super();
   }
-  persist(state: TestGameState): void {
+  persist(_state: TestGameState): void {
     // No persist is needed here.
   }
   generateId(): EntityID {
@@ -27,7 +27,7 @@ class TestEntityB extends Entity<TestGameState> {
   constructor(protected readonly _id: number) {
     super();
   }
-  persist(state: TestGameState): void {
+  persist(_state: TestGameState): void {
     // No persist is needed here.
   }
   generateId(): EntityID {
@@ -57,8 +57,8 @@ class TestPlayerEntity
   [playerInterfaceMarker] = true as const;
 
   persist(
-    state: TestGameState,
-    runtime: QueryableRuntime<TestGameState>,
+    _state: TestGameState,
+    _runtime: QueryableRuntime<TestGameState>,
   ): void {
     //
   }
@@ -116,7 +116,7 @@ describe('game', () => {
     jest.restoreAllMocks();
   });
 
-  const logger: ResolvedGameConfig['logger'] = {
+  const logger: Logger = {
     log: mock(() => {}),
     warn: mock(() => {}),
     error: mock(() => {}),

@@ -10,7 +10,7 @@ import {
 import { Entity } from '../../components/entity';
 import { EntityID } from '../../components/entity.types';
 import { EntityService } from './entity-service';
-import { NO_OP_LOGGER } from '../../game.types';
+import { Logger, NO_OP_LOGGER } from '../../game.types';
 import { EntityFlushCallback } from './entity-service.types';
 import {
   playerId,
@@ -21,7 +21,7 @@ import {
 class TestEntityA extends Entity<any> {
   public volatileNumber: number = 0;
 
-  persist(state: any): void {
+  persist(_state: any): void {
     // Do nothing...
   }
   protected generateId(): EntityID {
@@ -33,7 +33,7 @@ class TestEntityA extends Entity<any> {
 }
 
 class TestEntityB extends Entity<any> {
-  persist(state: any): void {
+  persist(_state: any): void {
     // Do nothing...
   }
   protected generateId(): EntityID {
@@ -70,27 +70,27 @@ describe('entityService', () => {
   describe('spawnEntity', () => {
     test('throws an error if an entity is registered with an ID that is already taken by another entity.', () => {
       // GIVEN
-      service.spawnEntity(new TestEntityA(1));
+      service.create(new TestEntityA(1));
 
       // WHEN / THEN
-      expect(() => service.spawnEntity(new TestEntityA(1))).toThrowError(
+      expect(() => service.create(new TestEntityA(1))).toThrowError(
         /duplicate/gi,
       );
     });
 
     test('when an entity is spawned, it is registered.', () => {
       // GIVEN / WHEN
-      service.spawnEntity(new TestEntityA(1));
+      service.create(new TestEntityA(1));
 
       // THEN
       expect(service.entities()).toHaveLength(1);
       expect(service.entities(TestEntityA)).toHaveLength(1);
-      expect(service.entities(TestEntityA)[0].id()).toBe('TestEntityA-1');
+      expect(service.entities(TestEntityA)[0]!.id()).toBe('TestEntityA-1');
     });
 
     test('when an entity is spawned, the flush callback is called. The engine needs to be notified of changes to entity state.', () => {
       // GIVEN / WHEN
-      service.spawnEntity(new TestEntityA(1));
+      service.create(new TestEntityA(1));
 
       // THEN
       expect(callback).toHaveBeenCalledTimes(1);
@@ -98,7 +98,7 @@ describe('entityService', () => {
 
     test('when the internal state of an entity is modified, the flush callback is called.', () => {
       // GIVEN
-      const entity = service.spawnEntity(new TestEntityA(1));
+      const entity = service.create(new TestEntityA(1));
 
       // WHEN
       entity.volatileNumber = 42;
@@ -116,7 +116,7 @@ describe('entityService', () => {
       }
 
       // WHEN
-      const entity = service.spawnEntity(new TestEntityD(1));
+      const entity = service.create(new TestEntityD(1));
       entity.nested.value = 42;
 
       // THEN
@@ -132,7 +132,7 @@ describe('entityService', () => {
       }
 
       // WHEN
-      const entity = service.spawnEntity(new TestEntityE(1));
+      const entity = service.create(new TestEntityE(1));
       entity[symbolKey] = 42;
 
       // THEN
@@ -141,7 +141,7 @@ describe('entityService', () => {
 
     test('when a player entity is spawned, it receives an unique player ID.', () => {
       // GIVEN
-      const playerEntity = service.spawnEntity(
+      const playerEntity = service.create(
         new TestPlayerEntity(1),
       ) as Entity<any> & PlayerInterface<any>;
 
@@ -153,37 +153,37 @@ describe('entityService', () => {
   });
 
   describe('destroyEntity', () => {
-    test.todo(
-      'when an entity is destroyed, it is removed from the registry.',
-      () => {
-        // GIVEN
-        const entity = service.spawnEntity(new TestEntityA(1));
+    test('when an entity is destroyed, it is removed from the registry.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
 
-        // WHEN
-        service.destroyEntity(entity);
+      // WHEN
+      service.destroy(entity);
 
-        // THEN
-        expect(service.entities()).toHaveLength(0);
-      },
-    );
+      // THEN
+      expect(service.entities()).toHaveLength(0);
+    });
 
-    test.todo(
-      'when an entity is destroyed, that is not registered, an error is logged.',
-      () => {},
-    );
+    test('when an entity is destroyed, that is not registered, an error is thrown.', () => {
+      // GIVEN
+      const entity = new TestEntityA(1);
+
+      // WHEN / THEN
+      expect(() => service.destroy(entity)).toThrowError();
+    });
   });
 
   describe('entitySet', () => {
     test('returns spawned entities.', () => {
       // GIVEN / WHEN
-      service.spawnEntity(new TestEntityA(1));
-      service.spawnEntity(new TestEntityA(2));
-      service.spawnEntity(new TestEntityA(3));
+      service.create(new TestEntityA(1));
+      service.create(new TestEntityA(2));
+      service.create(new TestEntityA(3));
 
-      service.spawnEntity(new TestEntityB(1));
-      service.spawnEntity(new TestEntityB(2));
+      service.create(new TestEntityB(1));
+      service.create(new TestEntityB(2));
 
-      service.spawnEntity(new TestEntityC(1));
+      service.create(new TestEntityC(1));
 
       // THEN
       expect(service.entitySet()).toHaveLength(6);
@@ -194,9 +194,9 @@ describe('entityService', () => {
 
     test('has the keys of all types of entities.', () => {
       // GIVEN / WHEN
-      service.spawnEntity(new TestEntityA(1));
-      service.spawnEntity(new TestEntityB(1));
-      service.spawnEntity(new TestEntityC(1));
+      service.create(new TestEntityA(1));
+      service.create(new TestEntityB(1));
+      service.create(new TestEntityC(1));
 
       // THEN
       expect(service.entitySet(TestEntityA).size).toBe(1);
@@ -217,14 +217,14 @@ describe('entityService', () => {
   describe('entities', () => {
     test('returns spawned entities.', () => {
       // GIVEN / WHEN
-      service.spawnEntity(new TestEntityA(1));
-      service.spawnEntity(new TestEntityA(2));
-      service.spawnEntity(new TestEntityA(3));
+      service.create(new TestEntityA(1));
+      service.create(new TestEntityA(2));
+      service.create(new TestEntityA(3));
 
-      service.spawnEntity(new TestEntityB(1));
-      service.spawnEntity(new TestEntityB(2));
+      service.create(new TestEntityB(1));
+      service.create(new TestEntityB(2));
 
-      service.spawnEntity(new TestEntityC(1));
+      service.create(new TestEntityC(1));
 
       // THEN
       expect(service.entities()).toHaveLength(6);
@@ -242,8 +242,8 @@ describe('entityService', () => {
 
     test('returns spawned entities that implement the PlayerInterface.', () => {
       // GIVEN / WHEN
-      service.spawnEntity(new TestPlayerEntity(1));
-      service.spawnEntity(new TestPlayerEntity(2));
+      service.create(new TestPlayerEntity(1));
+      service.create(new TestPlayerEntity(2));
 
       // THEN
       expect(service.players()).toHaveLength(2);
