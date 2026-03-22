@@ -10,7 +10,6 @@ import {
   GameState,
   Logger,
   PlayerInterfaceCallback,
-  ResolvedGameConfig,
 } from './game.types';
 import { QueryableRuntime } from './interfaces/queryable-runtime';
 import { EntityService } from './services/entity/entity-service';

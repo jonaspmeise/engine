@@ -31,6 +31,20 @@ export class SnapshotService<STATE extends GameState> {
         'No positive rules provided. A game without positive rules is not possible! Please register some.',
       );
     }
+
+    // Check for duplicate rule names!
+    const ruleNames = new Set<string>();
+    for (const rule of [
+      ...this._state.positiveRules,
+      ...this._state.negativeRules,
+    ]) {
+      if (ruleNames.has(rule.name)) {
+        throw new Error(
+          `Duplicate rule name ${rule.name} found in positive or negative rules! Please ensure all rules have unique names.`,
+        );
+      }
+      ruleNames.add(rule.name);
+    }
   }
 
   /**
@@ -49,7 +63,7 @@ export class SnapshotService<STATE extends GameState> {
     const choices = new Set<Choice<any, any>>();
 
     for (const rule of this._state.positiveRules) {
-      const generatedChoices = rule(runtime);
+      const generatedChoices = rule.apply(runtime);
 
       // If the rule does not generate any choices, we can skip it.
       if (generatedChoices) {
@@ -66,6 +80,29 @@ export class SnapshotService<STATE extends GameState> {
       this._logger.debug(
         () => `Rule ${rule.constructor.name} generated no choices. Skipping...`,
       );
+    }
+
+    // Filter out choices that are prevented by any negative rule.
+    outer: for (const choice of choices) {
+      for (const rule of this._state.negativeRules) {
+        if (rule.apply(choice, runtime)) {
+          this._logger.debug(
+            () =>
+              `Choice ${choice.action.name} is prevented by rule ${rule.name}. Removing from choice space...`,
+          );
+          choices.delete(choice);
+          continue outer;
+        }
+      }
+    }
+
+    // Are all players, for which choices are generated, registered in the runtime?
+    for (const choice of choices) {
+      if (!runtime.entitySet().has(choice.player)) {
+        throw new Error(
+          `Player ${choice.player.id()} is not registered in the runtime.`,
+        );
+      }
     }
 
     return choices;

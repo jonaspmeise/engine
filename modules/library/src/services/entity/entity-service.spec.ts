@@ -10,7 +10,7 @@ import {
 import { Entity } from '../../components/entity';
 import { EntityID } from '../../components/entity.types';
 import { EntityService } from './entity-service';
-import { Logger, NO_OP_LOGGER } from '../../game.types';
+import { NO_OP_LOGGER } from '../../game.types';
 import { EntityFlushCallback } from './entity-service.types';
 import {
   playerId,

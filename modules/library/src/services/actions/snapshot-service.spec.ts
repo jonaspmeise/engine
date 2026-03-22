@@ -31,7 +31,10 @@ class TestEntity extends Entity<TestState> {
   }
 }
 
-class TestActionA extends Action<TestState> {
+class TestActionA extends Action<
+  TestState,
+  { shouldBePrevented: boolean } | undefined
+> {
   apply(runtime: ModifiableRuntime<TestState>): void {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }
@@ -88,6 +91,74 @@ describe('snapshotService', () => {
           }),
       ).toThrowError(/no positive rules/gi);
     });
+
+    test('throws an error if any positive rules have duplicate names.', () => {
+      // GIVEN / WHEN / THEN
+      expect(
+        () =>
+          new SnapshotService({
+            actions: new Set([TestActionA]),
+            positiveRules: new Set([
+              {
+                name: 'TestPositiveRule',
+                apply: () => [],
+              },
+              {
+                name: 'TestPositiveRule',
+                apply: () => [],
+              },
+            ]),
+          }),
+      ).toThrowError(/duplicate/gi);
+    });
+
+    test('throws an error if any negative rules have duplicate names.', () => {
+      // GIVEN / WHEN / THEN
+      expect(
+        () =>
+          new SnapshotService({
+            actions: new Set([TestActionA]),
+            positiveRules: new Set([
+              {
+                name: 'TestPositiveRule',
+                apply: () => [],
+              },
+            ]),
+            negativeRules: new Set([
+              {
+                name: 'TestNegativeRule',
+                apply: () => false,
+              },
+              {
+                name: 'TestNegativeRule',
+                apply: () => false,
+              },
+            ]),
+          }),
+      ).toThrowError(/duplicate/gi);
+    });
+
+    test('throws an error if any positive or negative rules have duplicate names.', () => {
+      // GIVEN / WHEN / THEN
+      expect(
+        () =>
+          new SnapshotService({
+            actions: new Set([TestActionA]),
+            positiveRules: new Set([
+              {
+                name: 'TestRule',
+                apply: () => [],
+              },
+            ]),
+            negativeRules: new Set([
+              {
+                name: 'TestRule',
+                apply: () => false,
+              },
+            ]),
+          }),
+      ).toThrowError(/duplicate/gi);
+    });
   });
 
   describe('calculateChoices', () => {
@@ -96,19 +167,25 @@ describe('snapshotService', () => {
       const service = new SnapshotService({
         actions: new Set([new TestActionA()]),
         positiveRules: new Set([
-          (runtime: QueryableRuntime<TestState>) => [
-            new Choice(
-              TestActionA,
-              undefined,
-              runtime.anyEntity<TestPlayer>(TestPlayer)!,
-            ),
-          ],
+          {
+            name: 'TestPositiveRule',
+            apply: (runtime: QueryableRuntime<TestState>) => [
+              new Choice(
+                TestActionA,
+                undefined,
+                runtime.anyEntity<TestPlayer>(TestPlayer)!,
+              ),
+            ],
+          },
         ]),
       });
 
       const player = new TestPlayer();
 
+      // Player should be registered by the runtime!
       spyOn(mockRuntime, 'anyEntity').mockReturnValue(player);
+      spyOn(mockRuntime, 'entitySet').mockReturnValue(new Set([player]));
+
       // WHEN
       const choices = service.calculateChoices(mockRuntime);
 
@@ -119,6 +196,83 @@ describe('snapshotService', () => {
       );
     });
 
-    test('if choices for a player, which is not registered in the runtime, are generated, an error is thrown.', () => {});
+    test('if choices for a player, which is not registered in the runtime, are generated, an error is thrown.', () => {
+      // GIVEN
+      const service = new SnapshotService({
+        actions: new Set([new TestActionA()]),
+        positiveRules: new Set([
+          {
+            name: 'TestPositiveRule',
+            apply: (_runtime: QueryableRuntime<TestState>) => [
+              new Choice(
+                TestActionA,
+                undefined,
+                new TestPlayer(), // This player is not registered in the runtime, thus an error should be thrown.
+              ),
+            ],
+          },
+        ]),
+      });
+
+      // WHEN / THEN
+      expect(() => service.calculateChoices(mockRuntime)).toThrowError(
+        /player/i,
+      );
+    });
+
+    test('negative rules prevent choices from being generated.', () => {
+      // GIVEN
+      const service = new SnapshotService({
+        actions: new Set([new TestActionA()]),
+        positiveRules: new Set([
+          {
+            name: 'TestPositiveRule',
+            apply: (runtime: QueryableRuntime<TestState>) => [
+              new Choice(
+                TestActionA,
+                {
+                  shouldBePrevented: true,
+                },
+                runtime.anyEntity<TestPlayer>(TestPlayer)!,
+              ),
+              new Choice(
+                TestActionA,
+                {
+                  shouldBePrevented: false,
+                },
+                runtime.anyEntity<TestPlayer>(TestPlayer)!,
+              ),
+            ],
+          },
+        ]),
+        negativeRules: new Set([
+          {
+            name: 'TestNegativeRule',
+            apply: (
+              choice: Choice<TestActionA, { shouldBePrevented: boolean }>,
+              _runtime: QueryableRuntime<TestState>,
+            ) =>
+              (choice as Choice<TestActionA, { shouldBePrevented: boolean }>)
+                ?.parameters?.shouldBePrevented,
+          },
+        ]),
+      });
+
+      // Player should be registered by the runtime!
+      const player = new TestPlayer();
+      spyOn(mockRuntime, 'anyEntity').mockReturnValue(player);
+      spyOn(mockRuntime, 'entitySet').mockReturnValue(new Set([player]));
+
+      // WHEN
+      const choices = service.calculateChoices(mockRuntime);
+
+      // THEN
+      expect(choices).toHaveLength(1);
+      expect(choices).toEqual(
+        new Set([
+          new Choice(TestActionA, { shouldBePrevented: false }, player),
+        ]),
+      );
+    });
   });
 });

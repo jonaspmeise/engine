@@ -12,9 +12,9 @@ export type MinimalSnapshotParameters<STATE extends GameState> = {
   triggers?: Set<Trigger>;
 };
 
-// All resolved parameters.
+// All resolved parameters without potential undefined fields.
 export type ResolvedSnapshotParameters<STATE extends GameState> = {
-  [K in keyof MinimalSnapshotParameters<STATE>]: NonNullable<
+  [K in keyof MinimalSnapshotParameters<STATE>]-?: NonNullable<
     MinimalSnapshotParameters<STATE>[K]
   >;
 };
