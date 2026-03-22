@@ -1,12 +1,12 @@
 import { TicTacToeState, TicTacToeParameters, Mark } from './tictactoe.typed';
 import { Game } from '../../src/game';
-import { Entity } from '../../src/entity';
+import { Entity } from '../../src/components/entity';
 import { Slot } from './slot';
 import { MarkAction } from './mark';
-import { Action } from '../../src/action';
+import { Action } from '../../src/components/action';
 import { TicTacToePlayer } from './player';
 import { VerticalLane } from './vertical-lane';
-import { QueryableRuntime } from '../../src/queryable-runtime';
+import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
 import { HorizontalLane } from './horizontal-lane';
 import { DiagonalLane } from './diagonal-lane';
 
@@ -19,7 +19,7 @@ export class TicTacToe extends Game<TicTacToeState, TicTacToeParameters> {
 
   *enrichen(
     state: TicTacToeState,
-    runtime: QueryableRuntime<TicTacToe, TicTacToeState, TicTacToeParameters>,
+    _runtime: QueryableRuntime<TicTacToeState>,
   ): Generator<Entity<TicTacToeState>, void, undefined> {
     // Instead of hardcoding "3" here, we use the length of the board to determine its size.
     // This is a little overmodeled for a default Tic-Tac-Toe game, but showcases the possibility.
@@ -47,7 +47,7 @@ export class TicTacToe extends Game<TicTacToeState, TicTacToeParameters> {
     // Players.
     const marks: Mark[] = ['X', 'O'];
     for (let i = 0; i < 2; i++) {
-      yield new TicTacToePlayer(marks[i], state.currentPlayer === marks[i]);
+      yield new TicTacToePlayer(marks[i]!, state.currentPlayer === marks[i]);
     }
   }
 

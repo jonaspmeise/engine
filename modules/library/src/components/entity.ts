@@ -1,6 +1,6 @@
 import { dirty, EntityID, id } from './entity.types';
-import { GameState } from './game.types';
-import { QueryableRuntime } from './queryable-runtime';
+import { GameState } from '../game.types';
+import { QueryableRuntime } from '../interfaces/queryable-runtime';
 
 export abstract class Entity<STATE extends GameState> {
   private [id]: EntityID | undefined;
@@ -8,10 +8,7 @@ export abstract class Entity<STATE extends GameState> {
 
   constructor() {}
 
-  abstract persist(
-    state: STATE,
-    runtime: QueryableRuntime<any, STATE, any>,
-  ): void;
+  abstract persist(state: STATE, runtime: QueryableRuntime<STATE>): void;
 
   public id(): EntityID {
     if (this[id] === undefined) {

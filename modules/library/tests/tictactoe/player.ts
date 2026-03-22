@@ -1,9 +1,9 @@
-import { Entity } from '../../src/entity';
-import { EntityID } from '../../src/entity.types';
+import { Entity } from '../../src/components/entity';
+import { EntityID } from '../../src/components/entity.types';
 import {
   PlayerInterface,
   playerInterfaceMarker,
-} from '../../src/player-interface';
+} from '../../src/interfaces/player-interface';
 import { Mark, TicTacToeState } from './tictactoe.typed';
 
 export class TicTacToePlayer
@@ -18,7 +18,7 @@ export class TicTacToePlayer
   }
   [playerInterfaceMarker] = true as const;
 
-  persist(state: TicTacToeState): void {
+  persist(_state: TicTacToeState): void {
     // Player state is not changed during runtime!
   }
 

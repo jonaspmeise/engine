@@ -1,22 +1,24 @@
-import { Entity } from '../entity';
-import { EntityID } from '../entity.types';
-import { Class, GameState, ResolvedGameConfig } from '../game.types';
-import { spawnEntity } from '../../../client-singleplayer/src/index';
+import { Entity } from '../../components/entity';
+import { EntityID } from '../../components/entity.types';
+import { Class, GameState, ResolvedGameConfig } from '../../game.types';
 import { EntityFlushCallback } from './entity-service.types';
 import {
   isPlayerInterface,
   playerId,
   PlayerInterface,
-} from '../player-interface';
-import { Clearable } from '../clearable';
+} from '../../interfaces/player-interface';
+import { Clearable } from '../../interfaces/clearable';
+import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
 
 /**
  * This class manages only the aspects that are related to entities.
  * The main game class delegates to here, sometimes.
  */
-export class EntityService<STATE extends GameState> implements Clearable {
+export class EntityService<STATE extends GameState>
+  implements Clearable, ModifiableRuntime<STATE>
+{
   constructor(
-    private readonly _logger: ResolvedGameConfig['logger'],
+    private readonly _logger: ResolvedGameConfig['logger'], // FIXME: Make this an own type!
     private readonly _flushCallback: EntityFlushCallback,
   ) {}
 
@@ -41,7 +43,7 @@ export class EntityService<STATE extends GameState> implements Clearable {
    * @param entity The entity to spawn.
    * @returns The same entity, but enhanced to automatically notice when its state is changed.
    */
-  public spawn<ENTITY extends Entity<STATE>>(entity: ENTITY): ENTITY {
+  public spawnEntity<ENTITY extends Entity<STATE>>(entity: ENTITY): ENTITY {
     // Set ID -> Entity mapping for extremely quick lookup of entities by singular IDs.
     const id = entity.id();
     this._logger.debug(

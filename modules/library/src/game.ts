@@ -1,7 +1,6 @@
-import { Action } from './action';
-import { Entity } from './entity';
-import { EntityID } from './entity.types';
-import { FlushableRuntime } from './flushable-runtime';
+import { Action } from './components/action';
+import { Entity } from './components/entity';
+import { FlushableRuntime } from './interfaces/flushable-runtime';
 import {
   Class,
   DeepReadonly,
@@ -12,22 +11,19 @@ import {
   PlayerInterfaceCallback,
   ResolvedGameConfig,
 } from './game.types';
-import { QueryableRuntime } from './queryable-runtime';
-import { EntityService } from './services/entity-service';
+import { QueryableRuntime } from './interfaces/queryable-runtime';
+import { EntityService } from './services/entity/entity-service';
 import {
-  isPlayerInterface,
   PlayerInterface,
   handler,
   playerId,
-} from './player-interface';
+} from './interfaces/player-interface';
 
 export abstract class Game<
   STATE extends GameState,
   PARAMETERS extends GameParameters | undefined = undefined,
 >
-  implements
-    QueryableRuntime<Game<STATE, PARAMETERS>, STATE, PARAMETERS>,
-    FlushableRuntime<STATE>
+  implements QueryableRuntime<STATE>, FlushableRuntime<STATE>
 {
   private _state: STATE = {} as STATE;
   private _logger: ResolvedGameConfig['logger'];
@@ -64,6 +60,35 @@ export abstract class Game<
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
     this._setup(parameters as PARAMETERS);
   }
+
+  /**
+   * The method that initializes the game state.
+   * This method should be called by the @link Runtime when the game is started.
+   * @param parameters The parameters to initialize the game with.
+   * @returns The initial game state.
+   */
+  protected abstract initialize(parameters: PARAMETERS): STATE;
+
+  /**
+   * The name of the game.
+   */
+  public abstract readonly name: string;
+
+  /**
+   * Provides a mapping from the raw state (JSON) to entities that are more ergonomic to work with.
+   * This method should be a generator that yields entities, which are then handled by the engine.
+   * @param state The state, from which the entiies should be generated. This is the raw state, as returned by @method initialize, or the state after applying some actions.
+   * @param runtime The runtime, which provides access to other entities and game utilities.
+   */
+  protected abstract enrichen(
+    state: STATE,
+    runtime: QueryableRuntime<STATE>,
+  ): Iterable<Entity<STATE>>;
+
+  /**
+   *
+   */
+  abstract actions(): Set<Action<STATE, any>>;
 
   /**
    * Flushes the current state of an entity to the engine.
@@ -107,7 +132,7 @@ export abstract class Game<
 
     let spawnCount = 0;
     for (const entity of this.enrichen(state, this)) {
-      this._entityService.spawn(entity);
+      this._entityService.spawnEntity(entity);
       spawnCount++;
     }
 
@@ -123,26 +148,6 @@ export abstract class Game<
 
     this._logger.info(() => `Spawned a total of ${spawnCount} entities.`);
   }
-
-  /**
-   * The method that initializes the game state.
-   * This method should be called by the @link Runtime when the game is started.
-   * @param parameters The parameters to initialize the game with.
-   * @returns The initial game state.
-   */
-  protected abstract initialize(parameters: PARAMETERS): STATE;
-
-  /**
-   * The name of the game.
-   */
-  public abstract readonly name: string;
-
-  protected abstract enrichen(
-    state: STATE,
-    runtime: QueryableRuntime<Game<STATE, PARAMETERS>, STATE, PARAMETERS>,
-  ): Generator<Entity<STATE>, void, undefined>;
-
-  abstract actions(): Set<Action<STATE, any>>;
 
   /**
    * Returns all entities that are assignable to a wanted type @param type.
@@ -189,7 +194,7 @@ export abstract class Game<
    * @param type The type of entity to return.
    * @returns An entity of the wanted type, or null if no such entity exists.
    */
-  public entity<TYPE extends Entity<STATE>>(type: Class<TYPE>): TYPE | null {
+  public anyEntity<TYPE extends Entity<STATE>>(type: Class<TYPE>): TYPE | null {
     return this._entityService.anyEntity(type);
   }
 
@@ -228,6 +233,7 @@ export abstract class Game<
     player: PlayerInterface<STATE>,
     sendFullState: boolean = false,
   ): void {
+    // TODO: Implement!
     player[handler]!(this.state(), []);
   }
 
@@ -266,4 +272,6 @@ export abstract class Game<
       }
     }
   }
+
+  // TODO: Should one be allowed to _add_ and _remove_ entities during runtime, too?
 }

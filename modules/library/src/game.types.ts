@@ -1,4 +1,4 @@
-import { Action } from './action';
+import { Action } from './components/action';
 
 export type GameState = Record<string, unknown>;
 

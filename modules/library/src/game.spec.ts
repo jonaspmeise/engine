@@ -1,21 +1,21 @@
 import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Game } from './game';
-import { Action } from './action';
-import { Entity } from './entity';
-import { EntityID, id } from './entity.types';
-import { QueryableRuntime } from './queryable-runtime';
+import { Action } from './components/action';
+import { Entity } from './components/entity';
+import { EntityID, id } from './components/entity.types';
+import { QueryableRuntime } from './interfaces/queryable-runtime';
 import {
   playerId,
   PlayerInterface,
   playerInterfaceMarker,
-} from './player-interface';
+} from './interfaces/player-interface';
 import { ResolvedGameConfig } from './game.types';
 
-class TestEntityA extends Entity<any> {
+class TestEntityA extends Entity<TestGameState> {
   constructor(protected readonly _id: number) {
     super();
   }
-  persist(state: any): void {
+  persist(state: TestGameState): void {
     // No persist is needed here.
   }
   generateId(): EntityID {
@@ -23,11 +23,11 @@ class TestEntityA extends Entity<any> {
   }
 }
 
-class TestEntityB extends Entity<any> {
+class TestEntityB extends Entity<TestGameState> {
   constructor(protected readonly _id: number) {
     super();
   }
-  persist(state: any): void {
+  persist(state: TestGameState): void {
     // No persist is needed here.
   }
   generateId(): EntityID {
@@ -47,13 +47,19 @@ class TestEntityC extends TestEntityB {
   }
 }
 
-class TestPlayerEntity extends Entity<any> implements PlayerInterface<any> {
+class TestPlayerEntity
+  extends Entity<TestGameState>
+  implements PlayerInterface<TestGameState>
+{
   constructor(protected readonly _id: number) {
     super();
   }
   [playerInterfaceMarker] = true as const;
 
-  persist(state: any, runtime: QueryableRuntime<any, any, any>): void {
+  persist(
+    state: TestGameState,
+    runtime: QueryableRuntime<TestGameState>,
+  ): void {
     //
   }
   protected generateId(): EntityID {
@@ -79,22 +85,26 @@ class TestGame extends Game<TestGameState, undefined> {
       c: { count: 1, values: [0] },
     };
   }
-  *enrichen(state: TestGameState) {
+  enrichen(state: TestGameState) {
+    const entities: Entity<TestGameState>[] = [];
+
     for (let a = 1; a <= state.a.count; a++) {
-      yield new TestEntityA(a);
+      entities.push(new TestEntityA(a));
     }
 
     for (let b = 1; b <= state.b.count; b++) {
-      yield new TestEntityB(b);
+      entities.push(new TestEntityB(b));
     }
 
     for (let c = 1; c <= state.c.count; c++) {
       // TestEntityC also should count as TestEntityB since its a subclass!
-      yield new TestEntityC(c);
+      entities.push(new TestEntityC(c));
     }
 
-    yield new TestPlayerEntity(1);
-    yield new TestPlayerEntity(2);
+    entities.push(new TestPlayerEntity(1));
+    entities.push(new TestPlayerEntity(2));
+
+    return entities;
   }
   actions() {
     return new Set<Action<any, any>>();
@@ -169,10 +179,10 @@ describe('game', () => {
       const playerInterfaces = game.entities(TestPlayerEntity);
 
       expect(playerInterfaces).toHaveLength(2);
-      expect(playerInterfaces[0][playerId]).not.toBeNull();
-      expect(playerInterfaces[0][playerId]).not.toBeUndefined();
-      expect(playerInterfaces[1][playerId]).not.toBeNull();
-      expect(playerInterfaces[1][playerId]).not.toBeUndefined();
+      expect(playerInterfaces[0]![playerId]).not.toBeNull();
+      expect(playerInterfaces[0]![playerId]).not.toBeUndefined();
+      expect(playerInterfaces[1]![playerId]).not.toBeNull();
+      expect(playerInterfaces[1]![playerId]).not.toBeUndefined();
     });
   });
 
@@ -196,7 +206,7 @@ describe('game', () => {
       const game = new TestGame();
 
       // THEN
-      expect(game.entity(TestEntityA)).toMatchObject({
+      expect(game.anyEntity(TestEntityA)).toMatchObject({
         [id]: expect.stringMatching(/testentityA-[1-3]/),
       });
     });
@@ -207,7 +217,7 @@ describe('game', () => {
 
       // THEN
       expect(
-        game.entity(
+        game.anyEntity(
           class NonExistingEntity extends Entity<any> {
             protected generateId(): EntityID {
               throw new Error('Method not implemented.');
@@ -264,7 +274,7 @@ describe('game', () => {
       const game = new TestGame();
 
       // WHEN
-      game.entity(TestEntityC)!.volatileNumber = 42;
+      game.anyEntity(TestEntityC)!.volatileNumber = 42;
 
       // THEN
       expect(game.state()).toEqual({
@@ -280,15 +290,24 @@ describe('game', () => {
       // GIVEN
       const game = new TestGame(undefined, { logger });
 
-      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0], () => {});
-      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1], () => {});
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        () => {},
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        () => {},
+      );
 
       // THEN #1
       expect(logger.warn).toHaveBeenCalledTimes(0);
 
       // WHEN
       // The same player interface is overwritten!
-      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0], () => {});
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        () => {},
+      );
 
       // THEN #2
       expect(logger.warn).toHaveBeenCalledWith(
@@ -305,7 +324,7 @@ describe('game', () => {
 
       // WHEN #1
       game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[0],
+        game.entities(TestPlayerEntity)[0]!,
         player1Callback,
       );
 
@@ -315,7 +334,7 @@ describe('game', () => {
 
       // WHEN #2
       game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[1],
+        game.entities(TestPlayerEntity)[1]!,
         player2Callback,
       );
 
@@ -333,7 +352,7 @@ describe('game', () => {
 
       // WHEN
       game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[0],
+        game.entities(TestPlayerEntity)[0]!,
         playerCallback1,
       );
 
@@ -341,7 +360,7 @@ describe('game', () => {
       expect(playerCallback2).toHaveBeenCalledTimes(0);
 
       game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[1],
+        game.entities(TestPlayerEntity)[1]!,
         playerCallback2,
       );
 
@@ -357,11 +376,11 @@ describe('game', () => {
 
       const game = new TestGame();
       game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[0],
+        game.entities(TestPlayerEntity)[0]!,
         player1Callback,
       );
       game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[1],
+        game.entities(TestPlayerEntity)[1]!,
         player2Callback,
       );
 
@@ -374,7 +393,7 @@ describe('game', () => {
       // In this case, the second player should not be informed about this, and only the reconnected
       // player should be informed about their state again.
       game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[0],
+        game.entities(TestPlayerEntity)[0]!,
         player1Callback,
       );
 

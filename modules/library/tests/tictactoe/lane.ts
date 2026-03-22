@@ -1,20 +1,17 @@
-import { Entity } from '../../src/entity';
-import { EntityID } from '../../src/entity.types';
+import { Entity } from '../../src/components/entity';
+import { EntityID } from '../../src/components/entity.types';
 import { Slot } from './slot';
-import { TicTacToe } from './tictactoe';
 import { TicTacToeState } from './tictactoe.typed';
-import { QueryableRuntime } from '../../src/queryable-runtime';
+import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
 
 export abstract class Lane extends Entity<TicTacToeState> {
   constructor(public readonly index: number) {
     super();
   }
 
-  public abstract slots(
-    runtime: QueryableRuntime<TicTacToe, TicTacToeState, any>,
-  ): Set<Slot>;
+  public abstract slots(runtime: QueryableRuntime<TicTacToeState>): Set<Slot>;
 
-  public persist(state: TicTacToeState): void {
+  public persist(_state: TicTacToeState): void {
     // Do nothing, because this class is purely ergonomic and does _not_ have any
     // non-readonly properties.
   }

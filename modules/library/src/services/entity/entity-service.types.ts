@@ -1,4 +1,4 @@
-import { Entity } from '../entity';
+import { Entity } from '../../components/entity';
 
 /**
  * Is called, when the internal state of an entity is changed or a new entity is spawned.

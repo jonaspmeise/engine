@@ -1,0 +1,19 @@
+import { GameState } from '../game.types';
+import { QueryableRuntime } from '../interfaces/queryable-runtime';
+import { Choice } from './choice';
+
+/**
+ * A positive rule models a rule that adds choices to the choice space of a player.
+ * Every game needs at least one positive rule, otherwise no choice is ever generated.
+ * It can be used to model rules that grant players additional choices, for example by granting them new actions or by triggering additional rules.
+ */
+export abstract class PositiveRule<STATE extends GameState> {
+  /**
+   * Generates choices for all/any players in the given runtime context.
+   * Note that some of these choices may later be filtered by @see NegativeRule.
+   * @param runtime A reference for the runtime, which allows access to entities.
+   * @returns The choices to add to the choice space of the given player.
+   * If no choices should be added, this can also not return anything.
+   */
+  abstract apply(runtime: QueryableRuntime<STATE>): Choice<any, any>[] | void; // TODO: Another data structure might be more efficient here...?
+}

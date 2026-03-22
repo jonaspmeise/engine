@@ -2,7 +2,8 @@
   "compilerOptions": {
     "target": "esnext",
     "lib": ["ESNext", "ESNext.Iterator"],
-    "types": ["bun-types", "bun", "bun-types/globals"],
+    "typeRoots": ["./node_modules/@types", "./node_modules"],
+    "types": ["bun-types", "bun"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "declaration": true,
@@ -24,11 +25,5 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
-  "files": [],
-  "references": [
-    { "path": "modules/library" },
-    { "path": "modules/client-singleplayer" },
-    { "path": "modules/client-p2p" },
-    { "path": "modules/server" }
-  ]
+  "include": ["src/**/*", "tests/**/*"]
 }

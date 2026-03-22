@@ -31,8 +31,8 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
       // THEN
       const players = this.game.entities(TicTacToePlayer);
       expect(players).toHaveLength(2);
-      expect(players[0].mark).toEqual('X');
-      expect(players[1].mark).toEqual('O');
+      expect(players[0]!.mark).toEqual('X');
+      expect(players[1]!.mark).toEqual('O');
     });
 
     test('lanes are initialized correctly.', () => {
@@ -45,7 +45,7 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
       expect(
         this.game
           .entities(TicTacToePlayer)
-          .filter((player) => player.isCurrentPlayer)[0].mark,
+          .filter((player) => player.isCurrentPlayer)[0]!.mark,
       ).toEqual('X');
     });
 
@@ -54,10 +54,10 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
       (done) => {
         const playerX = this.game
           .entities(TicTacToePlayer)
-          .filter((player) => player.mark === 'X')[0];
+          .filter((player) => player.mark === 'X')[0]!;
         const playerO = this.game
           .entities(TicTacToePlayer)
-          .filter((player) => player.mark === 'O')[0];
+          .filter((player) => player.mark === 'O')[0]!;
 
         let playerXinformed = false;
         let playerOinformed = false;
@@ -65,7 +65,7 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
         // WHEN / THEN
         // Here, the websocket connection could be handed into the callback function.
         // FIXME: This is not quite ergonomic, but it works. Think about how the state is constructed.
-        this.game.registerPlayerCallback(playerX, (delta, choices) => {
+        this.game.registerPlayerCallback(playerX, (_delta, choices) => {
           // X is the first player, thus they should have choices!
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(9); // 9 possible slots to mark.
@@ -75,7 +75,7 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
             done();
           }
         });
-        this.game.registerPlayerCallback(playerO, (delta, choices) => {
+        this.game.registerPlayerCallback(playerO, (_delta, choices) => {
           // O is the second player, thus they should not have any choices.
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(0);
@@ -91,7 +91,10 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
       },
     );
 
-    test.todo('if a player reconnects, they receive their full state again.');
+    test.todo(
+      'if a player reconnects, they receive their full state again.',
+      () => {},
+    );
   }
 }
 

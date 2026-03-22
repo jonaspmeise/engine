@@ -1,4 +1,4 @@
-import { GameState, PlayerInterfaceCallback } from './game.types';
+import { GameState, PlayerInterfaceCallback } from '../game.types';
 
 export const handler: unique symbol = Symbol('handler');
 export const playerId: unique symbol = Symbol('playerId');

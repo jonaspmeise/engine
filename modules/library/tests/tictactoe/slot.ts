@@ -1,6 +1,6 @@
-import { Entity } from '../../src/entity';
-import { EntityID } from '../../src/entity.types';
-import { QueryableRuntime } from '../../src/queryable-runtime';
+import { Entity } from '../../src/components/entity';
+import { EntityID } from '../../src/components/entity.types';
+import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
 import { TicTacToePlayer } from './player';
 import { TicTacToeState } from './tictactoe.typed';
 
@@ -16,7 +16,7 @@ export class Slot extends Entity<TicTacToeState> {
 
   persist(
     state: TicTacToeState,
-    runtime: QueryableRuntime<any, TicTacToeState, any>,
+    runtime: QueryableRuntime<TicTacToeState>,
   ): void {
     // TODO: This number should come from the parameters - how do we access them?
     // Do we just register an entity that is the game configuration, or is that the task of the developer?
