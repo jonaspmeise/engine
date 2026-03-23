@@ -49,47 +49,44 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
       ).toEqual('X');
     });
 
-    test.todo(
-      'the initial state for each player is correctly transmitted.',
-      (done) => {
-        const playerX = this.game
-          .entities(TicTacToePlayer)
-          .filter((player) => player.mark === 'X')[0]!;
-        const playerO = this.game
-          .entities(TicTacToePlayer)
-          .filter((player) => player.mark === 'O')[0]!;
+    test('the initial state for each player is correctly transmitted.', (done) => {
+      const playerX = this.game
+        .entities(TicTacToePlayer)
+        .filter((player) => player.mark === 'X')[0]!;
+      const playerO = this.game
+        .entities(TicTacToePlayer)
+        .filter((player) => player.mark === 'O')[0]!;
 
-        let playerXinformed = false;
-        let playerOinformed = false;
+      let playerXinformed = false;
+      let playerOinformed = false;
 
-        // WHEN / THEN
-        // Here, the websocket connection could be handed into the callback function.
-        // FIXME: This is not quite ergonomic, but it works. Think about how the state is constructed.
-        this.game.registerPlayerCallback(playerX, (_delta, choices) => {
-          // X is the first player, thus they should have choices!
-          expect(choices).toBeDefined();
-          expect(choices).toHaveLength(9); // 9 possible slots to mark.
+      // WHEN / THEN
+      // Here, the websocket connection could be handed into the callback function.
+      // FIXME: This is not quite ergonomic, but it works. Think about how the state is constructed.
+      this.game.registerPlayerCallback(playerX, (_delta, choices) => {
+        // X is the first player, thus they should have choices!
+        expect(choices).toBeDefined();
+        expect(choices).toHaveLength(9); // 9 possible slots to mark.
 
-          playerXinformed = true;
-          if (playerOinformed) {
-            done();
-          }
-        });
-        this.game.registerPlayerCallback(playerO, (_delta, choices) => {
-          // O is the second player, thus they should not have any choices.
-          expect(choices).toBeDefined();
-          expect(choices).toHaveLength(0);
+        playerXinformed = true;
+        if (playerOinformed) {
+          done();
+        }
+      });
+      this.game.registerPlayerCallback(playerO, (_delta, choices) => {
+        // O is the second player, thus they should not have any choices.
+        expect(choices).toBeDefined();
+        expect(choices).toHaveLength(0);
 
-          playerOinformed = true;
-          if (playerXinformed) {
-            done();
-          }
-        });
+        playerOinformed = true;
+        if (playerXinformed) {
+          done();
+        }
+      });
 
-        // OTHERWISE
-        timeout(done);
-      },
-    );
+      // OTHERWISE
+      timeout(done);
+    });
 
     test.todo(
       'if a player reconnects, they receive their full state again.',

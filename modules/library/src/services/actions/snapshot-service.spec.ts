@@ -7,7 +7,7 @@ import {
   playerInterfaceMarker,
 } from '../../interfaces/player-interface';
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
-import { Choice } from '../../components/choice';
+import { Choice, EnhancedChoice } from '../../components/choice';
 import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
 import { EntityID } from '../../components/entity.types';
 import { Entity } from '../../components/entity';
@@ -192,7 +192,9 @@ describe('snapshotService', () => {
       // THEN
       expect(choices).toHaveLength(1);
       expect(choices).toEqual(
-        new Set([new Choice(TestActionA, undefined, player)]),
+        new Set([
+          new EnhancedChoice('choice-0', TestActionA, undefined, player),
+        ]),
       );
     });
 
@@ -270,8 +272,31 @@ describe('snapshotService', () => {
       expect(choices).toHaveLength(1);
       expect(choices).toEqual(
         new Set([
-          new Choice(TestActionA, { shouldBePrevented: false }, player),
+          new EnhancedChoice(
+            'choice-1', // The first choice is completely filtered out...
+            TestActionA,
+            { shouldBePrevented: false },
+            player,
+          ),
         ]),
+      );
+    });
+
+    test('throws an error if no player has any choices in a snapshot.', () => {
+      // GIVEN
+      const service = new SnapshotService({
+        actions: new Set([new TestActionA()]),
+        positiveRules: new Set([
+          {
+            name: 'TestPositiveRule',
+            apply: (_runtime: QueryableRuntime<TestState>) => [],
+          },
+        ]),
+      });
+
+      // WHEN / THEN
+      expect(() => service.calculateChoices(mockRuntime)).toThrowError(
+        /no choices/i,
       );
     });
   });

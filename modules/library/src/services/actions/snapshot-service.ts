@@ -1,4 +1,4 @@
-import { Choice } from '../../components/choice';
+import { EnhancedChoice } from '../../components/choice';
 import { DEFAULT_GAME_CONFIG, GameState, Logger } from '../../game.types';
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import {
@@ -8,6 +8,7 @@ import {
 
 export class SnapshotService<STATE extends GameState> {
   private readonly _state: ResolvedSnapshotParameters<STATE>;
+  private _choiceCounter: number = 0;
 
   constructor(
     state: MinimalSnapshotParameters<STATE>,
@@ -57,10 +58,10 @@ export class SnapshotService<STATE extends GameState> {
    */
   public calculateChoices(
     runtime: QueryableRuntime<STATE>,
-  ): Set<Choice<any, any>> {
+  ): Set<EnhancedChoice<any, any>> {
     this._logger.debug(() => `Calculating choice space...`);
 
-    const choices = new Set<Choice<any, any>>();
+    const choices = new Set<EnhancedChoice<any, any>>();
 
     for (const rule of this._state.positiveRules) {
       const generatedChoices = rule.apply(runtime);
@@ -69,16 +70,21 @@ export class SnapshotService<STATE extends GameState> {
       if (generatedChoices) {
         this._logger.debug(
           () =>
-            `Rule ${rule.constructor.name} generated ${generatedChoices.length} choices.`,
+            `Rule ${rule.name} generated ${generatedChoices.length} choices.`,
         );
         for (const choice of generatedChoices) {
-          choices.add(choice);
+          choices.add(
+            EnhancedChoice.fromChoice(
+              choice,
+              `choice-${this._choiceCounter++}`, // TODO: This is intentional! We want to also be able to get choices that were denied, to render them correctly in the client!
+            ),
+          );
         }
 
         continue;
       }
       this._logger.debug(
-        () => `Rule ${rule.constructor.name} generated no choices. Skipping...`,
+        () => `Rule ${rule.name} generated no choices. Skipping...`,
       );
     }
 
@@ -103,6 +109,17 @@ export class SnapshotService<STATE extends GameState> {
           `Player ${choice.player.id()} is not registered in the runtime.`,
         );
       }
+    }
+
+    // Do all players have at least one choice?
+    const playersWithChoices = new Set();
+    for (const choice of choices) {
+      playersWithChoices.add(choice.player);
+    }
+    if (playersWithChoices.size === 0) {
+      throw new Error(
+        `No choices generated for any player! At least one player should have at least one choice. Please check your rules!`,
+      );
     }
 
     return choices;

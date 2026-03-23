@@ -18,6 +18,11 @@ import {
   handler,
   playerId,
 } from './interfaces/player-interface';
+import { PositiveRule } from './components/positive-rule';
+import { NegativeRule } from './components/negative-rule';
+import { SnapshotService } from './services/actions/snapshot-service';
+import { EnhancedChoice } from './components/choice';
+import { ChoiceId } from './components/choice.types';
 
 export abstract class Game<
   STATE extends GameState,
@@ -30,6 +35,13 @@ export abstract class Game<
   private _started: boolean = false;
 
   private readonly _entityService: EntityService<STATE>;
+  private readonly _snapshotService: SnapshotService<STATE>;
+
+  // TODO: Move to own service? PlayerHandlerService?
+  private readonly _choices: Map<
+    PlayerInterface<STATE>,
+    Set<EnhancedChoice<any, any>>
+  > = new Map();
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
   // TODO: ... handle drivers (for MTCS / replays).
@@ -55,6 +67,14 @@ export abstract class Game<
     this._entityService = new EntityService<STATE>(
       this._logger,
       this.flush.bind(this),
+    );
+    this._snapshotService = new SnapshotService<STATE>(
+      {
+        actions: this.actions(),
+        positiveRules: this.positiveRules(),
+        negativeRules: this.negativeRules() ?? new Set(),
+      },
+      this._logger,
     );
 
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
@@ -86,9 +106,28 @@ export abstract class Game<
   ): Iterable<Entity<STATE>>;
 
   /**
-   *
+   * Returns the set of all actions that can be applied in this game.
+   * Needs to be implemented by the game itself.
    */
+  // TODO: Should this return instances or classes of actions?
+  // TODO: Should this be a method or readonly property (ReadonlySet)?
   abstract actions(): Set<Action<STATE, any>>;
+
+  /**
+   * Returns the set of all positive rules that are applied in this game.
+   * Needs to be implemented by the game itself.
+   */
+  // TODO: Should this return instances or classes of actions?
+  // TODO: Should this be a method or readonly property (ReadonlySet)?
+  abstract positiveRules(): Set<PositiveRule<STATE>>;
+
+  /**
+   * Returns the set of all negative rules that are applied in this game.
+   * Needs to be implemented by the game itself.
+   */
+  // TODO: Should this return instances or classes of actions?
+  // TODO: Should this be a method or readonly property (ReadonlySet)?
+  abstract negativeRules(): Set<NegativeRule<STATE>> | void;
 
   /**
    * Flushes the current state of an entity to the engine.
@@ -117,6 +156,7 @@ export abstract class Game<
         `Initial state of game ${this.constructor.name}: ${JSON.stringify(state)}`,
     );
 
+    // Sanity checks.
     if (
       state === undefined ||
       state === null ||
@@ -127,6 +167,22 @@ export abstract class Game<
         `Invalid initial state returned by initialize() of game ${this.constructor.name}. Expected an object, but got ${state}.`,
       );
     }
+
+    if (this.actions().size === 0) {
+      throw new Error(
+        `No actions provided. A game without actions is not possible! Please register some.`,
+      );
+    }
+    this._logger.info(() => `Registered ${this.actions().size} actions.`);
+
+    if (this.positiveRules().size === 0) {
+      throw new Error(
+        `No positive rules provided. A game without positive rules is not possible! Please register some.`,
+      );
+    }
+    this._logger.info(
+      () => `Registered ${this.positiveRules().size} positive rules.`,
+    );
 
     this._logger.info(() => `Spawning entities...`);
 
@@ -214,7 +270,25 @@ export abstract class Game<
    */
   private _nextSnapshot(): void {
     this._started = true;
-    this._logger.info(() => `Calculating next tick...`);
+    this._logger.info(() => `Calculating next snapshot...`);
+
+    // Find all choices for players in the current state.
+    const choices = this._snapshotService.calculateChoices(this);
+
+    // Split choices by player and inform them.
+    for (const choice of choices) {
+      if (!this._choices.has(choice.player)) {
+        this._choices.set(choice.player, new Set());
+      }
+      this._choices.get(choice.player)!.add(choice);
+    }
+
+    for (const player of this._entityService.players()) {
+      this._logger.debug(
+        () =>
+          `Player ${player.id()} has ${this._choices.get(player)?.size ?? 0} choices.`,
+      );
+    }
 
     // FIXME: Implement correctly.
     for (const player of this._entityService.players()) {
@@ -234,9 +308,19 @@ export abstract class Game<
     sendFullState: boolean = false,
   ): void {
     // TODO: Implement!
-    player[handler]!(this.state(), []);
+    player[handler]!(
+      this.state(),
+      this._choices.get(player) ?? new Set(),
+      (choice: EnhancedChoice<any, any> | ChoiceId) => {},
+    );
   }
 
+  /**
+   * Registers a callback for a player interface, which is used to inform the player about their state and choices.
+   * The callback is used to handle the player state.
+   * @param player The player interface to register the callback for.
+   * @param callback The callback function to handle the player state.
+   */
   public registerPlayerCallback(
     player: PlayerInterface<STATE>,
     callback: PlayerInterfaceCallback<STATE>,

@@ -3,6 +3,7 @@ import { Action } from './action';
 import { ActionParameters } from './action.types';
 import { Class } from '../game.types';
 import { PlayerEntity } from '../services/entity/entity-service.types';
+import { ChoiceId } from './choice.types';
 
 /**
  * A choice is a specific instance of an action that a player can take, including the parameters for that action and a prompt and message to be shown to the player when presenting this choice.
@@ -20,4 +21,36 @@ export class Choice<
       : PARAMETERS,
     public readonly player: PlayerEntity<any>,
   ) {}
+}
+
+/**
+ * This enhanced version of the Choice class is issued by the engine and communicated to the player.
+ */
+export class EnhancedChoice<
+  ACTION extends Action<any, PARAMETERS>,
+  PARAMETERS extends ActionParameters | undefined = undefined,
+> extends Choice<ACTION, PARAMETERS> {
+  constructor(
+    public readonly id: ChoiceId,
+    action: Class<ACTION>,
+    parameters: PARAMETERS extends undefined ? undefined : PARAMETERS,
+    player: PlayerEntity<any>,
+  ) {
+    super(action, parameters, player);
+  }
+
+  static fromChoice<
+    ACTION extends Action<any, PARAMETERS>,
+    PARAMETERS extends ActionParameters | undefined = undefined,
+  >(
+    choice: Choice<ACTION, PARAMETERS>,
+    id: ChoiceId,
+  ): EnhancedChoice<ACTION, PARAMETERS> {
+    return new EnhancedChoice(
+      id,
+      choice.action,
+      choice.parameters,
+      choice.player,
+    );
+  }
 }

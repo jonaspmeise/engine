@@ -9,8 +9,38 @@ import { VerticalLane } from './vertical-lane';
 import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
 import { HorizontalLane } from './horizontal-lane';
 import { DiagonalLane } from './diagonal-lane';
+import { NegativeRule } from '../../src/components/negative-rule';
+import { PositiveRule } from '../../src/components/positive-rule';
 
 export class TicTacToe extends Game<TicTacToeState, TicTacToeParameters> {
+  positiveRules(): Set<PositiveRule<TicTacToeState>> {
+    return new Set([
+      {
+        name: 'marking-slot-allowed-during-your-turn',
+        apply: (runtime) => {
+          const currentPlayer = runtime
+            .entities(TicTacToePlayer)
+            .filter((player) => player.isCurrentPlayer)[0]!;
+
+          // TODO: Make Choice instantiate the Action object itself...?
+          return runtime.entities(Slot).map((slot) => ({
+            action: MarkAction,
+            parameters: {
+              playerId: currentPlayer.id(),
+              x: slot.x,
+              y: slot.y,
+            },
+            player: currentPlayer,
+          }));
+        },
+      },
+    ]);
+  }
+
+  negativeRules(): void | Set<NegativeRule<TicTacToeState>> {
+    // No negative rules in this game.
+  }
+
   actions(): Set<Action<TicTacToeState, any>> {
     return new Set([new MarkAction()]);
   }

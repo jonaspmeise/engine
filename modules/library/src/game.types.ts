@@ -1,4 +1,6 @@
 import { Action } from './components/action';
+import { Choice, EnhancedChoice } from './components/choice';
+import { ChoiceId } from './components/choice.types';
 
 export type GameState = Record<string, unknown>;
 
@@ -54,13 +56,16 @@ export const DEFAULT_GAME_CONFIG: ResolvedGameConfig = {
   },
 };
 
-export type DeepReadonly<T> = {
-  readonly [P in keyof T]: T[P] extends object | Function
+export type DeepReadonly<T> = Partial<{
+  readonly [P in keyof T]: T[P] extends object
     ? DeepReadonly<T[P]>
-    : T[P];
-};
+    : T[P] extends Function
+      ? undefined // Should not be included!
+      : DeepReadonly<T[P]>;
+}>;
 
 export type PlayerInterfaceCallback<STATE extends GameState> = (
   delta: DeepReadonly<STATE>,
-  choices: Action<STATE, any>[],
+  choices: Set<EnhancedChoice<any, any>>, // TODO: Choice should have only a single generic - the type of its capsuled action.
+  execute: (choice: EnhancedChoice<any, any> | ChoiceId) => void,
 ) => void;

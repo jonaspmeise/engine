@@ -10,6 +10,8 @@ import {
   playerInterfaceMarker,
 } from './interfaces/player-interface';
 import { Logger } from './game.types';
+import { PositiveRule } from './components/positive-rule';
+import { timeout } from '../tests/utility.spec';
 
 class TestEntityA extends Entity<TestGameState> {
   constructor(protected readonly _id: number) {
@@ -74,6 +76,13 @@ type TestGameState = {
   };
 };
 
+class TestAction extends Action<TestGameState> {
+  apply(_runtime: QueryableRuntime<TestGameState>): void {
+    // TODO: All the entity accessors should only reveal "ID", but not the internal "persist" and "generateId" methods to the developer!
+    _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
+  }
+}
+
 class TestGame extends Game<TestGameState, undefined> {
   public name = 'TestGame';
 
@@ -107,8 +116,23 @@ class TestGame extends Game<TestGameState, undefined> {
     return entities;
   }
   actions() {
-    return new Set<Action<any, any>>();
+    // TODO: Return class? Or instance? Instance is a choice, which might be wrong here...
+    return new Set<Action<any, any>>([TestAction]);
   }
+  positiveRules(): Set<PositiveRule<TestGameState>> {
+    return new Set<PositiveRule<TestGameState>>([
+      {
+        name: 'test-positive-rule',
+        apply: (runtime) =>
+          runtime.entities(TestPlayerEntity).map((player) => ({
+            action: TestAction,
+            parameters: undefined,
+            player,
+          })),
+      },
+    ]);
+  }
+  negativeRules(): void {}
 }
 
 describe('game', () => {
@@ -138,6 +162,30 @@ describe('game', () => {
   });
 
   describe('initialize', () => {
+    test('throws an error if a game without any action is initialized.', () => {
+      // GIVEN / WHEN / THEN
+      class NoActionGame extends TestGame {
+        actions() {
+          return new Set<Action<any, any>>();
+        }
+      }
+
+      expect(() => new NoActionGame()).toThrowError(/no actions/gi);
+    });
+
+    test('throws an error if a game without any positive rule is initialized.', () => {
+      // GIVEN / WHEN / THEN
+      class NoPositiveRuleGame extends TestGame {
+        positiveRules(): Set<PositiveRule<TestGameState>> {
+          return new Set<PositiveRule<TestGameState>>();
+        }
+      }
+
+      expect(() => new NoPositiveRuleGame()).toThrowError(
+        /no positive rules/gi,
+      );
+    });
+
     test('throws an error if an entity is registered with an ID that is already taken by another entity.', () => {
       // GIVEN
       spyOn(TestGame.prototype, 'enrichen').mockReturnValue([
@@ -401,5 +449,103 @@ describe('game', () => {
       expect(player1Callback).toHaveBeenCalledTimes(2);
       expect(player2Callback).toHaveBeenCalledTimes(1);
     });
+  });
+
+  describe('lifecycle', () => {
+    test.todo(
+      'logs an error if two players have a choice at the same time.',
+      () => {},
+    );
+
+    test('the game starts when all player interfaces have registered a callback. players are informed about the initial state.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      let player1Informed = false;
+      let player2Informed = false;
+
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (delta, choices) => {
+          expect(delta).toEqual({
+            a: { count: 3, values: [] },
+            b: { count: 2, values: [] },
+            c: { count: 1, values: [0] },
+          });
+
+          expect(choices).toBeDefined();
+          expect(choices).toHaveLength(1);
+
+          player1Informed = true;
+          if (player2Informed) {
+            done();
+          }
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        (delta, choices) => {
+          expect(delta).toEqual({
+            a: { count: 3, values: [] },
+            b: { count: 2, values: [] },
+            c: { count: 1, values: [0] },
+          });
+
+          expect(choices).toBeDefined();
+          expect(choices).toHaveLength(1);
+
+          player2Informed = true;
+          if (player1Informed) {
+            done();
+          }
+        },
+      );
+    });
+
+    test.todo(
+      'sends only modified entities of the state to the player after a choice is picked. choices reset.',
+      (done) => {
+        // GIVEN
+        const game = new TestGame();
+
+        // WHEN
+        let snapshotCount = 0;
+
+        game.registerPlayerCallback(
+          game.entities(TestPlayerEntity)[0]!,
+          (delta, choices, executor) => {
+            snapshotCount++;
+
+            if (snapshotCount === 1) {
+              // Initial state - pick a choice!
+              // TODO: Remove choices[0].apply from the type here, because the choice should never be applied directly!
+              executor(Array.from(choices)[0]!);
+            } else {
+              // THEN
+              expect(delta).toEqual({
+                // Only the modified entity should be sent to the player, not the whole state!
+                // TODO: Write this down somewhere: We send new entities completely, so the client does not have to make complex diffing logic...?
+                c: {
+                  count: 1,
+                  values: [1],
+                },
+              });
+
+              done();
+            }
+          },
+        );
+        game.registerPlayerCallback(
+          game.entities(TestPlayerEntity)[1]!,
+          // Player 2 is not relevant for this test.
+          (_delta, _choices) => {},
+        );
+
+        timeout(done);
+      },
+    );
+
+    // TODO: IMPORTANT: IS THE JSON STATE EVEN NEEDED? CAN WE JUST COMMUNICATE THE ENTITY TYPES AND RECREATE THE ERGONOMIC ACCESSORS BASED ON THEIR TYPE?
   });
 });
