@@ -64,41 +64,30 @@ class TestAction extends Action<TestGameState> {
   }
 }
 
-class TestGame extends Game<TestGameState, undefined> {
+class TestGame extends Game {
   public name = 'TestGame';
 
   initialize() {
-    return {
-      // Simple encoding: {TestEntityClassName} -> # of entities of that class.
-      a: { count: 3, values: [] },
-      b: { count: 2, values: [] },
-      c: { count: 1, values: [0] },
-    };
-  }
-  enrichen(state: TestGameState) {
-    const entities: Entity[] = [];
+    const entities = new Set<Entity>();
 
-    for (let a = 1; a <= state.a.count; a++) {
-      entities.push(new TestEntityA(a));
-    }
+    entities.add(new TestEntityA(1));
+    entities.add(new TestEntityA(2));
+    entities.add(new TestEntityA(3));
 
-    for (let b = 1; b <= state.b.count; b++) {
-      entities.push(new TestEntityB(b));
-    }
+    entities.add(new TestEntityB(1));
+    entities.add(new TestEntityB(2));
 
-    for (let c = 1; c <= state.c.count; c++) {
-      // TestEntityC also should count as TestEntityB since its a subclass!
-      entities.push(new TestEntityC(c));
-    }
+    // TestEntityC also should count as TestEntityB since its a subclass!
+    entities.add(new TestEntityC(1));
 
-    entities.push(new TestPlayerEntity(1));
-    entities.push(new TestPlayerEntity(2));
+    entities.add(new TestPlayerEntity(1));
+    entities.add(new TestPlayerEntity(2));
 
     return entities;
   }
   actions() {
     // TODO: Return class? Or instance? Instance is a choice, which might be wrong here...
-    return new Set<Action<any, any>>([TestAction]);
+    return new Set<Action<any>>([TestAction]);
   }
   positiveRules(): Set<PositiveRule> {
     return new Set<PositiveRule>([
@@ -147,7 +136,7 @@ describe('game', () => {
       // GIVEN / WHEN / THEN
       class NoActionGame extends TestGame {
         actions() {
-          return new Set<Action<any, any>>();
+          return new Set<Action<any>>();
         }
       }
 
@@ -169,32 +158,27 @@ describe('game', () => {
 
     test('throws an error if an entity is registered with an ID that is already taken by another entity.', () => {
       // GIVEN
-      spyOn(TestGame.prototype, 'enrichen').mockReturnValue([
-        new TestEntityA(1),
-        new TestEntityA(1),
-      ]);
+      spyOn(TestGame.prototype, 'initialize').mockReturnValue(
+        new Set([new TestEntityA(1), new TestEntityA(1)]),
+      );
 
       // WHEN / THEN
       expect(() => new TestGame()).toThrowError(/duplicate/gi);
     });
 
-    test.each([null, undefined, {}])(
-      'throws an error if a game does not initialize a correct state object and instead returns %p.',
-      (invalid: any) => {
-        // GIVEN
-        spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(invalid);
+    test('throws an error if the game does not initialize any entities.', () => {
+      // GIVEN
+      spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(new Set());
 
-        // WHEN / THEN
-        expect(() => new TestGame()).toThrowError(/invalid/gi);
-      },
-    );
+      // WHEN / THEN
+      expect(() => new TestGame()).toThrowError(/no entities were spawned/gi);
+    });
 
     test('throws an error if no PlayerInterface-capable entity is spawned. These interfaces are needed to communicate with a player.', () => {
       // GIVEN
-      spyOn(TestGame.prototype, 'enrichen').mockReturnValueOnce([
-        new TestEntityA(1),
-        new TestEntityA(2),
-      ]);
+      spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(
+        new Set([new TestEntityA(1), new TestEntityA(2)]),
+      );
 
       // WHEN / THEN
       expect(() => new TestGame()).toThrowError(/player/i);
@@ -272,19 +256,21 @@ describe('game', () => {
   });
 
   describe('flush', () => {
-    test.todo(
-      'when an entity is spawned, and that entity is modified, it is flushed.',
-      () => {
-        // GIVEN
-        const game = new TestGame();
+    test('when an entity is spawned, and that entity is modified, it is flushed.', () => {
+      // GIVEN
+      const game = new TestGame();
+      const spy = spyOn(game, 'flush').mockImplementation(() => {});
 
-        // WHEN
-        game.anyEntity(TestEntityC)!.volatileNumber = 42;
+      // WHEN
+      const entityC = game.anyEntity(TestEntityC)!;
 
-        // THEN
-        // TODO: Assert versus modified state!
-      },
-    );
+      // We override the method later, because normally it is invoked at initialization.
+      entityC.volatileNumber = 42;
+
+      // THEN
+      // TODO: Assert versus modified state!
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('registerPlayerCallback', () => {
@@ -422,11 +408,7 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
         (delta, choices) => {
-          expect(delta).toEqual({
-            a: { count: 3, values: [] },
-            b: { count: 2, values: [] },
-            c: { count: 1, values: [0] },
-          });
+          expect(delta).toEqual(new Set());
 
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(1);
@@ -440,11 +422,7 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
         (delta, choices) => {
-          expect(delta).toEqual({
-            a: { count: 3, values: [] },
-            b: { count: 2, values: [] },
-            c: { count: 1, values: [0] },
-          });
+          expect(delta).toEqual(new Set());
 
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(1);
@@ -477,14 +455,9 @@ describe('game', () => {
               executor(Array.from(choices)[0]!);
             } else {
               // THEN
-              expect(delta).toEqual({
-                // Only the modified entity should be sent to the player, not the whole state!
-                // TODO: Write this down somewhere: We send new entities completely, so the client does not have to make complex diffing logic...?
-                c: {
-                  count: 1,
-                  values: [1],
-                },
-              });
+              // Only the modified entity should be sent to the player, not the whole state!
+              // TODO: Write this down somewhere: We send new entities completely, so the client does not have to make complex diffing logic...?
+              expect(delta).toEqual(new Set());
 
               done();
             }

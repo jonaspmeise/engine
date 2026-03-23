@@ -5,7 +5,7 @@ import { PositiveRule } from '../../components/positive-rule';
 import { Trigger } from '../../components/trigger';
 
 export type MinimalSnapshotParameters = {
-  actions: Set<Action<any, any>>;
+  actions: Set<Action<any>>;
   positiveRules: Set<PositiveRule>;
   negativeRules?: Set<NegativeRule>;
   triggers?: Set<Trigger>;

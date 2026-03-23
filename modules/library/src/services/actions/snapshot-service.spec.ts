@@ -13,10 +13,6 @@ import { EntityID } from '../../components/entity.types';
 import { Entity } from '../../components/entity';
 import { beforeEach } from 'node:test';
 
-type TestState = {
-  value: number;
-};
-
 class TestEntity extends Entity {
   public value: number = 0;
 
@@ -28,10 +24,7 @@ class TestEntity extends Entity {
   }
 }
 
-class TestActionA extends Action<
-  TestState,
-  { shouldBePrevented: boolean } | undefined
-> {
+class TestActionA extends Action<{ shouldBePrevented: boolean } | undefined> {
   apply(runtime: ModifiableRuntime): void {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }

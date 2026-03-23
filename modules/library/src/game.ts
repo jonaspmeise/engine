@@ -21,7 +21,6 @@ import { NegativeRule } from './components/negative-rule';
 import { SnapshotService } from './services/actions/snapshot-service';
 import { EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
-import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -39,6 +38,7 @@ export abstract class Game<
     PlayerInterface,
     Set<EnhancedChoice<any, any>>
   > = new Map();
+  private _dirtyEntities: Set<Entity> = new Set();
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
   // TODO: ... handle drivers (for MTCS / replays).
@@ -125,6 +125,8 @@ export abstract class Game<
       () =>
         `Flushing entity ${entity.constructor.name} with ID ${entity.id()} in game ${this.constructor.name}.`,
     );
+
+    this._dirtyEntities.add(entity);
   }
 
   /**
@@ -132,25 +134,6 @@ export abstract class Game<
    * @param parameters The parameters to set up the game with.
    */
   private _setup(parameters: PARAMETERS): void {
-    const state = this.initialize(parameters);
-
-    this._logger.debug(
-      () =>
-        `Initial state of game ${this.constructor.name}: ${JSON.stringify(state)}`,
-    );
-
-    // Sanity checks.
-    if (
-      state === undefined ||
-      state === null ||
-      typeof state !== 'object' ||
-      Object.keys(state).length === 0
-    ) {
-      throw new Error(
-        `Invalid initial state returned by initialize() of game ${this.constructor.name}. Expected an object, but got ${state}.`,
-      );
-    }
-
     if (this.actions().size === 0) {
       throw new Error(
         `No actions provided. A game without actions is not possible! Please register some.`,
@@ -170,7 +153,7 @@ export abstract class Game<
     this._logger.info(() => `Spawning entities...`);
 
     let spawnCount = 0;
-    for (const entity of this.enrichen(this)) {
+    for (const entity of this.initialize(parameters)) {
       this._entityService.create(entity);
       spawnCount++;
     }

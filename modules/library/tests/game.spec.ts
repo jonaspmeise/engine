@@ -22,18 +22,17 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
         this.game = new self.GameClass(self.parameters);
       });
 
-      test('initialize returns a non-null state object.', () => {
+      test('initialize returns more than one entity.', () => {
         // GIVEN / WHEN
         const game = new self.GameClass(self.parameters);
 
         // WHEN
-        const state = game.state();
+        const state = game.entities();
 
         // THEN
         expect(state).toBeDefined();
         expect(state).not.toBeNull();
-        expect(typeof state).toBe('object');
-        expect(Object.keys(state).length).toBeGreaterThan(0);
+        expect(state.length).toBeGreaterThan(0);
       });
 
       test('more than one Entity is spawned initially.', () => {

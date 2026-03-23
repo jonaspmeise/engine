@@ -10,7 +10,6 @@ import { HorizontalLane } from './horizontal-lane';
 import { DiagonalLane } from './diagonal-lane';
 import { NegativeRule } from '../../src/components/negative-rule';
 import { PositiveRule } from '../../src/components/positive-rule';
-import { ModifiableRuntime } from '../../src/interfaces/modifiable-runtime';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
   positiveRules(): Set<PositiveRule> {
