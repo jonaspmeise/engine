@@ -13,24 +13,18 @@ import { Logger } from './game.types';
 import { PositiveRule } from './components/positive-rule';
 import { timeout } from '../tests/utility.spec';
 
-class TestEntityA extends Entity<TestGameState> {
+class TestEntityA extends Entity {
   constructor(protected readonly _id: number) {
     super();
-  }
-  persist(_state: TestGameState): void {
-    // No persist is needed here.
   }
   generateId(): EntityID {
     return `testentityA-${this._id}`;
   }
 }
 
-class TestEntityB extends Entity<TestGameState> {
+class TestEntityB extends Entity {
   constructor(protected readonly _id: number) {
     super();
-  }
-  persist(_state: TestGameState): void {
-    // No persist is needed here.
   }
   generateId(): EntityID {
     return `testentityB-${this._id}`;
@@ -43,27 +37,14 @@ class TestEntityC extends TestEntityB {
   generateId(): EntityID {
     return `testentityC-${this._id}`;
   }
-
-  persist(state: TestGameState): void {
-    state.c.values[this._id - 1] = this.volatileNumber;
-  }
 }
 
-class TestPlayerEntity
-  extends Entity<TestGameState>
-  implements PlayerInterface<TestGameState>
-{
+class TestPlayerEntity extends Entity implements PlayerInterface {
   constructor(protected readonly _id: number) {
     super();
   }
   [playerInterfaceMarker] = true as const;
 
-  persist(
-    _state: TestGameState,
-    _runtime: QueryableRuntime<TestGameState>,
-  ): void {
-    //
-  }
   protected generateId(): EntityID {
     return `testPlayerEntity-${this._id}`;
   }
@@ -77,7 +58,7 @@ type TestGameState = {
 };
 
 class TestAction extends Action<TestGameState> {
-  apply(_runtime: QueryableRuntime<TestGameState>): void {
+  apply(_runtime: QueryableRuntime): void {
     // TODO: All the entity accessors should only reveal "ID", but not the internal "persist" and "generateId" methods to the developer!
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
@@ -95,7 +76,7 @@ class TestGame extends Game<TestGameState, undefined> {
     };
   }
   enrichen(state: TestGameState) {
-    const entities: Entity<TestGameState>[] = [];
+    const entities: Entity[] = [];
 
     for (let a = 1; a <= state.a.count; a++) {
       entities.push(new TestEntityA(a));
@@ -119,8 +100,8 @@ class TestGame extends Game<TestGameState, undefined> {
     // TODO: Return class? Or instance? Instance is a choice, which might be wrong here...
     return new Set<Action<any, any>>([TestAction]);
   }
-  positiveRules(): Set<PositiveRule<TestGameState>> {
-    return new Set<PositiveRule<TestGameState>>([
+  positiveRules(): Set<PositiveRule> {
+    return new Set<PositiveRule>([
       {
         name: 'test-positive-rule',
         apply: (runtime) =>
@@ -176,8 +157,8 @@ describe('game', () => {
     test('throws an error if a game without any positive rule is initialized.', () => {
       // GIVEN / WHEN / THEN
       class NoPositiveRuleGame extends TestGame {
-        positiveRules(): Set<PositiveRule<TestGameState>> {
-          return new Set<PositiveRule<TestGameState>>();
+        positiveRules(): Set<PositiveRule> {
+          return new Set<PositiveRule>();
         }
       }
 
@@ -266,11 +247,8 @@ describe('game', () => {
       // THEN
       expect(
         game.anyEntity(
-          class NonExistingEntity extends Entity<any> {
+          class NonExistingEntity extends Entity {
             protected generateId(): EntityID {
-              throw new Error('Method not implemented.');
-            }
-            persist(): void {
               throw new Error('Method not implemented.');
             }
           },
@@ -293,44 +271,20 @@ describe('game', () => {
     });
   });
 
-  describe('state', () => {
-    test('is initialized with the object returned by the initialize method.', () => {
-      // GIVEN / WHEN
-      const game = new TestGame();
-
-      // THEN
-      expect(game.state()).toEqual({
-        a: {
-          count: 3,
-          values: [],
-        },
-        b: {
-          count: 2,
-          values: [],
-        },
-        c: {
-          count: 1,
-          values: [0],
-        },
-      });
-    });
-  });
-
   describe('flush', () => {
-    test('when an entity is spawned, and that entity is modified, it is flushed.', () => {
-      // GIVEN
-      const game = new TestGame();
+    test.todo(
+      'when an entity is spawned, and that entity is modified, it is flushed.',
+      () => {
+        // GIVEN
+        const game = new TestGame();
 
-      // WHEN
-      game.anyEntity(TestEntityC)!.volatileNumber = 42;
+        // WHEN
+        game.anyEntity(TestEntityC)!.volatileNumber = 42;
 
-      // THEN
-      expect(game.state()).toEqual({
-        a: { count: 3, values: [] },
-        b: { count: 2, values: [] },
-        c: { count: 1, values: [42] },
-      });
-    });
+        // THEN
+        // TODO: Assert versus modified state!
+      },
+    );
   });
 
   describe('registerPlayerCallback', () => {

@@ -17,12 +17,9 @@ type TestState = {
   value: number;
 };
 
-class TestEntity extends Entity<TestState> {
+class TestEntity extends Entity {
   public value: number = 0;
 
-  persist(state: TestState): void {
-    state.value = this.value;
-  }
   protected generateId(): EntityID {
     return `TestEntity-${this._id}`;
   }
@@ -35,7 +32,7 @@ class TestActionA extends Action<
   TestState,
   { shouldBePrevented: boolean } | undefined
 > {
-  apply(runtime: ModifiableRuntime<TestState>): void {
+  apply(runtime: ModifiableRuntime): void {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }
 
@@ -44,13 +41,7 @@ class TestActionA extends Action<
   }
 }
 
-class TestPlayer
-  extends Entity<TestState>
-  implements PlayerInterface<TestState>
-{
-  persist(_state: TestState, _runtime: QueryableRuntime<TestState>): void {
-    // Player state is not changed during runtime!
-  }
+class TestPlayer extends Entity implements PlayerInterface {
   protected generateId(): EntityID {
     return `TestPlayer`;
   }
@@ -59,11 +50,11 @@ class TestPlayer
 }
 
 describe('snapshotService', () => {
-  const mockRuntime: QueryableRuntime<TestState> = {
+  const mockRuntime: QueryableRuntime = {
     anyEntity: mock(() => null),
     entities: mock(() => []),
     entitySet: mock(() => new Set()),
-  } as QueryableRuntime<TestState>;
+  } as QueryableRuntime;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -76,7 +67,7 @@ describe('snapshotService', () => {
         () =>
           new SnapshotService({
             actions: new Set(),
-            positiveRules: new Set() as Set<PositiveRule<TestState>>,
+            positiveRules: new Set() as Set<PositiveRule>,
           }),
       ).toThrowError(/no actions/gi);
     });
@@ -87,7 +78,7 @@ describe('snapshotService', () => {
         () =>
           new SnapshotService({
             actions: new Set([TestActionA]),
-            positiveRules: new Set() as Set<PositiveRule<TestState>>,
+            positiveRules: new Set() as Set<PositiveRule>,
           }),
       ).toThrowError(/no positive rules/gi);
     });
@@ -169,7 +160,7 @@ describe('snapshotService', () => {
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
-            apply: (runtime: QueryableRuntime<TestState>) => [
+            apply: (runtime: QueryableRuntime) => [
               new Choice(
                 TestActionA,
                 undefined,
@@ -205,7 +196,7 @@ describe('snapshotService', () => {
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
-            apply: (_runtime: QueryableRuntime<TestState>) => [
+            apply: (_runtime: QueryableRuntime) => [
               new Choice(
                 TestActionA,
                 undefined,
@@ -229,7 +220,7 @@ describe('snapshotService', () => {
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
-            apply: (runtime: QueryableRuntime<TestState>) => [
+            apply: (runtime: QueryableRuntime) => [
               new Choice(
                 TestActionA,
                 {
@@ -252,7 +243,7 @@ describe('snapshotService', () => {
             name: 'TestNegativeRule',
             apply: (
               choice: Choice<TestActionA, { shouldBePrevented: boolean }>,
-              _runtime: QueryableRuntime<TestState>,
+              _runtime: QueryableRuntime,
             ) =>
               (choice as Choice<TestActionA, { shouldBePrevented: boolean }>)
                 ?.parameters?.shouldBePrevented,
@@ -289,7 +280,7 @@ describe('snapshotService', () => {
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
-            apply: (_runtime: QueryableRuntime<TestState>) => [],
+            apply: (_runtime: QueryableRuntime) => [],
           },
         ]),
       });

@@ -1,6 +1,6 @@
 import { Entity } from '../../components/entity';
 import { EntityID } from '../../components/entity.types';
-import { Class, GameState, Logger } from '../../game.types';
+import { Class, Logger } from '../../game.types';
 import { EntityFlushCallback } from './entity-service.types';
 import {
   isPlayerInterface,
@@ -15,8 +15,8 @@ import { Destroyer } from '../../interfaces/destroyer';
  * This class manages only the aspects that are related to entities.
  * The main game class delegates to here, sometimes.
  */
-export class EntityService<STATE extends GameState>
-  implements Clearable, Creator<Entity<STATE>>, Destroyer<Entity<STATE>>
+export class EntityService
+  implements Clearable, Creator<Entity>, Destroyer<Entity>
 {
   constructor(
     private readonly _logger: Logger, // FIXME: Make this an own type!
@@ -25,17 +25,17 @@ export class EntityService<STATE extends GameState>
 
   clear(): void {
     this._entities = {
-      types: new Map<Class<Entity<STATE>>, Set<Entity<STATE>>>(),
-      ids: new Map<EntityID, Entity<STATE>>(),
+      types: new Map<Class<Entity>, Set<Entity>>(),
+      ids: new Map<EntityID, Entity>(),
       players: [],
     };
   }
 
   // TODO: Make this entire class cloneable for MCTS?
   private _entities = {
-    types: new Map<Class<Entity<STATE>>, Set<Entity<STATE>>>(),
-    ids: new Map<EntityID, Entity<STATE>>(),
-    players: [] as Array<Entity<STATE> & PlayerInterface<STATE>>,
+    types: new Map<Class<Entity>, Set<Entity>>(),
+    ids: new Map<EntityID, Entity>(),
+    players: [] as Array<Entity & PlayerInterface>,
   };
 
   /**
@@ -44,7 +44,7 @@ export class EntityService<STATE extends GameState>
    * @param entity The entity to spawn.
    * @returns The same entity, but enhanced to automatically notice when its state is changed.
    */
-  public create<ENTITY extends Entity<STATE>>(entity: ENTITY): ENTITY {
+  public create<ENTITY extends Entity>(entity: ENTITY): ENTITY {
     // Set ID -> Entity mapping for extremely quick lookup of entities by singular IDs.
     const id = entity.id();
     this._logger.debug(
@@ -63,7 +63,7 @@ export class EntityService<STATE extends GameState>
 
     // This entity might potentially be a player...
     if (isPlayerInterface(proxy)) {
-      const playerInterface = proxy as Entity<STATE> & PlayerInterface<STATE>;
+      const playerInterface = proxy as Entity & PlayerInterface;
       playerInterface[playerId] = crypto.randomUUID();
 
       this._logger.debug(
@@ -71,9 +71,7 @@ export class EntityService<STATE extends GameState>
           `Assigned unique player ID ${playerInterface[playerId]} to player interface ${playerInterface.constructor.name}.`,
       );
 
-      this._entities.players.push(
-        proxy as Entity<STATE> & PlayerInterface<STATE>,
-      );
+      this._entities.players.push(proxy as Entity & PlayerInterface);
     }
 
     // Set Type -> Entity mapping for quick lookup of entities by type.
@@ -86,22 +84,18 @@ export class EntityService<STATE extends GameState>
       currentConstructor !== Object.prototype &&
       currentConstructor.name !== '' // this is some native code, that we don't care about!
     ) {
-      if (
-        !this._entities.types.has(currentConstructor as Class<Entity<STATE>>)
-      ) {
+      if (!this._entities.types.has(currentConstructor as Class<Entity>)) {
         this._logger.debug(
           () =>
             `Creating new entity type set for type ${currentConstructor?.name}.`,
         );
         this._entities.types.set(
-          currentConstructor as Class<Entity<STATE>>,
+          currentConstructor as Class<Entity>,
           new Set(),
         );
       }
 
-      this._entities.types
-        .get(currentConstructor as Class<Entity<STATE>>)
-        ?.add(proxy);
+      this._entities.types.get(currentConstructor as Class<Entity>)?.add(proxy);
 
       // Move up the prototype chain to include all superclasses.
       currentConstructor = Object.getPrototypeOf(currentConstructor);
@@ -113,7 +107,7 @@ export class EntityService<STATE extends GameState>
     return proxy as ENTITY;
   }
 
-  public destroy(component: Entity<STATE>): void {
+  public destroy(component: Entity): void {
     const id = component.id();
 
     this._logger.info(
@@ -133,13 +127,11 @@ export class EntityService<STATE extends GameState>
     }
   }
 
-  public entities<TYPE extends Entity<STATE>>(
-    type: Class<TYPE>,
-  ): ReadonlyArray<TYPE>;
-  public entities(): ReadonlyArray<Entity<STATE>>;
-  public entities<TYPE extends Entity<STATE>>(
+  public entities<TYPE extends Entity>(type: Class<TYPE>): ReadonlyArray<TYPE>;
+  public entities(): ReadonlyArray<Entity>;
+  public entities<TYPE extends Entity>(
     type?: Class<TYPE>,
-  ): ReadonlyArray<TYPE> | ReadonlyArray<Entity<STATE>> {
+  ): ReadonlyArray<TYPE> | ReadonlyArray<Entity> {
     if (type === undefined) {
       return Array.from(this._entities.types.get(Entity) ?? new Set());
     }
@@ -148,13 +140,11 @@ export class EntityService<STATE extends GameState>
     return typed ? Array.from(typed) : [];
   }
 
-  public entitySet<TYPE extends Entity<STATE>>(
-    type: Class<TYPE>,
-  ): ReadonlySet<TYPE>;
-  public entitySet(): ReadonlySet<Entity<STATE>>;
-  public entitySet<TYPE extends Entity<STATE>>(
+  public entitySet<TYPE extends Entity>(type: Class<TYPE>): ReadonlySet<TYPE>;
+  public entitySet(): ReadonlySet<Entity>;
+  public entitySet<TYPE extends Entity>(
     type?: Class<TYPE>,
-  ): ReadonlySet<TYPE> | ReadonlySet<Entity<STATE>> {
+  ): ReadonlySet<TYPE> | ReadonlySet<Entity> {
     if (type === undefined) {
       return this._entities.types.get(Entity) ?? new Set();
     }
@@ -163,7 +153,7 @@ export class EntityService<STATE extends GameState>
     return typed ?? new Set();
   }
 
-  public anyEntity<TYPE extends Entity<STATE>>(type: Class<TYPE>): TYPE | null {
+  public anyEntity<TYPE extends Entity>(type: Class<TYPE>): TYPE | null {
     const typed = this._entities.types.get(type);
     if (typed && typed.size > 0) {
       return (typed.values().next().value as TYPE) ?? null;
@@ -172,7 +162,7 @@ export class EntityService<STATE extends GameState>
     return null;
   }
 
-  public players(): ReadonlyArray<Entity<STATE> & PlayerInterface<STATE>> {
+  public players(): ReadonlyArray<Entity & PlayerInterface> {
     // TODO: Other return type that is more performant than array? Maybe set? Map access?
     return this._entities.players;
   }

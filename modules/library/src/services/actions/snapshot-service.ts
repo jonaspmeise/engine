@@ -1,17 +1,17 @@
 import { EnhancedChoice } from '../../components/choice';
-import { DEFAULT_GAME_CONFIG, GameState, Logger } from '../../game.types';
+import { DEFAULT_GAME_CONFIG, Logger } from '../../game.types';
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import {
   MinimalSnapshotParameters,
   ResolvedSnapshotParameters,
 } from './snapshot-service.types';
 
-export class SnapshotService<STATE extends GameState> {
-  private readonly _state: ResolvedSnapshotParameters<STATE>;
+export class SnapshotService {
+  private readonly _state: ResolvedSnapshotParameters;
   private _choiceCounter: number = 0;
 
   constructor(
-    state: MinimalSnapshotParameters<STATE>,
+    state: MinimalSnapshotParameters,
     private readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger,
   ) {
     this._state = {
@@ -57,7 +57,7 @@ export class SnapshotService<STATE extends GameState> {
    * @returns The choice space for all players, resulting in all choices that players have during this snapshot.
    */
   public calculateChoices(
-    runtime: QueryableRuntime<STATE>,
+    runtime: QueryableRuntime,
   ): Set<EnhancedChoice<any, any>> {
     this._logger.debug(() => `Calculating choice space...`);
 

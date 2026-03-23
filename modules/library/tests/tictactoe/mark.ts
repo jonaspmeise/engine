@@ -2,17 +2,13 @@ import { Action } from '../../src/components/action';
 import { ModifiableRuntime } from '../../src/interfaces/modifiable-runtime';
 import { TicTacToePlayer } from './player';
 import { Slot } from './slot';
-import { TicTacToeState } from './tictactoe.typed';
 
-export class MarkAction extends Action<
-  TicTacToeState,
-  {
-    slot: Slot;
-    player: TicTacToePlayer; // or automate this somehow...?
-  }
-> {
+export class MarkAction extends Action<{
+  slot: Slot;
+  player: TicTacToePlayer; // or automate this somehow...?
+}> {
   apply(
-    _runtime: ModifiableRuntime<TicTacToeState>,
+    _runtime: ModifiableRuntime,
     parameters: {
       slot: Slot;
       player: TicTacToePlayer;

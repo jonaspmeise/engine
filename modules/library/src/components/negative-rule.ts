@@ -1,4 +1,3 @@
-import { GameState } from '../game.types';
 import { QueryableRuntime } from '../interfaces/queryable-runtime';
 import { Choice } from './choice';
 import { Rule } from './rule';
@@ -8,7 +7,7 @@ import { Rule } from './rule';
  * This can be used to cleanly model denying rules without having to explicitly
  * model that logic in all positive rules.
  **/
-export type NegativeRule<STATE extends GameState> = Rule & {
+export type NegativeRule = Rule & {
   /**
    * Checks whether a given choice is applicable for the current game state.
    * A choice is valid if there is no negative rule preventing its execution.
@@ -18,6 +17,6 @@ export type NegativeRule<STATE extends GameState> = Rule & {
    */
   apply: (
     choice: Choice<any, any>,
-    runtime: QueryableRuntime<STATE>,
+    runtime: QueryableRuntime,
   ) => boolean | void;
 };

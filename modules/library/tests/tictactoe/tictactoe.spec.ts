@@ -1,13 +1,13 @@
 import { test, expect } from 'bun:test';
 import { TicTacToe } from './tictactoe';
-import { TicTacToeState, TicTacToeParameters } from './tictactoe.typed';
+import { TicTacToeParameters } from './tictactoe.typed';
 import { Slot } from './slot';
 import { GameTest } from '../game.spec';
 import { TicTacToePlayer } from './player';
 import { Lane } from './lane';
 import { timeout } from '../utility.spec';
 
-class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
+class TicTacToeSpec extends GameTest<TicTacToeParameters> {
   readonly name = 'TicTacToe';
   readonly GameClass = TicTacToe;
   readonly randomPlayDepth = 100;

@@ -1,22 +1,18 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { Game } from '../src/game';
-import { GameState, GameParameters } from '../src/game.types';
-import { PlayerInterface } from '../src/interfaces/player-interface';
+import { GameParameters } from '../src/game.types';
 
 type Constructor<T, P> = new (params: P) => T;
 
-export abstract class GameTest<
-  STATE extends GameState,
-  PARAMETERS extends GameParameters | undefined,
-> {
+export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
   abstract readonly name: string;
-  abstract readonly GameClass: Constructor<Game<STATE, PARAMETERS>, PARAMETERS>;
+  abstract readonly GameClass: Constructor<Game<PARAMETERS>, PARAMETERS>;
   abstract readonly parameters: PARAMETERS;
   abstract readonly randomPlayDepth: number;
 
   abstract additionalTests(): void;
 
-  protected game!: Game<STATE, PARAMETERS>;
+  protected game!: Game<PARAMETERS>;
 
   run(): void {
     const self = this;
@@ -45,10 +41,13 @@ export abstract class GameTest<
         expect(this.game.entities().length).toBeGreaterThan(1);
       });
 
-      test(`${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`, () => {
-        // GIVEN
-        const game = new self.GameClass(self.parameters);
-      });
+      test.todo(
+        `${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`,
+        () => {
+          // GIVEN
+          const game = new self.GameClass(self.parameters);
+        },
+      );
 
       this.additionalTests();
     });

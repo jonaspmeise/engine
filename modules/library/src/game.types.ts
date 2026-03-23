@@ -1,8 +1,6 @@
-import { Action } from './components/action';
-import { Choice, EnhancedChoice } from './components/choice';
+import { EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
-
-export type GameState = Record<string, unknown>;
+import { Entity } from './components/entity';
 
 export type GameParameters = Record<string, unknown>;
 
@@ -64,8 +62,9 @@ export type DeepReadonly<T> = Partial<{
       : DeepReadonly<T[P]>;
 }>;
 
-export type PlayerInterfaceCallback<STATE extends GameState> = (
-  delta: DeepReadonly<STATE>,
+export type PlayerInterfaceCallback = (
+  // The entities, that were modified in the last snapshot.
+  delta: Set<Entity>,
   choices: Set<EnhancedChoice<any, any>>, // TODO: Choice should have only a single generic - the type of its capsuled action.
   execute: (choice: EnhancedChoice<any, any> | ChoiceId) => void,
 ) => void;

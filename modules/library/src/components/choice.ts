@@ -1,4 +1,3 @@
-import { PlayerInterface } from '../interfaces/player-interface';
 import { Action } from './action';
 import { ActionParameters } from './action.types';
 import { Class } from '../game.types';
@@ -11,7 +10,7 @@ import { ChoiceId } from './choice.types';
  * The player visualizes these choices and can select one of them to execute.
  */
 export class Choice<
-  ACTION extends Action<any, PARAMETERS>,
+  ACTION extends Action<PARAMETERS>,
   PARAMETERS extends ActionParameters | undefined = undefined,
 > {
   constructor(
@@ -19,7 +18,7 @@ export class Choice<
     public readonly parameters: PARAMETERS extends undefined
       ? undefined
       : PARAMETERS,
-    public readonly player: PlayerEntity<any>,
+    public readonly player: PlayerEntity,
   ) {}
 }
 
@@ -27,20 +26,20 @@ export class Choice<
  * This enhanced version of the Choice class is issued by the engine and communicated to the player.
  */
 export class EnhancedChoice<
-  ACTION extends Action<any, PARAMETERS>,
+  ACTION extends Action<PARAMETERS>,
   PARAMETERS extends ActionParameters | undefined = undefined,
 > extends Choice<ACTION, PARAMETERS> {
   constructor(
     public readonly id: ChoiceId,
     action: Class<ACTION>,
     parameters: PARAMETERS extends undefined ? undefined : PARAMETERS,
-    player: PlayerEntity<any>,
+    player: PlayerEntity,
   ) {
     super(action, parameters, player);
   }
 
   static fromChoice<
-    ACTION extends Action<any, PARAMETERS>,
+    ACTION extends Action<PARAMETERS>,
     PARAMETERS extends ActionParameters | undefined = undefined,
   >(
     choice: Choice<ACTION, PARAMETERS>,

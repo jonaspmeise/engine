@@ -3,11 +3,9 @@ import { Entity } from './components/entity';
 import { FlushableRuntime } from './interfaces/flushable-runtime';
 import {
   Class,
-  DeepReadonly,
   DEFAULT_GAME_CONFIG,
   GameConfig,
   GameParameters,
-  GameState,
   Logger,
   PlayerInterfaceCallback,
 } from './game.types';
@@ -23,23 +21,22 @@ import { NegativeRule } from './components/negative-rule';
 import { SnapshotService } from './services/actions/snapshot-service';
 import { EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
+import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 
 export abstract class Game<
-  STATE extends GameState,
   PARAMETERS extends GameParameters | undefined = undefined,
 >
-  implements QueryableRuntime<STATE>, FlushableRuntime<STATE>
+  implements QueryableRuntime, FlushableRuntime
 {
-  private _state: STATE = {} as STATE;
   private _logger: Logger;
   private _started: boolean = false;
 
-  private readonly _entityService: EntityService<STATE>;
-  private readonly _snapshotService: SnapshotService<STATE>;
+  private readonly _entityService: EntityService;
+  private readonly _snapshotService: SnapshotService;
 
   // TODO: Move to own service? PlayerHandlerService?
   private readonly _choices: Map<
-    PlayerInterface<STATE>,
+    PlayerInterface,
     Set<EnhancedChoice<any, any>>
   > = new Map();
 
@@ -64,11 +61,11 @@ export abstract class Game<
       ...config.logger,
     };
 
-    this._entityService = new EntityService<STATE>(
+    this._entityService = new EntityService(
       this._logger,
       this.flush.bind(this),
     );
-    this._snapshotService = new SnapshotService<STATE>(
+    this._snapshotService = new SnapshotService(
       {
         actions: this.actions(),
         positiveRules: this.positiveRules(),
@@ -82,12 +79,12 @@ export abstract class Game<
   }
 
   /**
-   * The method that initializes the game state.
+   * The method that initializes the game state by spawning all initial entities.
    * This method should be called by the @link Runtime when the game is started.
    * @param parameters The parameters to initialize the game with.
    * @returns The initial game state.
    */
-  protected abstract initialize(parameters: PARAMETERS): STATE;
+  protected abstract initialize(parameters: PARAMETERS): Set<Entity>; // TODO: Implement!
 
   /**
    * The name of the game.
@@ -95,23 +92,12 @@ export abstract class Game<
   public abstract readonly name: string;
 
   /**
-   * Provides a mapping from the raw state (JSON) to entities that are more ergonomic to work with.
-   * This method should be a generator that yields entities, which are then handled by the engine.
-   * @param state The state, from which the entiies should be generated. This is the raw state, as returned by @method initialize, or the state after applying some actions.
-   * @param runtime The runtime, which provides access to other entities and game utilities.
-   */
-  protected abstract enrichen(
-    state: STATE,
-    runtime: QueryableRuntime<STATE>,
-  ): Iterable<Entity<STATE>>;
-
-  /**
    * Returns the set of all actions that can be applied in this game.
    * Needs to be implemented by the game itself.
    */
   // TODO: Should this return instances or classes of actions?
   // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract actions(): Set<Action<STATE, any>>;
+  abstract actions(): Set<Action<any>>;
 
   /**
    * Returns the set of all positive rules that are applied in this game.
@@ -119,7 +105,7 @@ export abstract class Game<
    */
   // TODO: Should this return instances or classes of actions?
   // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract positiveRules(): Set<PositiveRule<STATE>>;
+  abstract positiveRules(): Set<PositiveRule>;
 
   /**
    * Returns the set of all negative rules that are applied in this game.
@@ -127,20 +113,18 @@ export abstract class Game<
    */
   // TODO: Should this return instances or classes of actions?
   // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract negativeRules(): Set<NegativeRule<STATE>> | void;
+  abstract negativeRules(): Set<NegativeRule> | void;
 
   /**
    * Flushes the current state of an entity to the engine.
    * This should be called, when that entity is changed or a new entity is spawned.
    * @param entity The entity to flush.
    */
-  public flush(entity: Entity<STATE>): void {
+  public flush(entity: Entity): void {
     this._logger.debug(
       () =>
         `Flushing entity ${entity.constructor.name} with ID ${entity.id()} in game ${this.constructor.name}.`,
     );
-
-    entity.persist(this._state, this);
   }
 
   /**
@@ -149,7 +133,6 @@ export abstract class Game<
    */
   private _setup(parameters: PARAMETERS): void {
     const state = this.initialize(parameters);
-    this._state = state;
 
     this._logger.debug(
       () =>
@@ -187,7 +170,7 @@ export abstract class Game<
     this._logger.info(() => `Spawning entities...`);
 
     let spawnCount = 0;
-    for (const entity of this.enrichen(state, this)) {
+    for (const entity of this.enrichen(this)) {
       this._entityService.create(entity);
       spawnCount++;
     }
@@ -211,14 +194,12 @@ export abstract class Game<
    * @returns A set of entities of the wanted type.
    *          If the wanted type is not provided, all entities are returned.
    */
-  public entitySet<TYPE extends Entity<STATE>>(
-    type: Class<TYPE>,
-  ): ReadonlySet<TYPE>;
-  public entitySet(): ReadonlySet<Entity<STATE>>;
-  public entitySet<TYPE extends Entity<STATE>>(
+  public entitySet<TYPE extends Entity>(type: Class<TYPE>): ReadonlySet<TYPE>;
+  public entitySet(): ReadonlySet<Entity>;
+  public entitySet<TYPE extends Entity>(
     type?: Class<TYPE>,
-  ): ReadonlySet<TYPE> | ReadonlySet<Entity<STATE>> {
-    return this._entityService.entitySet(type as Class<Entity<STATE>>);
+  ): ReadonlySet<TYPE> | ReadonlySet<Entity> {
+    return this._entityService.entitySet(type as Class<Entity>);
   }
 
   /**
@@ -227,17 +208,15 @@ export abstract class Game<
    * @returns An iterable of entities of the wanted type.
    *          If the wanted type is not provided, all entities are returned.
    */
-  public entities<TYPE extends Entity<STATE> & PlayerInterface<STATE>>(
+  public entities<TYPE extends Entity & PlayerInterface>(
     type: Class<TYPE>,
-  ): ReadonlyArray<TYPE & PlayerInterface<STATE>>;
-  public entities<TYPE extends Entity<STATE>>(
-    type: Class<TYPE>,
-  ): ReadonlyArray<TYPE>;
-  public entities(): ReadonlyArray<Entity<STATE>>;
-  public entities<TYPE extends Entity<STATE>>(
+  ): ReadonlyArray<TYPE & PlayerInterface>;
+  public entities<TYPE extends Entity>(type: Class<TYPE>): ReadonlyArray<TYPE>;
+  public entities(): ReadonlyArray<Entity>;
+  public entities<TYPE extends Entity>(
     type?: Class<TYPE>,
-  ): ReadonlyArray<TYPE> | ReadonlyArray<Entity<STATE>> {
-    return this._entityService.entities(type as Class<Entity<STATE>>);
+  ): ReadonlyArray<TYPE> | ReadonlyArray<Entity> {
+    return this._entityService.entities(type as Class<Entity>);
   }
 
   /**
@@ -250,19 +229,8 @@ export abstract class Game<
    * @param type The type of entity to return.
    * @returns An entity of the wanted type, or null if no such entity exists.
    */
-  public anyEntity<TYPE extends Entity<STATE>>(type: Class<TYPE>): TYPE | null {
+  public anyEntity<TYPE extends Entity>(type: Class<TYPE>): TYPE | null {
     return this._entityService.anyEntity(type);
-  }
-
-  /**
-   * Fetches the raw state object of the game, which is used to communicate with clients.
-   * This is a raw object, without any ergonomics provided by entity abstractions.
-   * This method should only be used for debugging purposes.
-   * Don't modify this state object directly, as it will lead to client desync and inconcistencies.
-   * @returns The raw state object of the game.
-   */
-  public state(): DeepReadonly<STATE> {
-    return this._state as DeepReadonly<STATE>;
   }
 
   /**
@@ -304,12 +272,12 @@ export abstract class Game<
    * Normally, only the diff is sent.
    */
   private _informPlayer(
-    player: PlayerInterface<STATE>,
+    player: PlayerInterface,
     sendFullState: boolean = false,
   ): void {
     // TODO: Implement!
     player[handler]!(
-      this.state(),
+      new Set(), // TODO: Implement!
       this._choices.get(player) ?? new Set(),
       (choice: EnhancedChoice<any, any> | ChoiceId) => {},
     );
@@ -322,8 +290,8 @@ export abstract class Game<
    * @param callback The callback function to handle the player state.
    */
   public registerPlayerCallback(
-    player: PlayerInterface<STATE>,
-    callback: PlayerInterfaceCallback<STATE>,
+    player: PlayerInterface,
+    callback: PlayerInterfaceCallback,
   ): void {
     this._logger.info(
       `Registering player callback for player interface with ID ${player[playerId]}.`,

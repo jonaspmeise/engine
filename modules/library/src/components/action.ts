@@ -1,5 +1,4 @@
 import { ActionParameters } from './action.types';
-import { GameState } from '../game.types';
 import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
 
 /**
@@ -8,7 +7,6 @@ import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
  * An Action does not need to have parameters.
  */
 export abstract class Action<
-  STATE extends GameState,
   PARAMETERS extends ActionParameters | undefined = undefined,
 > {
   /**
@@ -18,7 +16,7 @@ export abstract class Action<
    * @param parameters The parameters for this Action, if any exists.
    */
   abstract apply(
-    runtime: ModifiableRuntime<STATE>,
+    runtime: ModifiableRuntime,
     parameters: PARAMETERS extends undefined ? undefined : PARAMETERS,
   ): void;
 
