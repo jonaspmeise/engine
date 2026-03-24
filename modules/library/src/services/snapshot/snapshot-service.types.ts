@@ -3,9 +3,10 @@ import { Action } from '../../components/action';
 import { NegativeRule } from '../../components/negative-rule';
 import { PositiveRule } from '../../components/positive-rule';
 import { Trigger } from '../../components/trigger';
+import { Class } from '../../game.types';
 
 export type MinimalSnapshotParameters = {
-  actions: Set<Action<any>>;
+  actions: Set<Class<Action<any>>>;
   positiveRules: Set<PositiveRule>;
   negativeRules?: Set<NegativeRule>;
   triggers?: Set<Trigger>;

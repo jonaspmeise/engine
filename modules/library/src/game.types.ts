@@ -1,6 +1,7 @@
 import { EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
 import { Entity } from './components/entity';
+import { PlayerInterface } from './interfaces/player-interface';
 
 export type GameParameters = Record<string, unknown>;
 
@@ -62,9 +63,19 @@ export type DeepReadonly<T> = Partial<{
       : DeepReadonly<T[P]>;
 }>;
 
+type AnyEntity = Record<string, unknown> & Entity;
+
 export type PlayerInterfaceCallback = (
   // The entities, that were modified in the last snapshot.
-  delta: Set<Entity>,
-  choices: Set<EnhancedChoice<any, any>>, // TODO: Choice should have only a single generic - the type of its capsuled action.
-  execute: (choice: EnhancedChoice<any, any> | ChoiceId) => void,
+  delta: Set<DeepReadonly<AnyEntity>>,
+  choices: EnhancedChoice<any>[],
+  execute: (choice: EnhancedChoice<any> | ChoiceId) => void,
 ) => void;
+
+/**
+ * This models data that defines the content of a snapshot and what is sent to the player.
+ */
+export type SnapshotData = {
+  dirtyEntities: Set<DeepReadonly<AnyEntity>>;
+  choices: Map<PlayerInterface, EnhancedChoice<any>[]>;
+};

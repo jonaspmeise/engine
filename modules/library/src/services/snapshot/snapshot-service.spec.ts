@@ -9,18 +9,14 @@ import {
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import { Choice, EnhancedChoice } from '../../components/choice';
 import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
-import { EntityID } from '../../components/entity.types';
 import { Entity } from '../../components/entity';
 import { beforeEach } from 'node:test';
 
 class TestEntity extends Entity {
   public value: number = 0;
 
-  protected generateId(): EntityID {
-    return `TestEntity-${this._id}`;
-  }
-  constructor(protected readonly _id: number) {
-    super();
+  constructor(readonly _id: number) {
+    super(`TestEntity-${_id}`);
   }
 }
 
@@ -29,14 +25,12 @@ class TestActionA extends Action<{ shouldBePrevented: boolean } | undefined> {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }
 
-  constructor() {
-    super();
-  }
+  public name: string = 'TestActionA';
 }
 
 class TestPlayer extends Entity implements PlayerInterface {
-  protected generateId(): EntityID {
-    return `TestPlayer`;
+  constructor() {
+    super(`player-${Math.random()}`);
   }
 
   [playerInterfaceMarker] = true as const;
@@ -149,14 +143,15 @@ describe('snapshotService', () => {
     test('returns the correct choice space given only positive rules.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([new TestActionA()]),
+        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
             apply: (runtime: QueryableRuntime) => [
               new Choice(
-                TestActionA,
-                undefined,
+                new TestActionA({
+                  shouldBePrevented: false,
+                }),
                 runtime.anyEntity<TestPlayer>(TestPlayer)!,
               ),
             ],
@@ -177,7 +172,13 @@ describe('snapshotService', () => {
       expect(choices).toHaveLength(1);
       expect(choices).toEqual(
         new Set([
-          new EnhancedChoice('choice-0', TestActionA, undefined, player),
+          new EnhancedChoice(
+            'choice-0',
+            new TestActionA({
+              shouldBePrevented: false,
+            }),
+            player,
+          ),
         ]),
       );
     });
@@ -185,14 +186,15 @@ describe('snapshotService', () => {
     test('if choices for a player, which is not registered in the runtime, are generated, an error is thrown.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([new TestActionA()]),
+        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
             apply: (_runtime: QueryableRuntime) => [
               new Choice(
-                TestActionA,
-                undefined,
+                new TestActionA({
+                  shouldBePrevented: false,
+                }),
                 new TestPlayer(), // This player is not registered in the runtime, thus an error should be thrown.
               ),
             ],
@@ -209,23 +211,21 @@ describe('snapshotService', () => {
     test('negative rules prevent choices from being generated.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([new TestActionA()]),
+        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
             apply: (runtime: QueryableRuntime) => [
               new Choice(
-                TestActionA,
-                {
+                new TestActionA({
                   shouldBePrevented: true,
-                },
+                }),
                 runtime.anyEntity<TestPlayer>(TestPlayer)!,
               ),
               new Choice(
-                TestActionA,
-                {
+                new TestActionA({
                   shouldBePrevented: false,
-                },
+                }),
                 runtime.anyEntity<TestPlayer>(TestPlayer)!,
               ),
             ],
@@ -234,12 +234,9 @@ describe('snapshotService', () => {
         negativeRules: new Set([
           {
             name: 'TestNegativeRule',
-            apply: (
-              choice: Choice<TestActionA, { shouldBePrevented: boolean }>,
-              _runtime: QueryableRuntime,
-            ) =>
-              (choice as Choice<TestActionA, { shouldBePrevented: boolean }>)
-                ?.parameters?.shouldBePrevented,
+            apply: (choice: Choice<TestActionA>, _runtime: QueryableRuntime) =>
+              (choice as Choice<TestActionA>).execution.parameters
+                ?.shouldBePrevented ?? false,
           },
         ]),
       });
@@ -258,8 +255,9 @@ describe('snapshotService', () => {
         new Set([
           new EnhancedChoice(
             'choice-1', // The first choice is completely filtered out...
-            TestActionA,
-            { shouldBePrevented: false },
+            new TestActionA({
+              shouldBePrevented: false,
+            }),
             player,
           ),
         ]),
@@ -269,7 +267,7 @@ describe('snapshotService', () => {
     test('throws an error if no player has any choices in a snapshot.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([new TestActionA()]),
+        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',

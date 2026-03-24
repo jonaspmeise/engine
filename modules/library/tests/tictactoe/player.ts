@@ -11,7 +11,7 @@ export class TicTacToePlayer extends Entity implements PlayerInterface {
     public readonly mark: Mark,
     public isCurrentPlayer: boolean,
   ) {
-    super();
+    super(`player-${mark}`);
   }
   [playerInterfaceMarker] = true as const;
 

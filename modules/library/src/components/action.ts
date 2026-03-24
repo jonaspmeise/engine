@@ -9,16 +9,23 @@ import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
 export abstract class Action<
   PARAMETERS extends ActionParameters | undefined = undefined,
 > {
+  // TODO: If parameters is undefined, this should be optional in the constructor and apply method.
+  public readonly parameters: PARAMETERS;
+
+  constructor();
+  constructor(parameters: PARAMETERS);
+  constructor(parameters?: PARAMETERS) {
+    this.parameters = parameters as PARAMETERS;
+  }
+
   /**
-   * TODO: Instead of going over the entire state, we should instead go over entities and modify entities!
-   * Applies an @see Action to a game state.
+   * Applies this Action to a game state.
+   * This should consume the @see parameters that are passed in the constructor, and modify the game state accordingly.
    * @param runtime The runtime, that allows access to Entities, which are mutable for the context of this Action.
-   * @param parameters The parameters for this Action, if any exists.
    */
-  abstract apply(
-    runtime: ModifiableRuntime,
-    parameters: PARAMETERS extends undefined ? undefined : PARAMETERS,
-  ): void;
+  abstract apply(runtime: ModifiableRuntime): void;
+
+  public abstract readonly name: string;
 
   // TODO: Message and Prompt!
 

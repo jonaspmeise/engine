@@ -8,7 +8,6 @@ import {
   mock,
 } from 'bun:test';
 import { Entity } from '../../components/entity';
-import { EntityID } from '../../components/entity.types';
 import { EntityService } from './entity-service';
 import { NO_OP_LOGGER } from '../../game.types';
 import { EntityFlushCallback, PlayerEntity } from './entity-service.types';
@@ -21,26 +20,20 @@ import {
 class TestEntityA extends Entity {
   public volatileNumber: number = 0;
 
-  protected generateId(): EntityID {
-    return `TestEntityA-${this._id}`;
-  }
-  constructor(protected readonly _id: number) {
-    super();
+  constructor(readonly _id: number) {
+    super(`TestEntityA-${_id}`);
   }
 }
 
 class TestEntityB extends Entity {
-  protected generateId(): EntityID {
-    return `TestEntityB-${this._id}`;
-  }
-  constructor(protected readonly _id: number) {
-    super();
+  constructor(readonly _id: number | string) {
+    super(typeof _id === 'number' ? `TestEntityB-${_id}` : _id);
   }
 }
 
 class TestEntityC extends TestEntityB {
-  protected generateId(): EntityID {
-    return `TestEntityC-${this._id}`;
+  constructor(id: number) {
+    super(`TestEntityC-${id}`);
   }
 }
 
@@ -79,7 +72,7 @@ describe('entityService', () => {
       // THEN
       expect(service.entities()).toHaveLength(1);
       expect(service.entities(TestEntityA)).toHaveLength(1);
-      expect(service.entities(TestEntityA)[0]!.id()).toBe('TestEntityA-1');
+      expect(service.entities(TestEntityA)[0]!.id).toBe('TestEntityA-1');
     });
 
     test('when an entity is spawned, the flush callback is called. The engine needs to be notified of changes to entity state.', () => {

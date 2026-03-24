@@ -5,15 +5,11 @@ import { Slot } from './slot';
 
 export class MarkAction extends Action<{
   slot: Slot;
-  player: TicTacToePlayer; // or automate this somehow...?
+  player: TicTacToePlayer;
 }> {
-  apply(
-    _runtime: ModifiableRuntime,
-    parameters: {
-      slot: Slot;
-      player: TicTacToePlayer;
-    },
-  ): void {
-    parameters.slot.markedBy = parameters.player;
+  public name: string = 'mark';
+
+  apply(_runtime: ModifiableRuntime): void {
+    this.parameters.slot.markedBy = this.parameters.player;
   }
 }

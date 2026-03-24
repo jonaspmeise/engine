@@ -3,11 +3,13 @@ import { Entity } from './components/entity';
 import { FlushableRuntime } from './interfaces/flushable-runtime';
 import {
   Class,
+  DeepReadonly,
   DEFAULT_GAME_CONFIG,
   GameConfig,
   GameParameters,
   Logger,
   PlayerInterfaceCallback,
+  SnapshotData,
 } from './game.types';
 import { QueryableRuntime } from './interfaces/queryable-runtime';
 import { EntityService } from './services/entity/entity-service';
@@ -34,11 +36,10 @@ export abstract class Game<
   private readonly _snapshotService: SnapshotService;
 
   // TODO: Move to own service? PlayerHandlerService?
-  private readonly _choices: Map<
-    PlayerInterface,
-    Set<EnhancedChoice<any, any>>
-  > = new Map();
-  private _dirtyEntities: Set<Entity> = new Set();
+  private _state: SnapshotData = {
+    choices: new Map(),
+    dirtyEntities: new Set(),
+  };
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
   // TODO: ... handle drivers (for MTCS / replays).
@@ -123,10 +124,11 @@ export abstract class Game<
   public flush(entity: Entity): void {
     this._logger.debug(
       () =>
-        `Flushing entity ${entity.constructor.name} with ID ${entity.id()} in game ${this.constructor.name}.`,
+        `Flushing entity ${entity.constructor.name} with ID ${entity.id} in game ${this.constructor.name}.`,
     );
 
-    this._dirtyEntities.add(entity);
+    // TODO: "as" needed here?
+    this._state.dirtyEntities.add(entity as DeepReadonly<typeof entity>);
   }
 
   /**
@@ -223,24 +225,24 @@ export abstract class Game<
     this._started = true;
     this._logger.info(() => `Calculating next snapshot...`);
 
-    // Clean up prior choice space.
-    this._choices.clear();
+    // Clean up prior snapshot data.
+    this._state.choices.clear();
 
     // Find all choices for players in the current state.
     const choices = this._snapshotService.calculateChoices(this);
 
     // Split choices by player and inform them.
     for (const choice of choices) {
-      if (!this._choices.has(choice.player)) {
-        this._choices.set(choice.player, new Set());
+      if (!this._state.choices.has(choice.player)) {
+        this._state.choices.set(choice.player, []);
       }
-      this._choices.get(choice.player)!.add(choice);
+      this._state.choices.get(choice.player)!.push(choice);
     }
 
     for (const player of this._entityService.players()) {
       this._logger.debug(
         () =>
-          `Player ${player.id()} has ${this._choices.get(player)?.size ?? 0} choices.`,
+          `Player ${player.id} has ${this._state.choices.get(player)?.length ?? 0} choices.`,
       );
     }
 
@@ -263,12 +265,45 @@ export abstract class Game<
   ): void {
     // TODO: Implement!
     player[handler]!(
-      new Set(), // TODO: Implement!
-      this._choices.get(player) ?? new Set(),
-      (choice: EnhancedChoice<any, any> | ChoiceId) => {
-        this._nextSnapshot();
+      this._state.dirtyEntities, // TODO: Implement!
+      this._state.choices.get(player) ?? [],
+      (choice: EnhancedChoice<any> | ChoiceId) => {
+        this._executeChoice(player, choice);
       },
     );
+  }
+
+  /**
+   * Executes a given choice.
+   * @param choice The choice to execute.
+   */
+  private _executeChoice(
+    player: PlayerInterface,
+    rawChoice: EnhancedChoice<any> | ChoiceId,
+  ): void {
+    const choice: EnhancedChoice<any> | undefined =
+      typeof rawChoice === 'object'
+        ? rawChoice
+        : this._state.choices.get(player)?.find((c) => c.id === rawChoice);
+
+    if (choice === undefined) {
+      this._logger.error(
+        () =>
+          `Player ${player[playerId]} tried to execute an invalid choice with ID ${rawChoice}. Ignoring this...`,
+      );
+      return;
+    }
+
+    this._logger.info(
+      () =>
+        `Player ${player[playerId]} executes choice ${choice.id} (${choice.execution}).`,
+    );
+
+    // Clear prior snapshot state and calculate the next one.
+    this._state.dirtyEntities.clear();
+    choice.execution.apply(this, choice.execution.parameters);
+
+    this._nextSnapshot();
   }
 
   /**

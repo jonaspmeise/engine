@@ -1,3 +1,4 @@
+import { Action } from '../../components/action';
 import { EnhancedChoice } from '../../components/choice';
 import { DEFAULT_GAME_CONFIG, Logger } from '../../game.types';
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
@@ -56,12 +57,10 @@ export class SnapshotService {
    * Choices should be generated based on the state of entities.
    * @returns The choice space for all players, resulting in all choices that players have during this snapshot.
    */
-  public calculateChoices(
-    runtime: QueryableRuntime,
-  ): Set<EnhancedChoice<any, any>> {
+  public calculateChoices(runtime: QueryableRuntime): Set<EnhancedChoice<any>> {
     this._logger.debug(() => `Calculating choice space...`);
 
-    const choices = new Set<EnhancedChoice<any, any>>();
+    const choices = new Set<EnhancedChoice<Action<any>>>();
 
     for (const rule of this._state.positiveRules) {
       const generatedChoices = rule.apply(runtime);
@@ -94,7 +93,7 @@ export class SnapshotService {
         if (rule.apply(choice, runtime)) {
           this._logger.debug(
             () =>
-              `Choice ${choice.action.name} is prevented by rule ${rule.name}. Removing from choice space...`,
+              `Choice ${choice.execution.name} is prevented by rule ${rule.name}. Removing from choice space...`,
           );
           choices.delete(choice);
           continue outer;
@@ -106,7 +105,7 @@ export class SnapshotService {
     for (const choice of choices) {
       if (!runtime.entitySet().has(choice.player)) {
         throw new Error(
-          `Player ${choice.player.id()} is not registered in the runtime.`,
+          `Player ${choice.player.id} is not registered in the runtime.`,
         );
       }
     }

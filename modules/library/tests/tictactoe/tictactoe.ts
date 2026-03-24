@@ -10,6 +10,7 @@ import { HorizontalLane } from './horizontal-lane';
 import { DiagonalLane } from './diagonal-lane';
 import { NegativeRule } from '../../src/components/negative-rule';
 import { PositiveRule } from '../../src/components/positive-rule';
+import { Class } from '../../src/game.types';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
   positiveRules(): Set<PositiveRule> {
@@ -23,9 +24,9 @@ export class TicTacToe extends Game<TicTacToeParameters> {
 
           // TODO: Make Choice instantiate the Action object itself...?
           return runtime.entities(Slot).map((slot) => ({
-            action: MarkAction,
+            execution: new MarkAction(),
             parameters: {
-              playerId: currentPlayer.id(),
+              playerId: currentPlayer.id,
               x: slot.x,
               y: slot.y,
             },
@@ -40,8 +41,8 @@ export class TicTacToe extends Game<TicTacToeParameters> {
     // No negative rules in this game.
   }
 
-  actions(): Set<Action<any>> {
-    return new Set([new MarkAction()]);
+  actions(): Set<Class<Action<any>>> {
+    return new Set([MarkAction]);
   }
 
   public readonly name: string = 'Tic-Tac-Toe';

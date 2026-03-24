@@ -1,6 +1,4 @@
 import { Action } from './action';
-import { ActionParameters } from './action.types';
-import { Class } from '../game.types';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { ChoiceId } from './choice.types';
 
@@ -9,15 +7,15 @@ import { ChoiceId } from './choice.types';
  * This is one of the main objects (besides the raw game state) that is communicated to the player.
  * The player visualizes these choices and can select one of them to execute.
  */
-export class Choice<
-  ACTION extends Action<PARAMETERS>,
-  PARAMETERS extends ActionParameters | undefined = undefined,
-> {
+export class Choice<ACTION extends Action<any>> {
+  /**
+   * Instantiate a choice.
+   * @param execution The action that will be executed when the player selects this choice, including the parameters for that action.
+   * Since the object is instantiated, the action and parameters are bound here.
+   * @param player The player to who this choice belongs.
+   */
   constructor(
-    public readonly action: Class<ACTION>,
-    public readonly parameters: PARAMETERS extends undefined
-      ? undefined
-      : PARAMETERS,
+    public readonly execution: ACTION,
     public readonly player: PlayerEntity,
   ) {}
 }
@@ -25,31 +23,19 @@ export class Choice<
 /**
  * This enhanced version of the Choice class is issued by the engine and communicated to the player.
  */
-export class EnhancedChoice<
-  ACTION extends Action<PARAMETERS>,
-  PARAMETERS extends ActionParameters | undefined = undefined,
-> extends Choice<ACTION, PARAMETERS> {
+export class EnhancedChoice<ACTION extends Action<any>> extends Choice<ACTION> {
   constructor(
     public readonly id: ChoiceId,
-    action: Class<ACTION>,
-    parameters: PARAMETERS extends undefined ? undefined : PARAMETERS,
+    execution: ACTION,
     player: PlayerEntity,
   ) {
-    super(action, parameters, player);
+    super(execution, player);
   }
 
-  static fromChoice<
-    ACTION extends Action<PARAMETERS>,
-    PARAMETERS extends ActionParameters | undefined = undefined,
-  >(
-    choice: Choice<ACTION, PARAMETERS>,
+  static fromChoice<ACTION extends Action<any>>(
+    choice: Choice<ACTION>,
     id: ChoiceId,
-  ): EnhancedChoice<ACTION, PARAMETERS> {
-    return new EnhancedChoice(
-      id,
-      choice.action,
-      choice.parameters,
-      choice.player,
-    );
+  ): EnhancedChoice<ACTION> {
+    return new EnhancedChoice(id, choice.execution, choice.player);
   }
 }

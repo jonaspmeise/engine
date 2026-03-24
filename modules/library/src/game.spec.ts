@@ -2,63 +2,45 @@ import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Game } from './game';
 import { Action } from './components/action';
 import { Entity } from './components/entity';
-import { EntityID, id } from './components/entity.types';
+import { EntityID } from './components/entity.types';
 import { QueryableRuntime } from './interfaces/queryable-runtime';
 import {
-  playerId,
   PlayerInterface,
   playerInterfaceMarker,
 } from './interfaces/player-interface';
 import { Class, Logger } from './game.types';
 import { PositiveRule } from './components/positive-rule';
 import { timeout } from '../tests/utility.spec';
-import { disposeEmitNodes } from 'typescript';
 
 class TestEntityA extends Entity {
-  constructor(protected readonly _id: number) {
-    super();
-  }
-  generateId(): EntityID {
-    return `testentityA-${this._id}`;
+  constructor(_id: number) {
+    super(`testentityA-${_id}`);
   }
 }
 
 class TestEntityB extends Entity {
-  constructor(protected readonly _id: number) {
-    super();
-  }
-  generateId(): EntityID {
-    return `testentityB-${this._id}`;
+  constructor(id: number | string) {
+    super(typeof id === 'number' ? `testentityB-${id}` : id);
   }
 }
 
 class TestEntityC extends TestEntityB {
   public volatileNumber: number = 0;
 
-  generateId(): EntityID {
-    return `testentityC-${this._id}`;
+  constructor(_id: number) {
+    super(`testentityC-${_id}`);
   }
 }
 
 class TestPlayerEntity extends Entity implements PlayerInterface {
-  constructor(protected readonly _id: number) {
-    super();
+  constructor(_id: number) {
+    super(`testPlayerEntity-${_id}`);
   }
   [playerInterfaceMarker] = true as const;
-
-  protected generateId(): EntityID {
-    return `testPlayerEntity-${this._id}`;
-  }
 }
 
-type TestGameState = {
-  [key in 'a' | 'b' | 'c']: {
-    count: number;
-    values: number[];
-  };
-};
-
-class TestAction extends Action<TestGameState> {
+class TestAction extends Action {
+  public name = 'TestAction';
   apply(_runtime: QueryableRuntime): void {
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
@@ -86,7 +68,6 @@ class TestGame extends Game {
     return entities;
   }
   actions() {
-    // TODO: Return class? Or instance? Instance is a choice, which might be wrong here...
     return new Set<Class<Action<any>>>([TestAction]);
   }
   positiveRules(): Set<PositiveRule> {
@@ -95,8 +76,7 @@ class TestGame extends Game {
         name: 'test-positive-rule',
         apply: (runtime) =>
           runtime.entities(TestPlayerEntity).map((player) => ({
-            action: TestAction,
-            parameters: undefined,
+            execution: new TestAction(),
             player,
           })),
       },
@@ -192,10 +172,10 @@ describe('game', () => {
       const playerInterfaces = game.entities(TestPlayerEntity);
 
       expect(playerInterfaces).toHaveLength(2);
-      expect(playerInterfaces[0]![playerId]).not.toBeNull();
-      expect(playerInterfaces[0]![playerId]).not.toBeUndefined();
-      expect(playerInterfaces[1]![playerId]).not.toBeNull();
-      expect(playerInterfaces[1]![playerId]).not.toBeUndefined();
+      expect(playerInterfaces[0]!.id).not.toBeNull();
+      expect(playerInterfaces[0]!.id).not.toBeUndefined();
+      expect(playerInterfaces[1]!.id).not.toBeNull();
+      expect(playerInterfaces[1]!.id).not.toBeUndefined();
     });
   });
 
@@ -220,7 +200,7 @@ describe('game', () => {
 
       // THEN
       expect(game.anyEntity(TestEntityA)).toMatchObject({
-        [id]: expect.stringMatching(/testentityA-[1-3]/),
+        id: expect.stringMatching(/testentityA-[1-3]/),
       });
     });
 
@@ -441,7 +421,21 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
         (delta, choices) => {
-          expect(delta).toEqual(new Set());
+          expect(delta).toHaveLength(8); // All entities are new for the player, so all of them should be sent in the delta.
+
+          expect(delta).toContainEqual({ id: 'testentityA-1' });
+          expect(delta).toContainEqual({ id: 'testentityA-2' });
+          expect(delta).toContainEqual({ id: 'testentityA-3' });
+          expect(delta).toContainEqual({ id: 'testentityB-1' });
+          expect(delta).toContainEqual({ id: 'testentityB-2' });
+          expect(delta).toContainEqual({
+            id: 'testentityC-1',
+            volatileNumber: 0,
+          });
+
+          const ids = Array.from(delta).map((entity) => entity.id);
+          expect(ids).toContainEqual('testPlayerEntity-1');
+          expect(ids).toContainEqual('testPlayerEntity-2');
 
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(1);
@@ -455,7 +449,7 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
         (delta, choices) => {
-          expect(delta).toEqual(new Set());
+          expect(delta).toHaveLength(8); // All entities are new for the player, so all of them should be sent in the delta.
 
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(1);
@@ -482,17 +476,20 @@ describe('game', () => {
 
           if (snapshotCount === 1) {
             // Initial state - pick a choice!
-            // TODO: Remove choices[0].apply from the type here, because the choice should never be applied directly!
             executor(Array.from(choices)[0]!);
           } else {
             // THEN
             // Only the modified entity should be sent to the player, not the whole state!
-            // TODO: Write this down somewhere: We send new entities completely, so the client does not have to make complex diffing logic...?
             expect(choices).toHaveLength(1);
+            expect(delta).toHaveLength(1);
             expect(delta).toEqual(
-              new Set({
-                [id]: 'testentityC-1',
-              }),
+              new Set([
+                {
+                  id: 'testentityC-1',
+                  // The action modified this property!
+                  volatileNumber: 1,
+                },
+              ]),
             );
 
             done();
@@ -507,6 +504,15 @@ describe('game', () => {
 
       timeout(done);
     });
+
+    test.todo(
+      'if a choice is executed that does not exist, an error is logged and nothing happens.',
+      () => {},
+    );
+    test.todo(
+      'if a player executes a choice of another player, an error is logged and nothing happens.',
+      () => {},
+    );
 
     // TODO: IMPORTANT: IS THE JSON STATE EVEN NEEDED? CAN WE JUST COMMUNICATE THE ENTITY TYPES AND RECREATE THE ERGONOMIC ACCESSORS BASED ON THEIR TYPE?
   });
