@@ -18,7 +18,7 @@ import {
 } from './interfaces/player-interface';
 import { PositiveRule } from './components/positive-rule';
 import { NegativeRule } from './components/negative-rule';
-import { SnapshotService } from './services/actions/snapshot-service';
+import { SnapshotService } from './services/snapshot/snapshot-service';
 import { EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
 
@@ -84,7 +84,7 @@ export abstract class Game<
    * @param parameters The parameters to initialize the game with.
    * @returns The initial game state.
    */
-  protected abstract initialize(parameters: PARAMETERS): Set<Entity>; // TODO: Implement!
+  protected abstract initialize(parameters: PARAMETERS): Set<Entity>;
 
   /**
    * The name of the game.
@@ -97,7 +97,7 @@ export abstract class Game<
    */
   // TODO: Should this return instances or classes of actions?
   // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract actions(): Set<Action<any>>;
+  abstract actions(): Set<Class<Action<any>>>;
 
   /**
    * Returns the set of all positive rules that are applied in this game.
@@ -223,6 +223,9 @@ export abstract class Game<
     this._started = true;
     this._logger.info(() => `Calculating next snapshot...`);
 
+    // Clean up prior choice space.
+    this._choices.clear();
+
     // Find all choices for players in the current state.
     const choices = this._snapshotService.calculateChoices(this);
 
@@ -262,7 +265,9 @@ export abstract class Game<
     player[handler]!(
       new Set(), // TODO: Implement!
       this._choices.get(player) ?? new Set(),
-      (choice: EnhancedChoice<any, any> | ChoiceId) => {},
+      (choice: EnhancedChoice<any, any> | ChoiceId) => {
+        this._nextSnapshot();
+      },
     );
   }
 

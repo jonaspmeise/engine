@@ -9,9 +9,10 @@ import {
   PlayerInterface,
   playerInterfaceMarker,
 } from './interfaces/player-interface';
-import { Logger } from './game.types';
+import { Class, Logger } from './game.types';
 import { PositiveRule } from './components/positive-rule';
 import { timeout } from '../tests/utility.spec';
+import { disposeEmitNodes } from 'typescript';
 
 class TestEntityA extends Entity {
   constructor(protected readonly _id: number) {
@@ -59,7 +60,6 @@ type TestGameState = {
 
 class TestAction extends Action<TestGameState> {
   apply(_runtime: QueryableRuntime): void {
-    // TODO: All the entity accessors should only reveal "ID", but not the internal "persist" and "generateId" methods to the developer!
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
 }
@@ -87,7 +87,7 @@ class TestGame extends Game {
   }
   actions() {
     // TODO: Return class? Or instance? Instance is a choice, which might be wrong here...
-    return new Set<Action<any>>([TestAction]);
+    return new Set<Class<Action<any>>>([TestAction]);
   }
   positiveRules(): Set<PositiveRule> {
     return new Set<PositiveRule>([
@@ -136,7 +136,7 @@ describe('game', () => {
       // GIVEN / WHEN / THEN
       class NoActionGame extends TestGame {
         actions() {
-          return new Set<Action<any>>();
+          return new Set<Class<Action<any>>>();
         }
       }
 
@@ -258,18 +258,19 @@ describe('game', () => {
   describe('flush', () => {
     test('when an entity is spawned, and that entity is modified, it is flushed.', () => {
       // GIVEN
+      const flush = spyOn(TestGame.prototype, 'flush');
       const game = new TestGame();
-      const spy = spyOn(game, 'flush').mockImplementation(() => {});
 
       // WHEN
       const entityC = game.anyEntity(TestEntityC)!;
 
-      // We override the method later, because normally it is invoked at initialization.
       entityC.volatileNumber = 42;
 
       // THEN
-      // TODO: Assert versus modified state!
-      expect(spy).toHaveBeenCalledTimes(1);
+      expect(flush).toHaveBeenCalledTimes(
+        8 + // 8 Entities spawned.
+          1, // 1 Entity modified.
+      );
     });
   });
 
@@ -392,10 +393,42 @@ describe('game', () => {
   });
 
   describe('lifecycle', () => {
-    test.todo(
-      'logs an error if two players have a choice at the same time.',
-      () => {},
-    );
+    test('logs an error if two players have a choice at the same time.', (done) => {
+      // GIVEN
+      const game = new TestGame(undefined, { logger });
+
+      // WHEN
+      let choiceSent = false;
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_delta) => {
+          if (choiceSent) {
+            // THEN
+            expect(logger.error).toHaveBeenCalledWith(
+              expect.stringMatching(/multiple.+players/gi),
+            );
+            done();
+          }
+          choiceSent = true;
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        (_delta) => {
+          if (choiceSent) {
+            // THEN
+            expect(logger.error).toHaveBeenCalledWith(
+              expect.stringMatching(/multiple.+players/gi),
+            );
+            done();
+          }
+
+          choiceSent = true;
+        },
+      );
+
+      timeout(done);
+    });
 
     test('the game starts when all player interfaces have registered a callback. players are informed about the initial state.', (done) => {
       // GIVEN
@@ -435,43 +468,45 @@ describe('game', () => {
       );
     });
 
-    test.todo(
-      'sends only modified entities of the state to the player after a choice is picked. choices reset.',
-      (done) => {
-        // GIVEN
-        const game = new TestGame();
+    test('sends only modified entities of the state to the player after a choice is picked. choices reset.', (done) => {
+      // GIVEN
+      const game = new TestGame();
 
-        // WHEN
-        let snapshotCount = 0;
+      // WHEN
+      let snapshotCount = 0;
 
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          (delta, choices, executor) => {
-            snapshotCount++;
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (delta, choices, executor) => {
+          snapshotCount++;
 
-            if (snapshotCount === 1) {
-              // Initial state - pick a choice!
-              // TODO: Remove choices[0].apply from the type here, because the choice should never be applied directly!
-              executor(Array.from(choices)[0]!);
-            } else {
-              // THEN
-              // Only the modified entity should be sent to the player, not the whole state!
-              // TODO: Write this down somewhere: We send new entities completely, so the client does not have to make complex diffing logic...?
-              expect(delta).toEqual(new Set());
+          if (snapshotCount === 1) {
+            // Initial state - pick a choice!
+            // TODO: Remove choices[0].apply from the type here, because the choice should never be applied directly!
+            executor(Array.from(choices)[0]!);
+          } else {
+            // THEN
+            // Only the modified entity should be sent to the player, not the whole state!
+            // TODO: Write this down somewhere: We send new entities completely, so the client does not have to make complex diffing logic...?
+            expect(choices).toHaveLength(1);
+            expect(delta).toEqual(
+              new Set({
+                [id]: 'testentityC-1',
+              }),
+            );
 
-              done();
-            }
-          },
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          // Player 2 is not relevant for this test.
-          (_delta, _choices) => {},
-        );
+            done();
+          }
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        (_delta, _choices) => {},
+      );
 
-        timeout(done);
-      },
-    );
+      timeout(done);
+    });
 
     // TODO: IMPORTANT: IS THE JSON STATE EVEN NEEDED? CAN WE JUST COMMUNICATE THE ENTITY TYPES AND RECREATE THE ERGONOMIC ACCESSORS BASED ON THEIR TYPE?
   });

@@ -121,6 +121,11 @@ export class SnapshotService {
         `No choices generated for any player! At least one player should have at least one choice. Please check your rules!`,
       );
     }
+    if (playersWithChoices.size > 1) {
+      this._logger.error(
+        `Multiple players have choices at the same time! This should not be happening and introduces race conditions. Please check your rules!`,
+      );
+    }
 
     return choices;
   }
