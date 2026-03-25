@@ -3,7 +3,7 @@ import { Lane } from './lane';
 import { Slot } from './slot';
 
 export class VerticalLane extends Lane {
-  public type: string = 'vertical-lane';
+  public $type: string = 'vertical-lane';
 
   public slots(runtime: QueryableRuntime): Set<Slot> {
     return new Set(

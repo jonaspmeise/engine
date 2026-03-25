@@ -118,7 +118,7 @@ export abstract class Game<
   public flush(entity: Entity): void {
     this._logger.debug(
       () =>
-        `Flushing entity ${entity.constructor.name} with ID ${entity.id} in game ${this.constructor.name}.`,
+        `Flushing entity ${entity.constructor.name} with ID ${entity.$id} in game ${this.constructor.name}.`,
     );
 
     // TODO: "as" needed here?
@@ -230,7 +230,7 @@ export abstract class Game<
     for (const player of this._entityService.players()) {
       this._logger.debug(
         () =>
-          `Player ${player.id} has ${this._state.choices.get(player)?.length ?? 0} choices.`,
+          `Player ${player.$id} has ${this._state.choices.get(player)?.length ?? 0} choices.`,
       );
     }
 
@@ -280,7 +280,7 @@ export abstract class Game<
 
         this._logger.info(
           () =>
-            `Player ${player[playerId]} tries to execute choice "${choice.id}" (${choice.execution.type})...`,
+            `Player ${player[playerId]} tries to execute choice "${choice.id}" (${choice.execution.$type})...`,
         );
 
         // Debounce this execution, so that if multiple players are informed or want to execute a choice,
@@ -319,7 +319,7 @@ export abstract class Game<
   ): void {
     this._logger.info(
       () =>
-        `Player ${player[playerId]} executes choice "${choice.id}" (${choice.execution.type}).`,
+        `Player ${player[playerId]} executes choice "${choice.id}" (${choice.execution.$type}).`,
     );
 
     // Clear prior snapshot state and calculate the next one.
@@ -379,7 +379,7 @@ export abstract class Game<
   destroyEntity(entity: Entity): void {
     this._logger.info(
       () =>
-        `Destroying entity ${entity.constructor.name} with ID ${entity.id} in game ${this.name}.`,
+        `Destroying entity ${entity.constructor.name} with ID ${entity.$id} in game ${this.name}.`,
     );
 
     this._entityService.destroy(entity);
@@ -392,7 +392,7 @@ export abstract class Game<
   spawnEntity(entity: Entity): void {
     this._logger.info(
       () =>
-        `Spawning entity ${entity.constructor.name} with ID ${entity.id} in game ${this.name}.`,
+        `Spawning entity ${entity.constructor.name} with ID ${entity.$id} in game ${this.name}.`,
     );
 
     this._entityService.create(entity);

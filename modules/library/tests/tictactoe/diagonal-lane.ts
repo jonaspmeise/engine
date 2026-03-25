@@ -3,7 +3,7 @@ import { Lane } from './lane';
 import { Slot } from './slot';
 
 export class DiagonalLane extends Lane {
-  public type: string = 'diagonal-lane';
+  public $type: string = 'diagonal-lane';
   public slots(runtime: QueryableRuntime): Set<Slot> {
     return new Set(
       Array.from(runtime.entities(Slot)).filter((slot) =>

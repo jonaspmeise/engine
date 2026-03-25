@@ -88,7 +88,7 @@ export class SnapshotService {
         if (rule.apply(choice, runtime)) {
           this._logger.debug(
             () =>
-              `Choice ${choice.execution.type} is prevented by rule ${rule.name}. Removing from choice space...`,
+              `Choice ${choice.execution.$type} is prevented by rule ${rule.name}. Removing from choice space...`,
           );
           choices.delete(choice);
           continue outer;
@@ -100,7 +100,7 @@ export class SnapshotService {
     for (const choice of choices) {
       if (!runtime.entitySet().has(choice.player)) {
         throw new Error(
-          `Player ${choice.player.id} is not registered in the runtime.`,
+          `Player ${choice.player.$id} is not registered in the runtime.`,
         );
       }
     }

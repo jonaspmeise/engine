@@ -13,21 +13,21 @@ import { timeout } from '../tests/utility.spec';
 import { EntityID } from './components/entity.types';
 
 class TestEntityA extends Entity {
-  public type: string = 'TestEntityA';
+  public $type: string = 'TestEntityA';
   constructor(_id: number) {
     super(`testentityA-${_id}`);
   }
 }
 
 class TestEntityB extends Entity {
-  public type: string = 'TestEntityB';
+  public $type: string = 'TestEntityB';
   constructor(id: number | string) {
     super(typeof id === 'number' ? `testentityB-${id}` : id);
   }
 }
 
 class TestEntityC extends TestEntityB {
-  public type: string = 'TestEntityC';
+  public $type: string = 'TestEntityC';
   public volatileNumber: number = 0;
 
   constructor(_id: number) {
@@ -36,7 +36,7 @@ class TestEntityC extends TestEntityB {
 }
 
 class TestPlayerEntity extends Entity implements PlayerInterface {
-  public type: string = 'TestPlayerEntity';
+  public $type: string = 'TestPlayerEntity';
   constructor(_id: number) {
     super(`testPlayerEntity-${_id}`);
   }
@@ -51,7 +51,7 @@ class TestAction extends Action {
     return 'Execute TestAction';
   }
   public affectedEntities() {}
-  public type = 'TestAction';
+  public $type = 'TestAction';
   apply(_runtime: QueryableRuntime): void {
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
@@ -169,10 +169,10 @@ describe('game', () => {
       const playerInterfaces = game.entities(TestPlayerEntity);
 
       expect(playerInterfaces).toHaveLength(2);
-      expect(playerInterfaces[0]!.id).not.toBeNull();
-      expect(playerInterfaces[0]!.id).not.toBeUndefined();
-      expect(playerInterfaces[1]!.id).not.toBeNull();
-      expect(playerInterfaces[1]!.id).not.toBeUndefined();
+      expect(playerInterfaces[0]!.$id).not.toBeNull();
+      expect(playerInterfaces[0]!.$id).not.toBeUndefined();
+      expect(playerInterfaces[1]!.$id).not.toBeNull();
+      expect(playerInterfaces[1]!.$id).not.toBeUndefined();
     });
   });
 
@@ -197,7 +197,7 @@ describe('game', () => {
 
       // THEN
       expect(game.anyEntity(TestEntityA)).toMatchObject({
-        id: expect.stringMatching(/testentityA-[1-3]/),
+        $id: expect.stringMatching(/testentityA-[1-3]/),
       });
     });
 
@@ -209,7 +209,7 @@ describe('game', () => {
       expect(
         game.anyEntity(
           class NonExistingEntity extends Entity {
-            public type: string = 'NonExistingEntity';
+            public $type: string = 'NonExistingEntity';
           },
         ),
       ).toBeNull();
@@ -419,32 +419,32 @@ describe('game', () => {
           expect(delta).toHaveLength(8); // All entities are new for the player, so all of them should be sent in the delta.
 
           expect(delta).toContainEqual({
-            id: 'testentityA-1',
-            type: 'TestEntityA',
+            $id: 'testentityA-1',
+            $type: 'TestEntityA',
           });
           expect(delta).toContainEqual({
-            id: 'testentityA-2',
-            type: 'TestEntityA',
+            $id: 'testentityA-2',
+            $type: 'TestEntityA',
           });
           expect(delta).toContainEqual({
-            id: 'testentityA-3',
-            type: 'TestEntityA',
+            $id: 'testentityA-3',
+            $type: 'TestEntityA',
           });
           expect(delta).toContainEqual({
-            id: 'testentityB-1',
-            type: 'TestEntityB',
+            $id: 'testentityB-1',
+            $type: 'TestEntityB',
           });
           expect(delta).toContainEqual({
-            id: 'testentityB-2',
-            type: 'TestEntityB',
+            $id: 'testentityB-2',
+            $type: 'TestEntityB',
           });
           expect(delta).toContainEqual({
-            id: 'testentityC-1',
+            $id: 'testentityC-1',
             volatileNumber: 0,
-            type: 'TestEntityC',
+            $type: 'TestEntityC',
           });
 
-          const ids = Array.from(delta).map((entity) => entity.id);
+          const ids = Array.from(delta).map((entity) => entity.$id);
           expect(ids).toContainEqual('testPlayerEntity-1');
           expect(ids).toContainEqual('testPlayerEntity-2');
 
@@ -496,10 +496,10 @@ describe('game', () => {
             expect(delta).toEqual(
               new Set([
                 {
-                  id: 'testentityC-1',
+                  $id: 'testentityC-1',
                   // The action modified this property!
                   volatileNumber: 1,
-                  type: 'TestEntityC',
+                  $type: 'TestEntityC',
                 },
               ]),
             );
@@ -617,18 +617,18 @@ describe('game', () => {
           expect(JSON.parse(JSON.stringify(data))).toEqual({
             delta: [
               // We send the entity type too, so that the client knows how to construct the object of this type again.
-              { id: 'testentityA-1', type: 'TestEntityA' },
-              { id: 'testentityA-2', type: 'TestEntityA' },
-              { id: 'testentityA-3', type: 'TestEntityA' },
-              { id: 'testentityB-1', type: 'TestEntityB' },
-              { id: 'testentityB-2', type: 'TestEntityB' },
+              { $id: 'testentityA-1', $type: 'TestEntityA' },
+              { $id: 'testentityA-2', $type: 'TestEntityA' },
+              { $id: 'testentityA-3', $type: 'TestEntityA' },
+              { $id: 'testentityB-1', $type: 'TestEntityB' },
+              { $id: 'testentityB-2', $type: 'TestEntityB' },
               {
-                id: 'testentityC-1',
-                type: 'TestEntityC',
+                $id: 'testentityC-1',
+                $type: 'TestEntityC',
                 volatileNumber: 0,
               },
-              { id: 'testPlayerEntity-1', type: 'TestPlayerEntity' },
-              { id: 'testPlayerEntity-2', type: 'TestPlayerEntity' },
+              { $id: 'testPlayerEntity-1', $type: 'TestPlayerEntity' },
+              { $id: 'testPlayerEntity-2', $type: 'TestPlayerEntity' },
             ],
             choices: [
               {
@@ -662,11 +662,11 @@ describe('game', () => {
         apply(): void {
           // Not relevant for this test.
         }
-        public type: string = 'TargetedAction';
+        public $type: string = 'TargetedAction';
         public prompt(): string {
           return 'Execute TargetedAction';
         }
-        public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
+        public affectedEntities(): EntityID[] | void {
           throw new Error('Method not implemented.');
         }
         public message(): string {
@@ -689,7 +689,7 @@ describe('game', () => {
                       nested: { target: entityC },
                     }),
                     player: runtime.entities(TestPlayerEntity)[0]!,
-                    referencedEntities: new Set([entityC.id]), // The choice references this entity, so it should be persisted even if it is not part of the delta.
+                    referencedEntities: new Set([entityC.$id]), // The choice references this entity, so it should be persisted even if it is not part of the delta.
                   },
                 ];
               },

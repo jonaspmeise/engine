@@ -29,7 +29,7 @@ export abstract class Action<
    * This is needed to identify the type of this Action client-side, since due to minification, generating
    * it from the class name might produce non-sensible results.
    */
-  public abstract readonly type: string;
+  public abstract readonly $type: string;
 
   /**
    * Returns a message describing the effect, after this action is executed.

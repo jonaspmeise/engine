@@ -7,7 +7,7 @@ import {
 import { Mark } from './tictactoe.typed';
 
 export class TicTacToePlayer extends Entity implements PlayerInterface {
-  public type: string = 'TicTacToePlayer';
+  public $type: string = 'TicTacToePlayer';
 
   constructor(
     public readonly mark: Mark,

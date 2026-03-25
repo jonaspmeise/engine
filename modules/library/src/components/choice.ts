@@ -52,7 +52,7 @@ export class EnhancedChoice<ACTION extends Action<any>> extends Choice<ACTION> {
     return {
       id: this.id,
       execution: {
-        type: this.execution.type,
+        type: this.execution.$type,
         parameters: EnhancedChoice.dereferenceEntity(this.execution.parameters),
       },
     };
@@ -69,7 +69,7 @@ export class EnhancedChoice<ACTION extends Action<any>> extends Choice<ACTION> {
       Object.entries(object).map(([key, value]) => [
         key,
         value instanceof Entity
-          ? `$ENGINE:${value.id}`
+          ? `$ENGINE:${value.$id}`
           : EnhancedChoice.dereferenceEntity(value as Record<string, unknown>),
       ]),
     );

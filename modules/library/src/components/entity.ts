@@ -11,11 +11,11 @@ export abstract class Entity {
    * The type of this entity, which is used to identify the type of this entity at runtime.
    * This should usually just be a reference to the constructor of this entity, but might be problematic with minified code, so it should explicitally be encoded.
    */
-  public abstract readonly type: string;
+  public abstract readonly $type: string;
 
   /**
    * Constructs a new entity with the given ID.
    * @param id An unique ID across all entities.
    */
-  constructor(public readonly id: EntityID) {}
+  constructor(public readonly $id: EntityID) {}
 }

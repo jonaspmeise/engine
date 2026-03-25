@@ -18,6 +18,7 @@ import {
 } from '../../interfaces/player-interface';
 
 class TestEntityA extends Entity {
+  public $type: string = 'TestEntityA';
   public volatileNumber: number = 0;
 
   constructor(readonly _id: number) {
@@ -26,6 +27,7 @@ class TestEntityA extends Entity {
 }
 
 class TestEntityB extends Entity {
+  public $type: string = 'TestEntityB';
   constructor(readonly _id: number | string) {
     super(typeof _id === 'number' ? `TestEntityB-${_id}` : _id);
   }
@@ -72,7 +74,7 @@ describe('entityService', () => {
       // THEN
       expect(service.entities()).toHaveLength(1);
       expect(service.entities(TestEntityA)).toHaveLength(1);
-      expect(service.entities(TestEntityA)[0]!.id).toBe('TestEntityA-1');
+      expect(service.entities(TestEntityA)[0]!.$id).toBe('TestEntityA-1');
     });
 
     test('when an entity is spawned, the flush callback is called. The engine needs to be notified of changes to entity state.', () => {

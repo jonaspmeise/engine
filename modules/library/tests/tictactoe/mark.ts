@@ -9,18 +9,18 @@ export class MarkAction extends Action<{
   player: TicTacToePlayer;
 }> {
   public message(): string {
-    return `Player ${this.parameters.player.mark} marked slot ${this.parameters.slot.id}!`;
+    return `Player ${this.parameters.player.mark} marked slot ${this.parameters.slot.$id}!`;
   }
 
   public prompt(): string {
-    return `Mark slot ${this.parameters.slot.id} with ${this.parameters.player.mark}`;
+    return `Mark slot ${this.parameters.slot.$id} with ${this.parameters.player.mark}`;
   }
 
   public affectedEntities(): EntityID[] | void {
-    return [this.parameters.slot.id];
+    return [this.parameters.slot.$id];
   }
 
-  public type: string = 'mark';
+  public $type: string = 'mark';
 
   apply(_runtime: ModifiableRuntime): void {
     this.parameters.slot.markedBy = this.parameters.player;

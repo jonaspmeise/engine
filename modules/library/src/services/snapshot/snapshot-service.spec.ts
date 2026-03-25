@@ -14,7 +14,7 @@ import { beforeEach } from 'node:test';
 import { EntityID } from '../../components/entity.types';
 
 class TestEntity extends Entity {
-  public type: string = 'TestEntity';
+  public $type: string = 'TestEntity';
   public value: number = 0;
 
   constructor(readonly _id: number) {
@@ -30,17 +30,17 @@ class TestActionA extends Action<{ shouldBePrevented: boolean } | undefined> {
     return 'Execute TestActionA';
   }
   public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
-    return [runtime.anyEntity<TestEntity>(TestEntity)!.id];
+    return [runtime.anyEntity<TestEntity>(TestEntity)!.$id];
   }
   apply(runtime: ModifiableRuntime): void {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }
 
-  public type: string = 'TestActionA';
+  public $type: string = 'TestActionA';
 }
 
 class TestPlayer extends Entity implements PlayerInterface {
-  public type: string = 'TestPlayer';
+  public $type: string = 'TestPlayer';
 
   constructor() {
     super(`player-${Math.random()}`);
