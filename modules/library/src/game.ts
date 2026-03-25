@@ -23,11 +23,13 @@ import { NegativeRule } from './components/negative-rule';
 import { SnapshotService } from './services/snapshot/snapshot-service';
 import { EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
+import { PlayerEntity } from './services/entity/entity-service.types';
+import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
 >
-  implements QueryableRuntime, FlushableRuntime
+  implements QueryableRuntime, FlushableRuntime, ModifiableRuntime
 {
   private _logger: Logger;
   private _started: boolean = false;
@@ -35,10 +37,11 @@ export abstract class Game<
   private readonly _entityService: EntityService;
   private readonly _snapshotService: SnapshotService;
 
-  // TODO: Move to own service? PlayerHandlerService?
+  // TODO: Move to own service? PlayerHandlerService? Does this state just live here now...?
   private _state: SnapshotData = {
     choices: new Map(),
     dirtyEntities: new Set(),
+    executedChoices: [] as EnhancedChoice<Action<any>>[],
   };
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
@@ -68,7 +71,6 @@ export abstract class Game<
     );
     this._snapshotService = new SnapshotService(
       {
-        actions: this.actions(),
         positiveRules: this.positiveRules(),
         negativeRules: this.negativeRules() ?? new Set(),
       },
@@ -91,14 +93,6 @@ export abstract class Game<
    * The name of the game.
    */
   public abstract readonly name: string;
-
-  /**
-   * Returns the set of all actions that can be applied in this game.
-   * Needs to be implemented by the game itself.
-   */
-  // TODO: Should this return instances or classes of actions?
-  // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract actions(): Set<Class<Action<any>>>;
 
   /**
    * Returns the set of all positive rules that are applied in this game.
@@ -136,13 +130,6 @@ export abstract class Game<
    * @param parameters The parameters to set up the game with.
    */
   private _setup(parameters: PARAMETERS): void {
-    if (this.actions().size === 0) {
-      throw new Error(
-        `No actions provided. A game without actions is not possible! Please register some.`,
-      );
-    }
-    this._logger.info(() => `Registered ${this.actions().size} actions.`);
-
     if (this.positiveRules().size === 0) {
       throw new Error(
         `No positive rules provided. A game without positive rules is not possible! Please register some.`,
@@ -227,6 +214,7 @@ export abstract class Game<
 
     // Clean up prior snapshot data.
     this._state.choices.clear();
+    this._state.executedChoices.length = 0;
 
     // Find all choices for players in the current state.
     const choices = this._snapshotService.calculateChoices(this);
@@ -250,6 +238,18 @@ export abstract class Game<
     for (const player of this._entityService.players()) {
       this._informPlayer(player);
     }
+
+    // Drain buffered executed choices.
+    if (this._state.executedChoices.length > 1) {
+      this._logger.error(
+        `Multiple choices were executed in the same snapshot (${this._state.executedChoices.length}). This can lead to unexpected behavior, since the game state is not updated between these executions. Consider debouncing choice executions on the client or server side to prevent this.`,
+      );
+    }
+
+    const choice = this._state.executedChoices[0];
+    if (choice !== undefined) {
+      this._executeChoice(choice.player, choice);
+    }
   }
 
   /**
@@ -260,17 +260,53 @@ export abstract class Game<
    * Normally, only the diff is sent.
    */
   private _informPlayer(
-    player: PlayerInterface,
+    player: PlayerEntity,
     sendFullState: boolean = false,
   ): void {
-    // TODO: Implement!
+    this._logger.debug(
+      () =>
+        `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
+    );
+
     player[handler]!(
-      this._state.dirtyEntities, // TODO: Implement!
+      this._state.dirtyEntities,
       this._state.choices.get(player) ?? [],
-      (choice: EnhancedChoice<any> | ChoiceId) => {
-        this._executeChoice(player, choice);
+      (rawChoice: EnhancedChoice<Action<any>> | ChoiceId) => {
+        const choice = this._fetchChoice(player, rawChoice);
+
+        if (choice === undefined) {
+          return;
+        }
+
+        this._logger.info(
+          () =>
+            `Player ${player[playerId]} tries to execute choice "${choice.id}" (${choice.execution.type})...`,
+        );
+
+        // Debounce this execution, so that if multiple players are informed or want to execute a choice,
+        // they have a fair chance to do so before first player in the loop simply takes all their actions and forces new snapshots.
+        this._state.executedChoices.push(choice);
       },
     );
+  }
+
+  private _fetchChoice(
+    player: PlayerEntity,
+    rawChoice: EnhancedChoice<Action<any>> | ChoiceId,
+  ): EnhancedChoice<Action<any>> | undefined {
+    const choice: EnhancedChoice<Action<any>> | undefined =
+      typeof rawChoice === 'object'
+        ? rawChoice
+        : this._state.choices.get(player)?.find((c) => c.id === rawChoice);
+
+    if (choice === undefined) {
+      this._logger.error(
+        `Player ${player[playerId]} tried to execute an invalid choice with ID ${rawChoice}. Ignoring this...`,
+      );
+      return;
+    }
+
+    return choice;
   }
 
   /**
@@ -278,30 +314,17 @@ export abstract class Game<
    * @param choice The choice to execute.
    */
   private _executeChoice(
-    player: PlayerInterface,
-    rawChoice: EnhancedChoice<any> | ChoiceId,
+    player: PlayerEntity,
+    choice: EnhancedChoice<Action<any>>,
   ): void {
-    const choice: EnhancedChoice<any> | undefined =
-      typeof rawChoice === 'object'
-        ? rawChoice
-        : this._state.choices.get(player)?.find((c) => c.id === rawChoice);
-
-    if (choice === undefined) {
-      this._logger.error(
-        () =>
-          `Player ${player[playerId]} tried to execute an invalid choice with ID ${rawChoice}. Ignoring this...`,
-      );
-      return;
-    }
-
     this._logger.info(
       () =>
-        `Player ${player[playerId]} executes choice ${choice.id} (${choice.execution}).`,
+        `Player ${player[playerId]} executes choice "${choice.id}" (${choice.execution.type}).`,
     );
 
     // Clear prior snapshot state and calculate the next one.
     this._state.dirtyEntities.clear();
-    choice.execution.apply(this, choice.execution.parameters);
+    choice.execution.apply(this);
 
     this._nextSnapshot();
   }
@@ -313,7 +336,7 @@ export abstract class Game<
    * @param callback The callback function to handle the player state.
    */
   public registerPlayerCallback(
-    player: PlayerInterface,
+    player: PlayerEntity,
     callback: PlayerInterfaceCallback,
   ): void {
     this._logger.info(
@@ -348,5 +371,30 @@ export abstract class Game<
     }
   }
 
-  // TODO: Should one be allowed to _add_ and _remove_ entities during runtime, too?
+  // TODO: Maybe move these to another place...
+  /**
+   * Destroys an entity in the game.
+   * @param entity The entity to destroy.
+   */
+  destroyEntity(entity: Entity): void {
+    this._logger.info(
+      () =>
+        `Destroying entity ${entity.constructor.name} with ID ${entity.id} in game ${this.name}.`,
+    );
+
+    this._entityService.destroy(entity);
+  }
+
+  /**
+   * Spawns a new entity in the game.
+   * @param entity The entity to spawn.
+   */
+  spawnEntity(entity: Entity): void {
+    this._logger.info(
+      () =>
+        `Spawning entity ${entity.constructor.name} with ID ${entity.id} in game ${this.name}.`,
+    );
+
+    this._entityService.create(entity);
+  }
 }

@@ -2,29 +2,32 @@ import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Game } from './game';
 import { Action } from './components/action';
 import { Entity } from './components/entity';
-import { EntityID } from './components/entity.types';
 import { QueryableRuntime } from './interfaces/queryable-runtime';
 import {
   PlayerInterface,
   playerInterfaceMarker,
 } from './interfaces/player-interface';
-import { Class, Logger } from './game.types';
+import { ClientSnapshotData, Logger } from './game.types';
 import { PositiveRule } from './components/positive-rule';
 import { timeout } from '../tests/utility.spec';
+import { EntityID } from './components/entity.types';
 
 class TestEntityA extends Entity {
+  public type: string = 'TestEntityA';
   constructor(_id: number) {
     super(`testentityA-${_id}`);
   }
 }
 
 class TestEntityB extends Entity {
+  public type: string = 'TestEntityB';
   constructor(id: number | string) {
     super(typeof id === 'number' ? `testentityB-${id}` : id);
   }
 }
 
 class TestEntityC extends TestEntityB {
+  public type: string = 'TestEntityC';
   public volatileNumber: number = 0;
 
   constructor(_id: number) {
@@ -33,6 +36,7 @@ class TestEntityC extends TestEntityB {
 }
 
 class TestPlayerEntity extends Entity implements PlayerInterface {
+  public type: string = 'TestPlayerEntity';
   constructor(_id: number) {
     super(`testPlayerEntity-${_id}`);
   }
@@ -40,7 +44,14 @@ class TestPlayerEntity extends Entity implements PlayerInterface {
 }
 
 class TestAction extends Action {
-  public name = 'TestAction';
+  public message(): string {
+    return 'TestAction executed!';
+  }
+  public prompt(): string {
+    return 'Execute TestAction';
+  }
+  public affectedEntities() {}
+  public type = 'TestAction';
   apply(_runtime: QueryableRuntime): void {
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
@@ -67,16 +78,13 @@ class TestGame extends Game {
 
     return entities;
   }
-  actions() {
-    return new Set<Class<Action<any>>>([TestAction]);
-  }
   positiveRules(): Set<PositiveRule> {
     return new Set<PositiveRule>([
       {
         name: 'test-positive-rule',
         apply: (runtime) =>
           runtime.entities(TestPlayerEntity).map((player) => ({
-            execution: new TestAction(),
+            execution: new TestAction(undefined),
             player,
           })),
       },
@@ -112,17 +120,6 @@ describe('game', () => {
   });
 
   describe('initialize', () => {
-    test('throws an error if a game without any action is initialized.', () => {
-      // GIVEN / WHEN / THEN
-      class NoActionGame extends TestGame {
-        actions() {
-          return new Set<Class<Action<any>>>();
-        }
-      }
-
-      expect(() => new NoActionGame()).toThrowError(/no actions/gi);
-    });
-
     test('throws an error if a game without any positive rule is initialized.', () => {
       // GIVEN / WHEN / THEN
       class NoPositiveRuleGame extends TestGame {
@@ -212,9 +209,7 @@ describe('game', () => {
       expect(
         game.anyEntity(
           class NonExistingEntity extends Entity {
-            protected generateId(): EntityID {
-              throw new Error('Method not implemented.');
-            }
+            public type: string = 'NonExistingEntity';
           },
         ),
       ).toBeNull();
@@ -423,14 +418,30 @@ describe('game', () => {
         (delta, choices) => {
           expect(delta).toHaveLength(8); // All entities are new for the player, so all of them should be sent in the delta.
 
-          expect(delta).toContainEqual({ id: 'testentityA-1' });
-          expect(delta).toContainEqual({ id: 'testentityA-2' });
-          expect(delta).toContainEqual({ id: 'testentityA-3' });
-          expect(delta).toContainEqual({ id: 'testentityB-1' });
-          expect(delta).toContainEqual({ id: 'testentityB-2' });
+          expect(delta).toContainEqual({
+            id: 'testentityA-1',
+            type: 'TestEntityA',
+          });
+          expect(delta).toContainEqual({
+            id: 'testentityA-2',
+            type: 'TestEntityA',
+          });
+          expect(delta).toContainEqual({
+            id: 'testentityA-3',
+            type: 'TestEntityA',
+          });
+          expect(delta).toContainEqual({
+            id: 'testentityB-1',
+            type: 'TestEntityB',
+          });
+          expect(delta).toContainEqual({
+            id: 'testentityB-2',
+            type: 'TestEntityB',
+          });
           expect(delta).toContainEqual({
             id: 'testentityC-1',
             volatileNumber: 0,
+            type: 'TestEntityC',
           });
 
           const ids = Array.from(delta).map((entity) => entity.id);
@@ -488,6 +499,7 @@ describe('game', () => {
                   id: 'testentityC-1',
                   // The action modified this property!
                   volatileNumber: 1,
+                  type: 'TestEntityC',
                 },
               ]),
             );
@@ -505,15 +517,220 @@ describe('game', () => {
       timeout(done);
     });
 
-    test.todo(
-      'if a choice is executed that does not exist, an error is logged and nothing happens.',
-      () => {},
-    );
-    test.todo(
-      'if a player executes a choice of another player, an error is logged and nothing happens.',
-      () => {},
-    );
+    test('if a choice is executed that does not exist, an error is logged and nothing happens.', (done) => {
+      // GIVEN
+      const game = new TestGame(undefined, { logger });
 
-    // TODO: IMPORTANT: IS THE JSON STATE EVEN NEEDED? CAN WE JUST COMMUNICATE THE ENTITY TYPES AND RECREATE THE ERGONOMIC ACCESSORS BASED ON THEIR TYPE?
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_delta, _choices, executor) => {
+          // THEN
+          executor('non-existing-choice-id');
+
+          expect(logger.error).toHaveBeenCalledWith(
+            expect.stringMatching(/non-existing-choice-id/gi),
+          );
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        (_delta, _choices) => {},
+      );
+
+      timeout(done);
+    });
+
+    test('if a player executes a choice of another player, an error is logged and nothing happens.', (done) => {
+      // GIVEN
+      const game = new TestGame(undefined, { logger });
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_delta, _choices, executor) => {
+          // THEN
+          executor('choice-1');
+          expect(logger.error).toHaveBeenCalledWith(
+            expect.stringMatching(/invalid.+choice/gi),
+          );
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        (_delta, _choices) => {},
+      );
+
+      timeout(done);
+    });
+
+    test('if a player instantly executes a choice in-memory, the other player is atleast notified about the state change.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      let playerAtriggered = 0;
+      let playerBtriggered = 0;
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_delta, choices, executor) => {
+          playerAtriggered++;
+
+          // This implicitly also tests, that the choice execution here using "executor(...)" does not instantly loop back
+          // to the player callback again. The rest of the function should be executed too, otherwise we run into a stack overflow error.
+          if (playerAtriggered < 5) {
+            executor(Array.from(choices)[0]!);
+          } else {
+            // THEN
+            expect(playerAtriggered).toEqual(5);
+            expect(playerBtriggered).toEqual(5 - 1);
+            done();
+          }
+        },
+      );
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, () => {
+        playerBtriggered++;
+      });
+
+      timeout(done);
+    });
+
+    test('the serialized state sent to the player is correct.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (delta, choices) => {
+          // THEN
+          const data: ClientSnapshotData = {
+            delta: Array.from(delta),
+            choices: choices,
+          };
+
+          expect(JSON.parse(JSON.stringify(data))).toEqual({
+            delta: [
+              // We send the entity type too, so that the client knows how to construct the object of this type again.
+              { id: 'testentityA-1', type: 'TestEntityA' },
+              { id: 'testentityA-2', type: 'TestEntityA' },
+              { id: 'testentityA-3', type: 'TestEntityA' },
+              { id: 'testentityB-1', type: 'TestEntityB' },
+              { id: 'testentityB-2', type: 'TestEntityB' },
+              {
+                id: 'testentityC-1',
+                type: 'TestEntityC',
+                volatileNumber: 0,
+              },
+              { id: 'testPlayerEntity-1', type: 'TestPlayerEntity' },
+              { id: 'testPlayerEntity-2', type: 'TestPlayerEntity' },
+            ],
+            choices: [
+              {
+                id: 'choice-0',
+                execution: {
+                  type: 'TestAction',
+                  // Player does not need to be serialized, because the client knows that this choice only belongs to them.
+                },
+              },
+            ],
+          });
+
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
+
+    test('referenced entities in choices are serialized using a placeholder.', (done) => {
+      // GIVEN
+      class TargetedAction extends Action<{
+        target: Entity;
+        nested: { target: Entity };
+      }> {
+        apply(): void {
+          // Not relevant for this test.
+        }
+        public type: string = 'TargetedAction';
+        public prompt(): string {
+          return 'Execute TargetedAction';
+        }
+        public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
+          throw new Error('Method not implemented.');
+        }
+        public message(): string {
+          return 'TargetedAction executed!';
+        }
+      }
+
+      class DummyGame extends TestGame {
+        positiveRules() {
+          return new Set<PositiveRule>([
+            {
+              name: 'test-positive-rule',
+              apply: (runtime) => {
+                const entityC = runtime.anyEntity(TestEntityC)!;
+
+                return [
+                  {
+                    execution: new TargetedAction({
+                      target: entityC,
+                      nested: { target: entityC },
+                    }),
+                    player: runtime.entities(TestPlayerEntity)[0]!,
+                    referencedEntities: new Set([entityC.id]), // The choice references this entity, so it should be persisted even if it is not part of the delta.
+                  },
+                ];
+              },
+            },
+          ]);
+        }
+      }
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_delta, _choices) => {
+          // THEN
+          expect(JSON.parse(JSON.stringify(_choices))).toEqual([
+            {
+              id: 'choice-0',
+              execution: {
+                type: 'TargetedAction',
+                parameters: {
+                  // The referenced entity should be replaced with a reference string, so that the client can resolve it again.
+                  target: '$ENGINE:testentityC-1',
+                  nested: {
+                    // Nested values are also supported!
+                    target: '$ENGINE:testentityC-1',
+                  },
+                },
+              },
+            },
+          ]);
+
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
   });
 });

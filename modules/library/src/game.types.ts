@@ -1,3 +1,4 @@
+import { Action } from './components/action';
 import { EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
 import { Entity } from './components/entity';
@@ -68,8 +69,8 @@ type AnyEntity = Record<string, unknown> & Entity;
 export type PlayerInterfaceCallback = (
   // The entities, that were modified in the last snapshot.
   delta: Set<DeepReadonly<AnyEntity>>,
-  choices: EnhancedChoice<any>[],
-  execute: (choice: EnhancedChoice<any> | ChoiceId) => void,
+  choices: EnhancedChoice<Action<any>>[],
+  execute: (choice: EnhancedChoice<Action<any>> | ChoiceId) => void,
 ) => void;
 
 /**
@@ -77,5 +78,15 @@ export type PlayerInterfaceCallback = (
  */
 export type SnapshotData = {
   dirtyEntities: Set<DeepReadonly<AnyEntity>>;
-  choices: Map<PlayerInterface, EnhancedChoice<any>[]>;
+  choices: Map<PlayerInterface, EnhancedChoice<Action<any>>[]>;
+  executedChoices: EnhancedChoice<Action<any>>[];
+};
+
+/**
+ * The data that is sent to the client.
+ * It needs to be serializable and include all information necessary for the client to properly visualize the game state.
+ */
+export type ClientSnapshotData = {
+  delta: DeepReadonly<AnyEntity>[];
+  choices: EnhancedChoice<Action<any>>[];
 };

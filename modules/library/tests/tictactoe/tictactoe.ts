@@ -22,14 +22,11 @@ export class TicTacToe extends Game<TicTacToeParameters> {
             .entities(TicTacToePlayer)
             .filter((player) => player.isCurrentPlayer)[0]!;
 
-          // TODO: Make Choice instantiate the Action object itself...?
           return runtime.entities(Slot).map((slot) => ({
-            execution: new MarkAction(),
-            parameters: {
-              playerId: currentPlayer.id,
-              x: slot.x,
-              y: slot.y,
-            },
+            execution: new MarkAction({
+              slot: slot,
+              player: currentPlayer,
+            }),
             player: currentPlayer,
           }));
         },

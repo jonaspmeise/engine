@@ -6,6 +6,7 @@ import { GameTest } from '../game.spec';
 import { TicTacToePlayer } from './player';
 import { Lane } from './lane';
 import { timeout } from '../utility.spec';
+import { ClientSnapshotData } from '../../src/game.types';
 
 class TicTacToeSpec extends GameTest<TicTacToeParameters> {
   readonly name = 'TicTacToe';
@@ -63,10 +64,143 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
       // WHEN / THEN
       // Here, the websocket connection could be handed into the callback function.
       // FIXME: This is not quite ergonomic, but it works. Think about how the state is constructed.
-      this.game.registerPlayerCallback(playerX, (_delta, choices) => {
+      this.game.registerPlayerCallback(playerX, (delta, choices) => {
         // X is the first player, thus they should have choices!
         expect(choices).toBeDefined();
         expect(choices).toHaveLength(9); // 9 possible slots to mark.
+
+        const data: ClientSnapshotData = {
+          delta: Array.from(delta),
+          choices,
+        };
+
+        expect(JSON.parse(JSON.stringify(data))!).toEqual({
+          delta: [
+            { id: 'slot-0-0', markedBy: null, type: 'slot', x: 0, y: 0 },
+            { id: 'slot-0-1', markedBy: null, type: 'slot', x: 0, y: 1 },
+            { id: 'slot-0-2', markedBy: null, type: 'slot', x: 0, y: 2 },
+            { id: 'slot-1-0', markedBy: null, type: 'slot', x: 1, y: 0 },
+            { id: 'slot-1-1', markedBy: null, type: 'slot', x: 1, y: 1 },
+            { id: 'slot-1-2', markedBy: null, type: 'slot', x: 1, y: 2 },
+            { id: 'slot-2-0', markedBy: null, type: 'slot', x: 2, y: 0 },
+            { id: 'slot-2-1', markedBy: null, type: 'slot', x: 2, y: 1 },
+            { id: 'slot-2-2', markedBy: null, type: 'slot', x: 2, y: 2 },
+            { id: 'HorizontalLane-0', index: 0, type: 'horizontal-lane' },
+            { id: 'VerticalLane-0', index: 0, type: 'vertical-lane' },
+            { id: 'HorizontalLane-1', index: 1, type: 'horizontal-lane' },
+            { id: 'VerticalLane-1', index: 1, type: 'vertical-lane' },
+            { id: 'HorizontalLane-2', index: 2, type: 'horizontal-lane' },
+            { id: 'VerticalLane-2', index: 2, type: 'vertical-lane' },
+            { id: 'DiagonalLane-0', index: 0, type: 'diagonal-lane' },
+            { id: 'DiagonalLane-1', index: 1, type: 'diagonal-lane' },
+            {
+              id: 'player-X',
+              isCurrentPlayer: true,
+              mark: 'X',
+              type: 'TicTacToePlayer',
+            },
+            {
+              id: 'player-O',
+              isCurrentPlayer: false,
+              mark: 'O',
+              type: 'TicTacToePlayer',
+            },
+          ],
+          choices: [
+            {
+              execution: {
+                parameters: {
+                  // We communicate using a placeholder to the Entity's ID here.
+                  // This is done in order to not send the entire entity data multiple times and save bandwidth.
+                  slot: '$ENGINE:slot-0-0',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-0',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-0-1',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-1',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-0-2',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-2',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-1-0',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-3',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-1-1',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-4',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-1-2',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-5',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-2-0',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-6',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-2-1',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-7',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-2-2',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 'choice-8', // TODO: Make all internal types prefixed using "$"!
+            },
+          ],
+        });
 
         playerXinformed = true;
         if (playerOinformed) {

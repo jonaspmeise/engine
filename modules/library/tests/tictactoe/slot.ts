@@ -2,6 +2,7 @@ import { Entity } from '../../src/components/entity';
 import { TicTacToePlayer } from './player';
 
 export class Slot extends Entity {
+  public type: string = 'slot';
   public markedBy: TicTacToePlayer | null = null;
 
   constructor(

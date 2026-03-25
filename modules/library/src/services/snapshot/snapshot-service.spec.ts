@@ -11,8 +11,10 @@ import { Choice, EnhancedChoice } from '../../components/choice';
 import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
 import { Entity } from '../../components/entity';
 import { beforeEach } from 'node:test';
+import { EntityID } from '../../components/entity.types';
 
 class TestEntity extends Entity {
+  public type: string = 'TestEntity';
   public value: number = 0;
 
   constructor(readonly _id: number) {
@@ -21,14 +23,25 @@ class TestEntity extends Entity {
 }
 
 class TestActionA extends Action<{ shouldBePrevented: boolean } | undefined> {
+  public message(): string {
+    return 'TestActionA executed!';
+  }
+  public prompt(): string {
+    return 'Execute TestActionA';
+  }
+  public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
+    return [runtime.anyEntity<TestEntity>(TestEntity)!.id];
+  }
   apply(runtime: ModifiableRuntime): void {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }
 
-  public name: string = 'TestActionA';
+  public type: string = 'TestActionA';
 }
 
 class TestPlayer extends Entity implements PlayerInterface {
+  public type: string = 'TestPlayer';
+
   constructor() {
     super(`player-${Math.random()}`);
   }
@@ -48,23 +61,11 @@ describe('snapshotService', () => {
   });
 
   describe('constructor', () => {
-    test('throws an error if no actions are provided. A game without actions is not possible.', () => {
-      // GIVEN / WHEN / THEN
-      expect(
-        () =>
-          new SnapshotService({
-            actions: new Set(),
-            positiveRules: new Set() as Set<PositiveRule>,
-          }),
-      ).toThrowError(/no actions/gi);
-    });
-
     test('throws an error if no positive rules are provided. A game without positive rules is not possible.', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
           new SnapshotService({
-            actions: new Set([TestActionA]),
             positiveRules: new Set() as Set<PositiveRule>,
           }),
       ).toThrowError(/no positive rules/gi);
@@ -75,7 +76,6 @@ describe('snapshotService', () => {
       expect(
         () =>
           new SnapshotService({
-            actions: new Set([TestActionA]),
             positiveRules: new Set([
               {
                 name: 'TestPositiveRule',
@@ -95,7 +95,6 @@ describe('snapshotService', () => {
       expect(
         () =>
           new SnapshotService({
-            actions: new Set([TestActionA]),
             positiveRules: new Set([
               {
                 name: 'TestPositiveRule',
@@ -121,7 +120,6 @@ describe('snapshotService', () => {
       expect(
         () =>
           new SnapshotService({
-            actions: new Set([TestActionA]),
             positiveRules: new Set([
               {
                 name: 'TestRule',
@@ -143,7 +141,6 @@ describe('snapshotService', () => {
     test('returns the correct choice space given only positive rules.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
@@ -186,7 +183,6 @@ describe('snapshotService', () => {
     test('if choices for a player, which is not registered in the runtime, are generated, an error is thrown.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
@@ -211,7 +207,6 @@ describe('snapshotService', () => {
     test('negative rules prevent choices from being generated.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
@@ -267,7 +262,6 @@ describe('snapshotService', () => {
     test('throws an error if no player has any choices in a snapshot.', () => {
       // GIVEN
       const service = new SnapshotService({
-        actions: new Set([TestActionA]),
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',

@@ -16,17 +16,10 @@ export class SnapshotService {
     private readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger,
   ) {
     this._state = {
-      actions: state.actions,
       positiveRules: state.positiveRules,
       negativeRules: state.negativeRules ?? new Set(),
       triggers: state.triggers ?? new Set(),
     };
-
-    if (this._state.actions.size === 0) {
-      throw new Error(
-        'No actions provided. A game without actions is not possible! Please register some.',
-      );
-    }
 
     if (this._state.positiveRules.size === 0) {
       throw new Error(
@@ -57,7 +50,9 @@ export class SnapshotService {
    * Choices should be generated based on the state of entities.
    * @returns The choice space for all players, resulting in all choices that players have during this snapshot.
    */
-  public calculateChoices(runtime: QueryableRuntime): Set<EnhancedChoice<any>> {
+  public calculateChoices(
+    runtime: QueryableRuntime,
+  ): Set<EnhancedChoice<Action<any>>> {
     this._logger.debug(() => `Calculating choice space...`);
 
     const choices = new Set<EnhancedChoice<Action<any>>>();
@@ -93,7 +88,7 @@ export class SnapshotService {
         if (rule.apply(choice, runtime)) {
           this._logger.debug(
             () =>
-              `Choice ${choice.execution.name} is prevented by rule ${rule.name}. Removing from choice space...`,
+              `Choice ${choice.execution.type} is prevented by rule ${rule.name}. Removing from choice space...`,
           );
           choices.delete(choice);
           continue outer;
