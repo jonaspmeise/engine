@@ -1,7 +1,9 @@
 import { Action } from './components/action';
-import { EnhancedChoice } from './components/choice';
+import { Choice, EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
 import { Entity } from './components/entity';
+import { EntityID } from './components/entity.types';
+import { TriggerReturnType } from './components/trigger';
 import { PlayerInterface } from './interfaces/player-interface';
 
 export type GameParameters = Record<string, unknown>;
@@ -67,19 +69,29 @@ export type DeepReadonly<T> = Partial<{
 type AnyEntity = Record<string, unknown> & Entity;
 
 export type PlayerInterfaceCallback = (
-  // The entities, that were modified in the last snapshot.
-  delta: Set<DeepReadonly<AnyEntity>>,
+  // The snapshots that were modified since the last inform.
+  snapshots: Snapshot[],
   choices: EnhancedChoice<Action<any>>[],
   execute: (choice: EnhancedChoice<Action<any>> | ChoiceId) => void,
 ) => void;
 
+export type Snapshot = {
+  dirtyEntities: Record<EntityID, DeepReadonly<AnyEntity>>;
+  executed: Choice<Action<any>> | undefined;
+};
+
 /**
- * This models data that defines the content of a snapshot and what is sent to the player.
+ * This models data that defines the content of a snapshot.
  */
 export type SnapshotData = {
-  dirtyEntities: Set<DeepReadonly<AnyEntity>>;
+  currentSnapshots: Snapshot[];
+  pastSnapshots: Snapshot[];
+  // Which choices are currently available for each player?
   choices: Map<PlayerInterface, EnhancedChoice<Action<any>>[]>;
-  executedChoices: EnhancedChoice<Action<any>>[];
+  // Which choices were executed since the last snapshot?
+  queuedChoices: EnhancedChoice<Action<any>>[];
+  // Which executions are currently queued to be executed?
+  stack: TriggerReturnType[];
 };
 
 /**
@@ -87,6 +99,6 @@ export type SnapshotData = {
  * It needs to be serializable and include all information necessary for the client to properly visualize the game state.
  */
 export type ClientSnapshotData = {
-  delta: DeepReadonly<AnyEntity>[];
+  snapshots: Snapshot[];
   choices: EnhancedChoice<Action<any>>[];
 };

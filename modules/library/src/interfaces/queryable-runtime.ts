@@ -13,4 +13,6 @@ export interface QueryableRuntime {
   entitySet(): ReadonlySet<Entity>;
 
   anyEntity<TYPE extends Entity>(type: Class<TYPE>): TYPE | null;
+
+  // TODO: Maybe needed? history(): ReadonlyArray<EnhancedChoice<Action<any>>>;
 }

@@ -11,6 +11,8 @@ import { ClientSnapshotData, Logger } from './game.types';
 import { PositiveRule } from './components/positive-rule';
 import { timeout } from '../tests/utility.spec';
 import { EntityID } from './components/entity.types';
+import { Choice } from './components/choice';
+import { Trigger } from './components/trigger';
 
 class TestEntityA extends Entity {
   public $type: string = 'TestEntityA';
@@ -83,14 +85,14 @@ class TestGame extends Game {
       {
         name: 'test-positive-rule',
         apply: (runtime) =>
-          runtime.entities(TestPlayerEntity).map((player) => ({
-            execution: new TestAction(undefined),
-            player,
-          })),
+          runtime
+            .entities(TestPlayerEntity)
+            .map((player) => new Choice(new TestAction(undefined), player)),
       },
     ]);
   }
   negativeRules(): void {}
+  triggers(): Set<Trigger> | void {}
 }
 
 describe('game', () => {
@@ -376,7 +378,7 @@ describe('game', () => {
       let choiceSent = false;
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (_delta) => {
+        (_snapshots) => {
           if (choiceSent) {
             // THEN
             expect(logger.error).toHaveBeenCalledWith(
@@ -389,7 +391,7 @@ describe('game', () => {
       );
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
-        (_delta) => {
+        (_snapshots) => {
           if (choiceSent) {
             // THEN
             expect(logger.error).toHaveBeenCalledWith(
@@ -415,38 +417,47 @@ describe('game', () => {
 
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (delta, choices) => {
-          expect(delta).toHaveLength(8); // All entities are new for the player, so all of them should be sent in the delta.
+        (snapshots, choices) => {
+          // Only a single state is issued to the player!
+          expect(snapshots).toHaveLength(1);
+          expect(snapshots[0]?.executed).toBeUndefined();
 
-          expect(delta).toContainEqual({
-            $id: 'testentityA-1',
-            $type: 'TestEntityA',
+          const snapshot = snapshots[0]!.dirtyEntities;
+          expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
+            'testentityA-1': {
+              $id: 'testentityA-1',
+              $type: 'TestEntityA',
+            },
+            'testentityA-2': {
+              $id: 'testentityA-2',
+              $type: 'TestEntityA',
+            },
+            'testentityA-3': {
+              $id: 'testentityA-3',
+              $type: 'TestEntityA',
+            },
+            'testentityB-1': {
+              $id: 'testentityB-1',
+              $type: 'TestEntityB',
+            },
+            'testentityB-2': {
+              $id: 'testentityB-2',
+              $type: 'TestEntityB',
+            },
+            'testentityC-1': {
+              $id: 'testentityC-1',
+              volatileNumber: 0,
+              $type: 'TestEntityC',
+            },
+            'testPlayerEntity-1': {
+              $id: 'testPlayerEntity-1',
+              $type: 'TestPlayerEntity',
+            },
+            'testPlayerEntity-2': {
+              $id: 'testPlayerEntity-2',
+              $type: 'TestPlayerEntity',
+            },
           });
-          expect(delta).toContainEqual({
-            $id: 'testentityA-2',
-            $type: 'TestEntityA',
-          });
-          expect(delta).toContainEqual({
-            $id: 'testentityA-3',
-            $type: 'TestEntityA',
-          });
-          expect(delta).toContainEqual({
-            $id: 'testentityB-1',
-            $type: 'TestEntityB',
-          });
-          expect(delta).toContainEqual({
-            $id: 'testentityB-2',
-            $type: 'TestEntityB',
-          });
-          expect(delta).toContainEqual({
-            $id: 'testentityC-1',
-            volatileNumber: 0,
-            $type: 'TestEntityC',
-          });
-
-          const ids = Array.from(delta).map((entity) => entity.$id);
-          expect(ids).toContainEqual('testPlayerEntity-1');
-          expect(ids).toContainEqual('testPlayerEntity-2');
 
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(1);
@@ -459,8 +470,47 @@ describe('game', () => {
       );
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
-        (delta, choices) => {
-          expect(delta).toHaveLength(8); // All entities are new for the player, so all of them should be sent in the delta.
+        (snapshots, choices) => {
+          // Only a single state is issued to the player!
+          expect(snapshots).toHaveLength(1);
+          expect(snapshots[0]?.executed).toBeUndefined();
+
+          const snapshot = snapshots[0]!.dirtyEntities;
+          expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
+            'testentityA-1': {
+              $id: 'testentityA-1',
+              $type: 'TestEntityA',
+            },
+            'testentityA-2': {
+              $id: 'testentityA-2',
+              $type: 'TestEntityA',
+            },
+            'testentityA-3': {
+              $id: 'testentityA-3',
+              $type: 'TestEntityA',
+            },
+            'testentityB-1': {
+              $id: 'testentityB-1',
+              $type: 'TestEntityB',
+            },
+            'testentityB-2': {
+              $id: 'testentityB-2',
+              $type: 'TestEntityB',
+            },
+            'testentityC-1': {
+              $id: 'testentityC-1',
+              volatileNumber: 0,
+              $type: 'TestEntityC',
+            },
+            'testPlayerEntity-1': {
+              $id: 'testPlayerEntity-1',
+              $type: 'TestPlayerEntity',
+            },
+            'testPlayerEntity-2': {
+              $id: 'testPlayerEntity-2',
+              $type: 'TestPlayerEntity',
+            },
+          });
 
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(1);
@@ -482,7 +532,7 @@ describe('game', () => {
 
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (delta, choices, executor) => {
+        (snapshots, choices, executor) => {
           snapshotCount++;
 
           if (snapshotCount === 1) {
@@ -492,17 +542,15 @@ describe('game', () => {
             // THEN
             // Only the modified entity should be sent to the player, not the whole state!
             expect(choices).toHaveLength(1);
-            expect(delta).toHaveLength(1);
-            expect(delta).toEqual(
-              new Set([
-                {
-                  $id: 'testentityC-1',
-                  // The action modified this property!
-                  volatileNumber: 1,
-                  $type: 'TestEntityC',
-                },
-              ]),
-            );
+            expect(snapshots).toHaveLength(1);
+            expect(snapshots[0]?.dirtyEntities).toEqual({
+              'testentityC-1': {
+                $id: 'testentityC-1',
+                // The action modified this property!
+                volatileNumber: 1,
+                $type: 'TestEntityC',
+              },
+            });
 
             done();
           }
@@ -511,7 +559,7 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
         // Player 2 is not relevant for this test.
-        (_delta, _choices) => {},
+        (_snapshots, _choices) => {},
       );
 
       timeout(done);
@@ -524,7 +572,7 @@ describe('game', () => {
       // WHEN
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (_delta, _choices, executor) => {
+        (_snapshots, _choices, executor) => {
           // THEN
           executor('non-existing-choice-id');
 
@@ -537,7 +585,7 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
         // Player 2 is not relevant for this test.
-        (_delta, _choices) => {},
+        (_snapshots, _choices) => {},
       );
 
       timeout(done);
@@ -550,7 +598,7 @@ describe('game', () => {
       // WHEN
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (_delta, _choices, executor) => {
+        (_snapshots, _choices, executor) => {
           // THEN
           executor('choice-1');
           expect(logger.error).toHaveBeenCalledWith(
@@ -562,7 +610,7 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
         // Player 2 is not relevant for this test.
-        (_delta, _choices) => {},
+        (_snapshots, _choices) => {},
       );
 
       timeout(done);
@@ -578,7 +626,7 @@ describe('game', () => {
       // WHEN
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (_delta, choices, executor) => {
+        (_snapshots, choices, executor) => {
           playerAtriggered++;
 
           // This implicitly also tests, that the choice execution here using "executor(...)" does not instantly loop back
@@ -607,36 +655,64 @@ describe('game', () => {
       // WHEN
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (delta, choices) => {
+        (snapshots, choices) => {
           // THEN
           const data: ClientSnapshotData = {
-            delta: Array.from(delta),
+            snapshots: snapshots,
             choices: choices,
           };
 
           expect(JSON.parse(JSON.stringify(data))).toEqual({
-            delta: [
-              // We send the entity type too, so that the client knows how to construct the object of this type again.
-              { $id: 'testentityA-1', $type: 'TestEntityA' },
-              { $id: 'testentityA-2', $type: 'TestEntityA' },
-              { $id: 'testentityA-3', $type: 'TestEntityA' },
-              { $id: 'testentityB-1', $type: 'TestEntityB' },
-              { $id: 'testentityB-2', $type: 'TestEntityB' },
+            snapshots: [
               {
-                $id: 'testentityC-1',
-                $type: 'TestEntityC',
-                volatileNumber: 0,
+                dirtyEntities: {
+                  'testentityA-1': {
+                    // TODO: $id is redundant here!
+                    $id: 'testentityA-1',
+                    // We send the entity type too, so that the client knows how to construct the object of this type again.
+                    $type: 'TestEntityA',
+                  },
+                  'testentityA-2': {
+                    $id: 'testentityA-2',
+                    $type: 'TestEntityA',
+                  },
+                  'testentityA-3': {
+                    $id: 'testentityA-3',
+                    $type: 'TestEntityA',
+                  },
+                  'testentityB-1': {
+                    $id: 'testentityB-1',
+                    $type: 'TestEntityB',
+                  },
+                  'testentityB-2': {
+                    $id: 'testentityB-2',
+                    $type: 'TestEntityB',
+                  },
+                  'testentityC-1': {
+                    $id: 'testentityC-1',
+                    $type: 'TestEntityC',
+                    volatileNumber: 0,
+                  },
+                  'testPlayerEntity-1': {
+                    $id: 'testPlayerEntity-1',
+                    $type: 'TestPlayerEntity',
+                  },
+                  'testPlayerEntity-2': {
+                    $id: 'testPlayerEntity-2',
+                    $type: 'TestPlayerEntity',
+                  },
+                },
               },
-              { $id: 'testPlayerEntity-1', $type: 'TestPlayerEntity' },
-              { $id: 'testPlayerEntity-2', $type: 'TestPlayerEntity' },
             ],
             choices: [
               {
                 id: 'choice-0',
                 execution: {
                   type: 'TestAction',
-                  // Player does not need to be serialized, because the client knows that this choice only belongs to them.
+                  // TODO: Player does not need to be serialized, because the client knows that this choice only belongs to them.
+                  // But for choices in the snapshots, the player is relevant...
                 },
+                player: '$ENGINE:testPlayerEntity-1',
               },
             ],
           });
@@ -683,14 +759,13 @@ describe('game', () => {
                 const entityC = runtime.anyEntity(TestEntityC)!;
 
                 return [
-                  {
-                    execution: new TargetedAction({
+                  new Choice(
+                    new TargetedAction({
                       target: entityC,
                       nested: { target: entityC },
                     }),
-                    player: runtime.entities(TestPlayerEntity)[0]!,
-                    referencedEntities: new Set([entityC.$id]), // The choice references this entity, so it should be persisted even if it is not part of the delta.
-                  },
+                    runtime.entities(TestPlayerEntity)[0]!,
+                  ),
                 ];
               },
             },
@@ -702,7 +777,7 @@ describe('game', () => {
       // WHEN
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (_delta, _choices) => {
+        (_snapshots, _choices) => {
           // THEN
           expect(JSON.parse(JSON.stringify(_choices))).toEqual([
             {
@@ -718,6 +793,7 @@ describe('game', () => {
                   },
                 },
               },
+              player: '$ENGINE:testPlayerEntity-1',
             },
           ]);
 
@@ -732,5 +808,125 @@ describe('game', () => {
 
       timeout(done);
     });
+
+    test('triggers are executed after in the initial game state.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        triggers() {
+          done();
+        }
+      }
+
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for the test, because the trigger is checked at the start of the game, too.
+        () => {},
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
+
+    test('triggers are executed after every picked choice.', (done) => {
+      // GIVEN
+      let triggered = 0;
+      class DummyGame extends TestGame {
+        triggers() {
+          if (++triggered === 2) {
+            done();
+          }
+        }
+      }
+
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_snapshots, choices, executor) => {
+          if (triggered === 1) {
+            executor(choices[0]!);
+          }
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
+
+    test('returned choices of triggers are executed. The user only receives all modified states.', (done) => {
+      // GIVEN
+      // We don't want to run into an infinite loop...
+      let triggersExecuted = 0;
+      class DummyGame extends TestGame {
+        triggers() {
+          return new Set<Trigger>([
+            {
+              apply: () => {
+                if (triggersExecuted++ === 0) {
+                  return [
+                    new Choice(
+                      new TestAction(undefined),
+                      this.entities(TestPlayerEntity)[0]!,
+                    ),
+                  ];
+                }
+              },
+            },
+          ]);
+        }
+      }
+
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (snapshots) => {
+          // 2 Snapshots were triggered - the initial one and the trigger!
+          expect(snapshots).toHaveLength(2);
+          // First snapshot was just "spawned".
+          expect(snapshots[0]?.executed).toBeUndefined();
+          // Second snapshot was triggered by the trigger, so the executed choice is referenced here.
+          expect(JSON.parse(JSON.stringify(snapshots[1]?.executed))).toEqual({
+            execution: {
+              type: 'TestAction',
+              parameters: undefined,
+            },
+            player: '$ENGINE:testPlayerEntity-1',
+            preventedBy: undefined,
+          });
+
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
+
+    test.todo(
+      'if there are no choices in a snaphot, an error is thrown.',
+      () => {},
+    );
+    test.todo('a game can end with a winner.', () => {});
+    test.todo('a game can end with multiple winners.', () => {});
+    test.todo('a game can end with a loser.', () => {});
+    test.todo('a game can end with multiple losers.', () => {});
   });
 });

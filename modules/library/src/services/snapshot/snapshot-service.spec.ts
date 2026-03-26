@@ -54,6 +54,7 @@ describe('snapshotService', () => {
     anyEntity: mock(() => null),
     entities: mock(() => []),
     entitySet: mock(() => new Set()),
+    history: mock(() => []),
   } as QueryableRuntime;
 
   beforeEach(() => {

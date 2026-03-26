@@ -11,8 +11,15 @@ import { DiagonalLane } from './diagonal-lane';
 import { NegativeRule } from '../../src/components/negative-rule';
 import { PositiveRule } from '../../src/components/positive-rule';
 import { Class } from '../../src/game.types';
+import { Choice } from '../../src/components/choice';
+import { Trigger } from '../../src/components/trigger';
+import { ChangeTurnTrigger } from './change-turn-trigger';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
+  triggers(): Set<Trigger> | void {
+    return new Set([new ChangeTurnTrigger()]);
+  }
+
   positiveRules(): Set<PositiveRule> {
     return new Set([
       {
@@ -22,13 +29,16 @@ export class TicTacToe extends Game<TicTacToeParameters> {
             .entities(TicTacToePlayer)
             .filter((player) => player.isCurrentPlayer)[0]!;
 
-          return runtime.entities(Slot).map((slot) => ({
-            execution: new MarkAction({
-              slot: slot,
-              player: currentPlayer,
-            }),
-            player: currentPlayer,
-          }));
+          return runtime.entities(Slot).map(
+            (slot) =>
+              new Choice(
+                new MarkAction({
+                  slot: slot,
+                  player: currentPlayer,
+                }),
+                currentPlayer,
+              ),
+          );
         },
       },
     ]);

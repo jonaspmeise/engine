@@ -21,10 +21,11 @@ import {
 import { PositiveRule } from './components/positive-rule';
 import { NegativeRule } from './components/negative-rule';
 import { SnapshotService } from './services/snapshot/snapshot-service';
-import { EnhancedChoice } from './components/choice';
+import { Choice, EnhancedChoice } from './components/choice';
 import { ChoiceId } from './components/choice.types';
 import { PlayerEntity } from './services/entity/entity-service.types';
 import { ModifiableRuntime } from './interfaces/modifiable-runtime';
+import { Trigger, TriggerReturnType } from './components/trigger';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -37,11 +38,19 @@ export abstract class Game<
   private readonly _entityService: EntityService;
   private readonly _snapshotService: SnapshotService;
 
+  // TODO: There is a lot of state clogging this up...
   // TODO: Move to own service? PlayerHandlerService? Does this state just live here now...?
   private _state: SnapshotData = {
-    choices: new Map(),
-    dirtyEntities: new Set(),
-    executedChoices: [] as EnhancedChoice<Action<any>>[],
+    currentSnapshots: [
+      {
+        dirtyEntities: {},
+        executed: undefined,
+      },
+    ],
+    pastSnapshots: [],
+    choices: new Map<PlayerInterface, EnhancedChoice<Action<any>>[]>(),
+    queuedChoices: [] as EnhancedChoice<Action<any>>[],
+    stack: [] as TriggerReturnType[],
   };
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
@@ -95,20 +104,23 @@ export abstract class Game<
   public abstract readonly name: string;
 
   /**
-   * Returns the set of all positive rules that are applied in this game.
+   * Returns the set of all positive rules that should be applied in this game.
    * Needs to be implemented by the game itself.
    */
-  // TODO: Should this return instances or classes of actions?
   // TODO: Should this be a method or readonly property (ReadonlySet)?
   abstract positiveRules(): Set<PositiveRule>;
 
   /**
-   * Returns the set of all negative rules that are applied in this game.
+   * Returns the set of all negative rules that should be applied in this game.
    * Needs to be implemented by the game itself.
    */
-  // TODO: Should this return instances or classes of actions?
   // TODO: Should this be a method or readonly property (ReadonlySet)?
   abstract negativeRules(): Set<NegativeRule> | void;
+
+  /**
+   * Returns the set of all triggers that are registered in this game.
+   */
+  abstract triggers(): Set<Trigger> | void;
 
   /**
    * Flushes the current state of an entity to the engine.
@@ -121,8 +133,10 @@ export abstract class Game<
         `Flushing entity ${entity.constructor.name} with ID ${entity.$id} in game ${this.constructor.name}.`,
     );
 
-    // TODO: "as" needed here?
-    this._state.dirtyEntities.add(entity as DeepReadonly<typeof entity>);
+    this._state.currentSnapshots[
+      this._state.currentSnapshots.length - 1
+      // TODO: "as" needed here?
+    ]!.dirtyEntities[entity.$id] = entity as DeepReadonly<typeof entity>;
   }
 
   /**
@@ -214,7 +228,49 @@ export abstract class Game<
 
     // Clean up prior snapshot data.
     this._state.choices.clear();
-    this._state.executedChoices.length = 0;
+    this._state.queuedChoices.length = 0;
+
+    // Work off stack first...
+    if (this._state.stack.length > 0) {
+      const target = this._state.stack.pop()!;
+      const isChoice = target instanceof Choice;
+      this._logger.debug(
+        () => `Executing ${isChoice ? 'choice' : 'execution'} from stack...`,
+      );
+
+      this._state.currentSnapshots.push({
+        dirtyEntities: {},
+        executed: isChoice ? target : undefined,
+      });
+
+      if (isChoice) {
+        target.execution.apply(this);
+      } else {
+        target(this); // TODO: Reference last trigger here correctly!
+      }
+      this._nextSnapshot();
+      return;
+    } else {
+      // Check for triggers, that go off from this game state.
+      const triggers: TriggerReturnType[] = [];
+      for (const trigger of this.triggers() ?? []) {
+        const triggered = trigger.apply(this, undefined); // TODO: Reference last trigger here correctly!
+
+        if (triggered !== undefined) {
+          triggers.push(...triggered);
+        }
+      }
+
+      if (triggers.length > 0) {
+        this._logger.info(
+          () => `Triggers went off! Executing ${triggers.length} triggers...`,
+        );
+
+        this._state.stack.push(...triggers);
+        this._nextSnapshot();
+        return;
+      }
+    }
 
     // Find all choices for players in the current state.
     const choices = this._snapshotService.calculateChoices(this);
@@ -240,15 +296,15 @@ export abstract class Game<
     }
 
     // Drain buffered executed choices.
-    if (this._state.executedChoices.length > 1) {
+    if (this._state.queuedChoices.length > 1) {
       this._logger.error(
-        `Multiple choices were executed in the same snapshot (${this._state.executedChoices.length}). This can lead to unexpected behavior, since the game state is not updated between these executions. Consider debouncing choice executions on the client or server side to prevent this.`,
+        `Multiple choices were executed in the same snapshot (${this._state.queuedChoices.length}). This can lead to unexpected behavior, since the game state is not updated between these executions. Consider debouncing choice executions on the client or server side to prevent this.`,
       );
     }
 
-    const choice = this._state.executedChoices[0];
+    const choice = this._state.queuedChoices[0];
     if (choice !== undefined) {
-      this._executeChoice(choice.player, choice);
+      this._executePlayerChoice(choice.player, choice);
     }
   }
 
@@ -269,7 +325,7 @@ export abstract class Game<
     );
 
     player[handler]!(
-      this._state.dirtyEntities,
+      this._state.currentSnapshots,
       this._state.choices.get(player) ?? [],
       (rawChoice: EnhancedChoice<Action<any>> | ChoiceId) => {
         const choice = this._fetchChoice(player, rawChoice);
@@ -285,7 +341,7 @@ export abstract class Game<
 
         // Debounce this execution, so that if multiple players are informed or want to execute a choice,
         // they have a fair chance to do so before first player in the loop simply takes all their actions and forces new snapshots.
-        this._state.executedChoices.push(choice);
+        this._state.queuedChoices.push(choice);
       },
     );
   }
@@ -313,7 +369,7 @@ export abstract class Game<
    * Executes a given choice.
    * @param choice The choice to execute.
    */
-  private _executeChoice(
+  private _executePlayerChoice(
     player: PlayerEntity,
     choice: EnhancedChoice<Action<any>>,
   ): void {
@@ -323,7 +379,13 @@ export abstract class Game<
     );
 
     // Clear prior snapshot state and calculate the next one.
-    this._state.dirtyEntities.clear();
+    this._state.pastSnapshots.push(...this._state.currentSnapshots);
+    this._state.currentSnapshots = [
+      {
+        dirtyEntities: {},
+        executed: choice,
+      },
+    ];
     choice.execution.apply(this);
 
     this._nextSnapshot();
@@ -355,11 +417,7 @@ export abstract class Game<
 
     if (players.every((p) => p[handler] !== undefined)) {
       if (!this._started) {
-        this._logger.info(
-          () =>
-            `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
-        );
-        this._nextSnapshot();
+        this._start();
       } else {
         this._logger.info(
           () =>
@@ -369,6 +427,19 @@ export abstract class Game<
         this._informPlayer(player, true);
       }
     }
+  }
+
+  /**
+   * Starts the game.
+   */
+  private _start(): void {
+    this._logger.info(
+      () =>
+        `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
+    );
+
+    // Calculate first snapshot.
+    this._nextSnapshot();
   }
 
   // TODO: Maybe move these to another place...
@@ -398,3 +469,5 @@ export abstract class Game<
     this._entityService.create(entity);
   }
 }
+
+// TODO: Win / Lose game functionality!

@@ -1,4 +1,5 @@
 import { QueryableRuntime } from '../interfaces/queryable-runtime';
+import { Action } from './action';
 import { Choice } from './choice';
 import { Rule } from './rule';
 
@@ -15,5 +16,8 @@ export type NegativeRule = Rule & {
    * @param runtime A runtime that allows access to the game state and entities for the context of this check.
    * @returns whether the choice should be denied.
    */
-  apply: (choice: Choice<any>, runtime: QueryableRuntime) => boolean | void;
+  apply: (
+    choice: Choice<Action<any>>,
+    runtime: QueryableRuntime,
+  ) => boolean | void;
 };

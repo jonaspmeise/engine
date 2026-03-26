@@ -64,46 +64,136 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
       // WHEN / THEN
       // Here, the websocket connection could be handed into the callback function.
       // FIXME: This is not quite ergonomic, but it works. Think about how the state is constructed.
-      this.game.registerPlayerCallback(playerX, (delta, choices) => {
+      this.game.registerPlayerCallback(playerX, (snapshots, choices) => {
         // X is the first player, thus they should have choices!
         expect(choices).toBeDefined();
         expect(choices).toHaveLength(9); // 9 possible slots to mark.
 
         const data: ClientSnapshotData = {
-          delta: Array.from(delta),
+          snapshots,
           choices,
         };
 
         expect(JSON.parse(JSON.stringify(data))!).toEqual({
-          delta: [
-            { $id: 'slot-0-0', markedBy: null, $type: 'slot', x: 0, y: 0 },
-            { $id: 'slot-0-1', markedBy: null, $type: 'slot', x: 0, y: 1 },
-            { $id: 'slot-0-2', markedBy: null, $type: 'slot', x: 0, y: 2 },
-            { $id: 'slot-1-0', markedBy: null, $type: 'slot', x: 1, y: 0 },
-            { $id: 'slot-1-1', markedBy: null, $type: 'slot', x: 1, y: 1 },
-            { $id: 'slot-1-2', markedBy: null, $type: 'slot', x: 1, y: 2 },
-            { $id: 'slot-2-0', markedBy: null, $type: 'slot', x: 2, y: 0 },
-            { $id: 'slot-2-1', markedBy: null, $type: 'slot', x: 2, y: 1 },
-            { $id: 'slot-2-2', markedBy: null, $type: 'slot', x: 2, y: 2 },
-            { $id: 'HorizontalLane-0', index: 0, $type: 'horizontal-lane' },
-            { $id: 'VerticalLane-0', index: 0, $type: 'vertical-lane' },
-            { $id: 'HorizontalLane-1', index: 1, $type: 'horizontal-lane' },
-            { $id: 'VerticalLane-1', index: 1, $type: 'vertical-lane' },
-            { $id: 'HorizontalLane-2', index: 2, $type: 'horizontal-lane' },
-            { $id: 'VerticalLane-2', index: 2, $type: 'vertical-lane' },
-            { $id: 'DiagonalLane-0', index: 0, $type: 'diagonal-lane' },
-            { $id: 'DiagonalLane-1', index: 1, $type: 'diagonal-lane' },
+          snapshots: [
             {
-              $id: 'player-X',
-              isCurrentPlayer: true,
-              mark: 'X',
-              $type: 'TicTacToePlayer',
-            },
-            {
-              $id: 'player-O',
-              isCurrentPlayer: false,
-              mark: 'O',
-              $type: 'TicTacToePlayer',
+              dirtyEntities: {
+                'slot-0-0': {
+                  $id: 'slot-0-0',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 0,
+                  y: 0,
+                },
+                'slot-0-1': {
+                  $id: 'slot-0-1',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 0,
+                  y: 1,
+                },
+                'slot-0-2': {
+                  $id: 'slot-0-2',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 0,
+                  y: 2,
+                },
+                'slot-1-0': {
+                  $id: 'slot-1-0',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 1,
+                  y: 0,
+                },
+                'slot-1-1': {
+                  $id: 'slot-1-1',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 1,
+                  y: 1,
+                },
+                'slot-1-2': {
+                  $id: 'slot-1-2',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 1,
+                  y: 2,
+                },
+                'slot-2-0': {
+                  $id: 'slot-2-0',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 2,
+                  y: 0,
+                },
+                'slot-2-1': {
+                  $id: 'slot-2-1',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 2,
+                  y: 1,
+                },
+                'slot-2-2': {
+                  $id: 'slot-2-2',
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 2,
+                  y: 2,
+                },
+                'HorizontalLane-0': {
+                  $id: 'HorizontalLane-0',
+                  index: 0,
+                  $type: 'horizontal-lane',
+                },
+                'VerticalLane-0': {
+                  $id: 'VerticalLane-0',
+                  index: 0,
+                  $type: 'vertical-lane',
+                },
+                'HorizontalLane-1': {
+                  $id: 'HorizontalLane-1',
+                  index: 1,
+                  $type: 'horizontal-lane',
+                },
+                'VerticalLane-1': {
+                  $id: 'VerticalLane-1',
+                  index: 1,
+                  $type: 'vertical-lane',
+                },
+                'HorizontalLane-2': {
+                  $id: 'HorizontalLane-2',
+                  index: 2,
+                  $type: 'horizontal-lane',
+                },
+                'VerticalLane-2': {
+                  $id: 'VerticalLane-2',
+                  index: 2,
+                  $type: 'vertical-lane',
+                },
+                'DiagonalLane-0': {
+                  $id: 'DiagonalLane-0',
+                  index: 0,
+                  $type: 'diagonal-lane',
+                },
+                'DiagonalLane-1': {
+                  $id: 'DiagonalLane-1',
+                  index: 1,
+                  $type: 'diagonal-lane',
+                },
+                'player-X': {
+                  $id: 'player-X',
+                  isCurrentPlayer: true,
+                  mark: 'X',
+                  $type: 'TicTacToePlayer',
+                },
+                'player-O': {
+                  $id: 'player-O',
+                  isCurrentPlayer: false,
+                  mark: 'O',
+                  $type: 'TicTacToePlayer',
+                },
+              },
             },
           ],
           choices: [
@@ -118,6 +208,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-0',
+              player: '$ENGINE:player-X', // TODO: Redundant information! We know that only we are this player!
             },
             {
               execution: {
@@ -128,6 +219,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-1',
+              player: '$ENGINE:player-X',
             },
             {
               execution: {
@@ -138,6 +230,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-2',
+              player: '$ENGINE:player-X',
             },
             {
               execution: {
@@ -148,6 +241,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-3',
+              player: '$ENGINE:player-X',
             },
             {
               execution: {
@@ -158,6 +252,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-4',
+              player: '$ENGINE:player-X',
             },
             {
               execution: {
@@ -168,6 +263,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-5',
+              player: '$ENGINE:player-X',
             },
             {
               execution: {
@@ -178,6 +274,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-6',
+              player: '$ENGINE:player-X',
             },
             {
               execution: {
@@ -188,6 +285,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-7',
+              player: '$ENGINE:player-X',
             },
             {
               execution: {
@@ -198,6 +296,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
                 type: 'mark',
               },
               id: 'choice-8',
+              player: '$ENGINE:player-X',
             },
           ],
         });
@@ -207,7 +306,7 @@ class TicTacToeSpec extends GameTest<TicTacToeParameters> {
           done();
         }
       });
-      this.game.registerPlayerCallback(playerO, (_delta, choices) => {
+      this.game.registerPlayerCallback(playerO, (_snapshots, choices) => {
         // O is the second player, thus they should not have any choices.
         expect(choices).toBeDefined();
         expect(choices).toHaveLength(0);
