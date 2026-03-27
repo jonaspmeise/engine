@@ -6,9 +6,9 @@ import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import {
   MinimalSnapshotParameters,
   ResolvedSnapshotParameters,
-} from './snapshot-service.types';
+} from './choice-service.types';
 
-export class SnapshotService {
+export class ChoiceService {
   private readonly _state: ResolvedSnapshotParameters;
   private _choiceCounter: number = 0;
 

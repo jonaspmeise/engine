@@ -916,7 +916,7 @@ describe('game', () => {
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
         // Player 1 is not relevant for this test.
-        (snapshots, choices) => {},
+        () => {},
       );
 
       // THEN

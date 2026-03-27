@@ -1,5 +1,5 @@
 import { describe, test, expect, mock, spyOn, jest } from 'bun:test';
-import { SnapshotService } from './snapshot-service';
+import { ChoiceService } from './choice-service';
 import { Action } from '../../components/action';
 import { PositiveRule } from '../../components/positive-rule';
 import {
@@ -49,7 +49,7 @@ class TestPlayer extends Entity implements PlayerInterface {
   [playerInterfaceMarker] = true as const;
 }
 
-describe('snapshotService', () => {
+describe('ChoiceService', () => {
   const mockRuntime: QueryableRuntime = {
     anyEntity: mock(() => null),
     entities: mock(() => []),
@@ -66,7 +66,7 @@ describe('snapshotService', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
-          new SnapshotService({
+          new ChoiceService({
             positiveRules: new Set() as Set<PositiveRule>,
           }),
       ).toThrowError(/no positive rules/gi);
@@ -76,7 +76,7 @@ describe('snapshotService', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
-          new SnapshotService({
+          new ChoiceService({
             positiveRules: new Set([
               {
                 name: 'TestPositiveRule',
@@ -95,7 +95,7 @@ describe('snapshotService', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
-          new SnapshotService({
+          new ChoiceService({
             positiveRules: new Set([
               {
                 name: 'TestPositiveRule',
@@ -120,7 +120,7 @@ describe('snapshotService', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
-          new SnapshotService({
+          new ChoiceService({
             positiveRules: new Set([
               {
                 name: 'TestRule',
@@ -141,7 +141,7 @@ describe('snapshotService', () => {
   describe('calculateChoices', () => {
     test('returns the correct choice space given only positive rules.', () => {
       // GIVEN
-      const service = new SnapshotService({
+      const service = new ChoiceService({
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
@@ -183,7 +183,7 @@ describe('snapshotService', () => {
 
     test('if choices for a player, which is not registered in the runtime, are generated, an error is thrown.', () => {
       // GIVEN
-      const service = new SnapshotService({
+      const service = new ChoiceService({
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
@@ -207,7 +207,7 @@ describe('snapshotService', () => {
 
     test('negative rules prevent choices from being generated.', () => {
       // GIVEN
-      const service = new SnapshotService({
+      const service = new ChoiceService({
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',
@@ -262,7 +262,7 @@ describe('snapshotService', () => {
 
     test('throws an error if no player has any choices in a snapshot.', () => {
       // GIVEN
-      const service = new SnapshotService({
+      const service = new ChoiceService({
         positiveRules: new Set([
           {
             name: 'TestPositiveRule',

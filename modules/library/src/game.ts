@@ -1,15 +1,12 @@
-import { Action } from './components/action';
 import { Entity, entityId } from './components/entity';
 import { FlushableRuntime } from './interfaces/flushable-runtime';
 import {
   Class,
-  DeepReadonly,
   DEFAULT_GAME_CONFIG,
   GameConfig,
   GameParameters,
   Logger,
   PlayerInterfaceCallback,
-  SnapshotData,
 } from './game.types';
 import { QueryableRuntime } from './interfaces/queryable-runtime';
 import { EntityService } from './services/entity/entity-service';
@@ -20,12 +17,11 @@ import {
 } from './interfaces/player-interface';
 import { PositiveRule } from './components/positive-rule';
 import { NegativeRule } from './components/negative-rule';
-import { SnapshotService } from './services/snapshot/snapshot-service';
-import { Choice, EnhancedChoice } from './components/choice';
-import { ChoiceId } from './components/choice.types';
+import { ChoiceService } from './services/choices/choice-service';
 import { PlayerEntity } from './services/entity/entity-service.types';
 import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 import { Trigger, TriggerReturnType } from './components/trigger';
+import { StateService } from './services/state/state-service';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -36,22 +32,8 @@ export abstract class Game<
   private _started: boolean = false;
 
   private readonly _entityService: EntityService;
-  private readonly _snapshotService: SnapshotService;
-
-  // TODO: There is a lot of state clogging this up...
-  // TODO: Move to own service? PlayerHandlerService? Does this state just live here now...?
-  private _state: SnapshotData = {
-    currentSnapshots: [
-      {
-        dirtyEntities: {},
-        executed: undefined,
-      },
-    ],
-    pastSnapshots: [],
-    choices: new Map<PlayerInterface, EnhancedChoice<Action<any>>[]>(),
-    queuedChoices: [] as EnhancedChoice<Action<any>>[],
-    stack: [] as TriggerReturnType[],
-  };
+  private readonly _choiceService: ChoiceService;
+  private readonly _stateService: StateService;
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
   // TODO: ... handle drivers (for MTCS / replays).
@@ -78,13 +60,14 @@ export abstract class Game<
       this._logger,
       this.flush.bind(this),
     );
-    this._snapshotService = new SnapshotService(
+    this._choiceService = new ChoiceService(
       {
         positiveRules: this.positiveRules(),
         negativeRules: this.negativeRules() ?? new Set(),
       },
       this._logger,
     );
+    this._stateService = new StateService(this._logger);
 
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
     this._setup(parameters as PARAMETERS);
@@ -133,10 +116,7 @@ export abstract class Game<
         `Flushing entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.constructor.name}.`,
     );
 
-    this._state.currentSnapshots[
-      this._state.currentSnapshots.length - 1
-      // TODO: "as" needed here?
-    ]!.dirtyEntities[entity[entityId]] = entity as DeepReadonly<typeof entity>;
+    this._stateService.markDirty(entity);
   }
 
   /**
@@ -227,168 +207,58 @@ export abstract class Game<
     this._logger.info(() => `Calculating next snapshot...`);
 
     // Clean up prior snapshot data.
-    this._state.choices.clear();
-    this._state.queuedChoices.length = 0;
+    this._stateService.clear();
 
     // Work off stack first...
-    if (this._state.stack.length > 0) {
-      const target = this._state.stack.pop()!;
-      const isChoice = target instanceof Choice;
+    const target = this._stateService.workOffStack(this);
+
+    if (target !== undefined) {
       this._logger.debug(
-        () => `Executing ${isChoice ? 'choice' : 'execution'} from stack...`,
+        () => `Finished working off stack item, moving to next snapshot...`,
       );
-
-      this._state.currentSnapshots.push({
-        dirtyEntities: {},
-        executed: isChoice ? target : undefined,
-      });
-
-      if (isChoice) {
-        target.execution.apply(this);
-      } else {
-        target(this); // TODO: Reference last trigger here correctly!
-      }
       this._nextSnapshot();
       return;
-    } else {
-      // Check for triggers, that go off from this game state.
-      const triggers: TriggerReturnType[] = [];
-      for (const trigger of this.triggers() ?? []) {
-        const triggered = trigger.apply(this, undefined); // TODO: Reference last trigger here correctly!
+    }
 
-        if (triggered !== undefined) {
-          triggers.push(...triggered);
-        }
+    // Check for triggers, that go off from this game state.
+    const triggers: TriggerReturnType[] = [];
+    for (const trigger of this.triggers() ?? []) {
+      const triggered = trigger.apply(this, undefined); // TODO: Reference last trigger here correctly!
+
+      if (triggered !== undefined) {
+        triggers.push(...triggered);
       }
+    }
 
-      if (triggers.length > 0) {
-        this._logger.info(
-          () => `Triggers went off! Executing ${triggers.length} triggers...`,
-        );
+    if (triggers.length > 0) {
+      this._logger.info(
+        () => `Triggers went off! Executing ${triggers.length} triggers...`,
+      );
 
-        this._state.stack.push(...triggers);
-        this._nextSnapshot();
-        return;
-      }
+      this._stateService.pushToStack(...triggers);
+      this._nextSnapshot();
+      return;
     }
 
     // Find all choices for players in the current state.
-    const choices = this._snapshotService.calculateChoices(this);
+    const choices = this._choiceService.calculateChoices(this);
 
     // Split choices by player and inform them.
     for (const choice of choices) {
-      if (!this._state.choices.has(choice.player)) {
-        this._state.choices.set(choice.player, []);
-      }
-      this._state.choices.get(choice.player)!.push(choice);
-    }
-
-    for (const player of this._entityService.players()) {
-      this._logger.debug(
-        () =>
-          `Player ${player[entityId]} has ${this._state.choices.get(player)?.length ?? 0} choices.`,
-      );
+      this._stateService.registerChoice(choice.player, choice);
     }
 
     // FIXME: Implement correctly.
     for (const player of this._entityService.players()) {
-      this._informPlayer(player);
+      this._stateService.informPlayer(player);
     }
 
-    // Drain buffered executed choices.
-    if (this._state.queuedChoices.length > 1) {
-      this._logger.error(
-        `Multiple choices were executed in the same snapshot (${this._state.queuedChoices.length}). This can lead to unexpected behavior, since the game state is not updated between these executions. Consider debouncing choice executions on the client or server side to prevent this.`,
-      );
-    }
-
-    const choice = this._state.queuedChoices[0];
+    // Drain queued executed choices.
+    const choice = this._stateService.getQueuedChoice();
     if (choice !== undefined) {
-      this._executePlayerChoice(choice.player, choice);
+      this._stateService.executePlayerChoice(choice.player, choice, this);
+      this._nextSnapshot();
     }
-  }
-
-  /**
-   * Informs a player about their current state.
-   * @param player The player to inform about their state.
-   * @param sendFullState Whether to send the full state to the player, or only a diff.
-   * For example, if a player disconnected and reconnected, they should be informed about their full state.
-   * Normally, only the diff is sent.
-   */
-  private _informPlayer(
-    player: PlayerEntity,
-    sendFullState: boolean = false,
-  ): void {
-    this._logger.debug(
-      () =>
-        `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
-    );
-
-    player[handler]!(
-      this._state.currentSnapshots,
-      this._state.choices.get(player) ?? [],
-      (rawChoice: EnhancedChoice<Action<any>> | ChoiceId) => {
-        const choice = this._fetchChoice(player, rawChoice);
-
-        if (choice === undefined) {
-          return;
-        }
-
-        this._logger.info(
-          () =>
-            `Player ${player[playerId]} tries to execute choice "${choice.id}" (${choice.execution.$type})...`,
-        );
-
-        // Debounce this execution, so that if multiple players are informed or want to execute a choice,
-        // they have a fair chance to do so before first player in the loop simply takes all their actions and forces new snapshots.
-        this._state.queuedChoices.push(choice);
-      },
-    );
-  }
-
-  private _fetchChoice(
-    player: PlayerEntity,
-    rawChoice: EnhancedChoice<Action<any>> | ChoiceId,
-  ): EnhancedChoice<Action<any>> | undefined {
-    const choice: EnhancedChoice<Action<any>> | undefined =
-      typeof rawChoice === 'object'
-        ? rawChoice
-        : this._state.choices.get(player)?.find((c) => c.id === rawChoice);
-
-    if (choice === undefined) {
-      this._logger.error(
-        `Player ${player[playerId]} tried to execute an invalid choice with ID ${rawChoice}. Ignoring this...`,
-      );
-      return;
-    }
-
-    return choice;
-  }
-
-  /**
-   * Executes a given choice.
-   * @param choice The choice to execute.
-   */
-  private _executePlayerChoice(
-    player: PlayerEntity,
-    choice: EnhancedChoice<Action<any>>,
-  ): void {
-    this._logger.info(
-      () =>
-        `Player ${player[playerId]} executes choice "${choice.id}" (${choice.execution.$type}).`,
-    );
-
-    // Clear prior snapshot state and calculate the next one.
-    this._state.pastSnapshots.push(...this._state.currentSnapshots);
-    this._state.currentSnapshots = [
-      {
-        dirtyEntities: {},
-        executed: choice,
-      },
-    ];
-    choice.execution.apply(this);
-
-    this._nextSnapshot();
   }
 
   /**
@@ -424,7 +294,7 @@ export abstract class Game<
             `Player interface with ID ${player[playerId]} reconnected. Informing them about their state...`,
         );
 
-        this._informPlayer(player, true);
+        this._stateService.informPlayer(player, true);
       }
     }
   }
