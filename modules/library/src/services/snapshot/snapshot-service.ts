@@ -1,5 +1,6 @@
 import { Action } from '../../components/action';
 import { EnhancedChoice } from '../../components/choice';
+import { entityId } from '../../components/entity';
 import { DEFAULT_GAME_CONFIG, Logger } from '../../game.types';
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import {
@@ -100,7 +101,7 @@ export class SnapshotService {
     for (const choice of choices) {
       if (!runtime.entitySet().has(choice.player)) {
         throw new Error(
-          `Player ${choice.player.$id} is not registered in the runtime.`,
+          `Player ${choice.player[entityId]} is not registered in the runtime.`,
         );
       }
     }

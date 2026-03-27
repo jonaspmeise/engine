@@ -1,5 +1,5 @@
 import { Action } from './components/action';
-import { Entity } from './components/entity';
+import { Entity, entityId } from './components/entity';
 import { FlushableRuntime } from './interfaces/flushable-runtime';
 import {
   Class,
@@ -130,13 +130,13 @@ export abstract class Game<
   public flush(entity: Entity): void {
     this._logger.debug(
       () =>
-        `Flushing entity ${entity.constructor.name} with ID ${entity.$id} in game ${this.constructor.name}.`,
+        `Flushing entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.constructor.name}.`,
     );
 
     this._state.currentSnapshots[
       this._state.currentSnapshots.length - 1
       // TODO: "as" needed here?
-    ]!.dirtyEntities[entity.$id] = entity as DeepReadonly<typeof entity>;
+    ]!.dirtyEntities[entity[entityId]] = entity as DeepReadonly<typeof entity>;
   }
 
   /**
@@ -286,7 +286,7 @@ export abstract class Game<
     for (const player of this._entityService.players()) {
       this._logger.debug(
         () =>
-          `Player ${player.$id} has ${this._state.choices.get(player)?.length ?? 0} choices.`,
+          `Player ${player[entityId]} has ${this._state.choices.get(player)?.length ?? 0} choices.`,
       );
     }
 
@@ -450,7 +450,7 @@ export abstract class Game<
   destroyEntity(entity: Entity): void {
     this._logger.info(
       () =>
-        `Destroying entity ${entity.constructor.name} with ID ${entity.$id} in game ${this.name}.`,
+        `Destroying entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.name}.`,
     );
 
     this._entityService.destroy(entity);
@@ -463,7 +463,7 @@ export abstract class Game<
   spawnEntity(entity: Entity): void {
     this._logger.info(
       () =>
-        `Spawning entity ${entity.constructor.name} with ID ${entity.$id} in game ${this.name}.`,
+        `Spawning entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.name}.`,
     );
 
     this._entityService.create(entity);

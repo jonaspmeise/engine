@@ -1,7 +1,7 @@
 import { Action } from './action';
 import { PlayerEntity } from '../services/entity/entity-service.types';
-import { ChoiceId } from './choice.types';
-import { Entity } from './entity';
+import { ChoiceId, dereferenceEntityID } from './choice.types';
+import { Entity, entityId } from './entity';
 import { NegativeRule } from './negative-rule';
 
 /**
@@ -38,7 +38,7 @@ export class Choice<ACTION extends Action<any>> {
         type: this.execution.$type,
         parameters: EnhancedChoice.dereferenceEntity(this.execution.parameters),
       },
-      player: `$ENGINE:${this.player.$id}`,
+      player: dereferenceEntityID(this.player[entityId]), // TODO: Structurally define this somewhere as an utility function!
       preventedBy:
         this.preventedBy === undefined ? undefined : this.preventedBy.name,
     };
@@ -55,7 +55,7 @@ export class Choice<ACTION extends Action<any>> {
       Object.entries(object).map(([key, value]) => [
         key,
         value instanceof Entity
-          ? `$ENGINE:${value.$id}` // TODO: Structurally define this somewhere as an utility function!
+          ? dereferenceEntityID(value[entityId]) // TODO: Structurally define this somewhere as an utility function!
           : EnhancedChoice.dereferenceEntity(value as Record<string, unknown>),
       ]),
     );

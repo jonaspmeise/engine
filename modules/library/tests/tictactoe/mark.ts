@@ -1,4 +1,5 @@
 import { Action } from '../../src/components/action';
+import { entityId } from '../../src/components/entity';
 import { EntityID } from '../../src/components/entity.types';
 import { ModifiableRuntime } from '../../src/interfaces/modifiable-runtime';
 import { TicTacToePlayer } from './player';
@@ -9,15 +10,15 @@ export class MarkAction extends Action<{
   player: TicTacToePlayer;
 }> {
   public message(): string {
-    return `Player ${this.parameters.player.mark} marked slot ${this.parameters.slot.$id}!`;
+    return `Player ${this.parameters.player.mark} marked slot ${this.parameters.slot[entityId]}!`;
   }
 
   public prompt(): string {
-    return `Mark slot ${this.parameters.slot.$id} with ${this.parameters.player.mark}`;
+    return `Mark slot ${this.parameters.slot[entityId]} with ${this.parameters.player.mark}`;
   }
 
   public affectedEntities(): EntityID[] | void {
-    return [this.parameters.slot.$id];
+    return [this.parameters.slot[entityId]];
   }
 
   public $type: string = 'mark';

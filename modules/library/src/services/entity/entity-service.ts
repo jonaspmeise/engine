@@ -1,4 +1,4 @@
-import { Entity } from '../../components/entity';
+import { Entity, entityId } from '../../components/entity';
 import { EntityID } from '../../components/entity.types';
 import { Class, Logger } from '../../game.types';
 import { EntityFlushCallback } from './entity-service.types';
@@ -46,7 +46,7 @@ export class EntityService
    */
   public create<ENTITY extends Entity>(entity: ENTITY): ENTITY {
     // Set ID -> Entity mapping for extremely quick lookup of entities by singular IDs.
-    const id: EntityID = entity.$id;
+    const id: EntityID = entity[entityId];
     this._logger.debug(
       () => `Spawning entity ${entity.constructor.name} with ID ${id}.`,
     );
@@ -108,7 +108,7 @@ export class EntityService
   }
 
   public destroy(component: Entity): void {
-    const id: EntityID = component.$id;
+    const id: EntityID = component[entityId];
 
     this._logger.info(
       () => `Destroying entity ${component.constructor.name} with ID ${id}.`,

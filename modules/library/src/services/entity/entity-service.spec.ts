@@ -7,7 +7,7 @@ import {
   beforeEach,
   mock,
 } from 'bun:test';
-import { Entity } from '../../components/entity';
+import { Entity, entityId } from '../../components/entity';
 import { EntityService } from './entity-service';
 import { NO_OP_LOGGER } from '../../game.types';
 import { EntityFlushCallback, PlayerEntity } from './entity-service.types';
@@ -74,7 +74,7 @@ describe('entityService', () => {
       // THEN
       expect(service.entities()).toHaveLength(1);
       expect(service.entities(TestEntityA)).toHaveLength(1);
-      expect(service.entities(TestEntityA)[0]!.$id).toBe('TestEntityA-1');
+      expect(service.entities(TestEntityA)[0]![entityId]).toBe('TestEntityA-1');
     });
 
     test('when an entity is spawned, the flush callback is called. The engine needs to be notified of changes to entity state.', () => {

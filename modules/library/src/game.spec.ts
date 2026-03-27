@@ -1,7 +1,7 @@
 import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Game } from './game';
 import { Action } from './components/action';
-import { Entity } from './components/entity';
+import { Entity, entityId } from './components/entity';
 import { QueryableRuntime } from './interfaces/queryable-runtime';
 import {
   PlayerInterface,
@@ -171,10 +171,10 @@ describe('game', () => {
       const playerInterfaces = game.entities(TestPlayerEntity);
 
       expect(playerInterfaces).toHaveLength(2);
-      expect(playerInterfaces[0]!.$id).not.toBeNull();
-      expect(playerInterfaces[0]!.$id).not.toBeUndefined();
-      expect(playerInterfaces[1]!.$id).not.toBeNull();
-      expect(playerInterfaces[1]!.$id).not.toBeUndefined();
+      expect(playerInterfaces[0]![entityId]).not.toBeNull();
+      expect(playerInterfaces[0]![entityId]).not.toBeUndefined();
+      expect(playerInterfaces[1]![entityId]).not.toBeNull();
+      expect(playerInterfaces[1]![entityId]).not.toBeUndefined();
     });
   });
 
@@ -199,7 +199,7 @@ describe('game', () => {
 
       // THEN
       expect(game.anyEntity(TestEntityA)).toMatchObject({
-        $id: expect.stringMatching(/testentityA-[1-3]/),
+        [entityId]: expect.stringMatching(/testentityA-[1-3]/),
       });
     });
 
@@ -425,36 +425,28 @@ describe('game', () => {
           const snapshot = snapshots[0]!.dirtyEntities;
           expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
             'testentityA-1': {
-              $id: 'testentityA-1',
               $type: 'TestEntityA',
             },
             'testentityA-2': {
-              $id: 'testentityA-2',
               $type: 'TestEntityA',
             },
             'testentityA-3': {
-              $id: 'testentityA-3',
               $type: 'TestEntityA',
             },
             'testentityB-1': {
-              $id: 'testentityB-1',
               $type: 'TestEntityB',
             },
             'testentityB-2': {
-              $id: 'testentityB-2',
               $type: 'TestEntityB',
             },
             'testentityC-1': {
-              $id: 'testentityC-1',
               volatileNumber: 0,
               $type: 'TestEntityC',
             },
             'testPlayerEntity-1': {
-              $id: 'testPlayerEntity-1',
               $type: 'TestPlayerEntity',
             },
             'testPlayerEntity-2': {
-              $id: 'testPlayerEntity-2',
               $type: 'TestPlayerEntity',
             },
           });
@@ -478,36 +470,28 @@ describe('game', () => {
           const snapshot = snapshots[0]!.dirtyEntities;
           expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
             'testentityA-1': {
-              $id: 'testentityA-1',
               $type: 'TestEntityA',
             },
             'testentityA-2': {
-              $id: 'testentityA-2',
               $type: 'TestEntityA',
             },
             'testentityA-3': {
-              $id: 'testentityA-3',
               $type: 'TestEntityA',
             },
             'testentityB-1': {
-              $id: 'testentityB-1',
               $type: 'TestEntityB',
             },
             'testentityB-2': {
-              $id: 'testentityB-2',
               $type: 'TestEntityB',
             },
             'testentityC-1': {
-              $id: 'testentityC-1',
               volatileNumber: 0,
               $type: 'TestEntityC',
             },
             'testPlayerEntity-1': {
-              $id: 'testPlayerEntity-1',
               $type: 'TestPlayerEntity',
             },
             'testPlayerEntity-2': {
-              $id: 'testPlayerEntity-2',
               $type: 'TestPlayerEntity',
             },
           });
@@ -545,7 +529,7 @@ describe('game', () => {
             expect(snapshots).toHaveLength(1);
             expect(snapshots[0]?.dirtyEntities).toEqual({
               'testentityC-1': {
-                $id: 'testentityC-1',
+                [entityId]: 'testentityC-1',
                 // The action modified this property!
                 volatileNumber: 1,
                 $type: 'TestEntityC',
@@ -667,38 +651,29 @@ describe('game', () => {
               {
                 dirtyEntities: {
                   'testentityA-1': {
-                    // TODO: $id is redundant here!
-                    $id: 'testentityA-1',
                     // We send the entity type too, so that the client knows how to construct the object of this type again.
                     $type: 'TestEntityA',
                   },
                   'testentityA-2': {
-                    $id: 'testentityA-2',
                     $type: 'TestEntityA',
                   },
                   'testentityA-3': {
-                    $id: 'testentityA-3',
                     $type: 'TestEntityA',
                   },
                   'testentityB-1': {
-                    $id: 'testentityB-1',
                     $type: 'TestEntityB',
                   },
                   'testentityB-2': {
-                    $id: 'testentityB-2',
                     $type: 'TestEntityB',
                   },
                   'testentityC-1': {
-                    $id: 'testentityC-1',
                     $type: 'TestEntityC',
                     volatileNumber: 0,
                   },
                   'testPlayerEntity-1': {
-                    $id: 'testPlayerEntity-1',
                     $type: 'TestPlayerEntity',
                   },
                   'testPlayerEntity-2': {
-                    $id: 'testPlayerEntity-2',
                     $type: 'TestPlayerEntity',
                   },
                 },
@@ -920,10 +895,40 @@ describe('game', () => {
       timeout(done);
     });
 
-    test.todo(
-      'if there are no choices in a snaphot, an error is thrown.',
-      () => {},
-    );
+    test('if there are no choices in a snaphot, an error is thrown.', () => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        positiveRules() {
+          return new Set<PositiveRule>([
+            {
+              name: 'test-positive-rule',
+              apply: () => {
+                // No choices are generated by this rule, which should cause an error, because the player then has no choice to pick from.
+                return [];
+              },
+            },
+          ]);
+        }
+      }
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for this test.
+        (snapshots, choices) => {},
+      );
+
+      // THEN
+      expect(() =>
+        game.registerPlayerCallback(
+          game.entities(TestPlayerEntity)[1]!,
+          // Player 2 is not relevant for this test.
+          () => {},
+        ),
+      ).toThrowError(/no choices/gi);
+    });
+
     test.todo('a game can end with a winner.', () => {});
     test.todo('a game can end with multiple winners.', () => {});
     test.todo('a game can end with a loser.', () => {});

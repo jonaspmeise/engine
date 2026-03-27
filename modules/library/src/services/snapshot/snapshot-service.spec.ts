@@ -9,7 +9,7 @@ import {
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import { Choice, EnhancedChoice } from '../../components/choice';
 import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
-import { Entity } from '../../components/entity';
+import { Entity, entityId } from '../../components/entity';
 import { beforeEach } from 'node:test';
 import { EntityID } from '../../components/entity.types';
 
@@ -30,7 +30,7 @@ class TestActionA extends Action<{ shouldBePrevented: boolean } | undefined> {
     return 'Execute TestActionA';
   }
   public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
-    return [runtime.anyEntity<TestEntity>(TestEntity)!.$id];
+    return [runtime.anyEntity<TestEntity>(TestEntity)![entityId]];
   }
   apply(runtime: ModifiableRuntime): void {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
