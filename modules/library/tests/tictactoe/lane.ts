@@ -1,6 +1,7 @@
 import { Entity } from '../../src/components/entity';
 import { Slot } from './slot';
 import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
+import { TicTacToePlayer } from './player';
 
 export abstract class Lane extends Entity {
   constructor(public readonly index: number) {
@@ -8,4 +9,22 @@ export abstract class Lane extends Entity {
   }
 
   public abstract slots(runtime: QueryableRuntime): Set<Slot>;
+
+  public wonBy(runtime: QueryableRuntime): TicTacToePlayer | undefined {
+    const slots = Array.from(this.slots(runtime));
+
+    if (
+      slots.every(
+        (slot) => slot.markedBy === slots[0]!.markedBy && !slot.isEmpty(),
+      )
+    ) {
+      return slots[0]!.markedBy!;
+    }
+
+    return undefined;
+  }
+
+  public isFull(runtime: QueryableRuntime): boolean {
+    return Array.from(this.slots(runtime)).every((slot) => !slot.isEmpty());
+  }
 }

@@ -4,7 +4,9 @@ import {
   Class,
   DEFAULT_GAME_CONFIG,
   GameConfig,
+  GameEndParameters,
   GameParameters,
+  GameStatus,
   Logger,
   PlayerInterfaceCallback,
 } from './game.types';
@@ -29,7 +31,8 @@ export abstract class Game<
   implements QueryableRuntime, FlushableRuntime, ModifiableRuntime
 {
   private _logger: Logger;
-  private _started: boolean = false;
+  private _status: GameStatus = 'setup';
+  private _endParameters: GameEndParameters | undefined = undefined;
 
   private readonly _entityService: EntityService;
   private readonly _choiceService: ChoiceService;
@@ -80,6 +83,14 @@ export abstract class Game<
    * @returns The initial game state.
    */
   protected abstract initialize(parameters: PARAMETERS): Set<Entity>;
+
+  /**
+   * The maximum depth of the trigger stack. This is used to prevent infinite loops in triggers.
+   * If the stack exceeds this depth, an error is thrown.
+   * This should be set by the game, depending on how complex the trigger interactions in this game are expected to be.
+   * // TODO: This should maybe be passed in the constructor...? It's kinda hidden since it's not abstract here. But overwriting it is only necessarily sparingly.
+   */
+  public maxDepth: number = 10000;
 
   /**
    * The name of the game.
@@ -186,6 +197,14 @@ export abstract class Game<
   }
 
   /**
+   * Returns all registered player entities.
+   * @returns The player entities.
+   */
+  public players(): ReadonlyArray<PlayerEntity> {
+    return this._entityService.players();
+  }
+
+  /**
    * Returns any entity that is assignable to a wanted type @param type.
    * If there are multiple entities of the wanted type, one of them is returned non-deterministically.
    * Use this method to quickly access an entity of a certain type, where either:
@@ -203,8 +222,28 @@ export abstract class Game<
    * Starts the actual game loop.
    */
   private _nextSnapshot(): void {
-    this._started = true;
-    this._logger.info(() => `Calculating next snapshot...`);
+    this._logger.info(
+      () =>
+        `Calculating next snapshot (depth: ${this._stateService.depth()})...`,
+    );
+
+    // Is the game even still running...?
+    // TODO: Write test for this!
+    if (this._status === 'ended') {
+      this._logger.warn(
+        `Game ${this.constructor.name} has already ended, but _nextSnapshot was called again. This likely means that some trigger or choice execution was not properly cleaned up after ending the game. Please check your triggers and choice executions to ensure that they do not execute after the game has ended.`,
+      );
+      return;
+    } else {
+      this._status = 'running';
+    }
+
+    // Did we exceed our maximum depth?
+    if (this._stateService.depth() > this.maxDepth) {
+      throw new Error(
+        `Maximum depth of ${this.maxDepth} exceeded! This likely means there is an infinite loop in your triggers. Please check your triggers and increase the maximum depth (${this.maxDepth}) if necessary.`,
+      );
+    }
 
     // Clean up prior snapshot data.
     this._stateService.clear();
@@ -222,8 +261,9 @@ export abstract class Game<
 
     // Check for triggers, that go off from this game state.
     const triggers: TriggerReturnType[] = [];
+
     for (const trigger of this.triggers() ?? []) {
-      const triggered = trigger.apply(this, undefined); // TODO: Reference last trigger here correctly!
+      const triggered = trigger.apply(this, this._stateService.lastExecution());
 
       if (triggered !== undefined) {
         triggers.push(...triggered);
@@ -286,7 +326,7 @@ export abstract class Game<
     const players = this._entityService.players();
 
     if (players.every((p) => p[handler] !== undefined)) {
-      if (!this._started) {
+      if (this._status === 'setup') {
         this._start();
       } else {
         this._logger.info(
@@ -338,6 +378,70 @@ export abstract class Game<
 
     this._entityService.create(entity);
   }
-}
 
-// TODO: Win / Lose game functionality!
+  /**
+   * Returns the current status of the game.
+   * There are three possible statuses:
+   * - 'setup': The game is being set up, but not all players have registered their callbacks yet. During this phase, no game logic is executed.
+   * - 'running': The game is running and players can execute choices.
+   * - 'ended': The game has ended and no more choices can be executed.
+   * @returns The status of the game.
+   */
+  status(): Readonly<GameStatus> {
+    return this._status;
+  }
+
+  end(parameters: Partial<GameEndParameters>): void {
+    this._logger.info(() => `Ending game...`);
+
+    if (this._status === 'ended') {
+      this._logger.error(
+        `Game ${this.constructor.name} has already ended, can't end it again!`,
+      );
+      return;
+    }
+
+    const players = [
+      ...(parameters.winners ?? []),
+      ...(parameters.losers ?? []),
+      ...(parameters.draws ?? []),
+    ];
+    if (players.length === 0) {
+      throw new Error(
+        `Cannot end game without any winners, losers or draws! Please provide at least one winner, loser or draw.`,
+      );
+    }
+
+    const unregisteredPlayers = players.filter(
+      (p) => !this._entityService.players().includes(p),
+    );
+
+    if (unregisteredPlayers.length > 0) {
+      throw new Error(
+        `Cannot end game with unregistered players as winners, losers or draws! Please make sure all players in the end parameters are registered in the game. Unregistered players: ${unregisteredPlayers
+          .map((p) => p[entityId])
+          .join(', ')}.`,
+      );
+    }
+
+    this._status = 'ended';
+    this._endParameters = {
+      winners: parameters.winners ?? [],
+      losers: parameters.losers ?? [],
+      draws: parameters.draws ?? [],
+    };
+
+    // TODO: What happens if the same player is both a winner and a loser?
+
+    // TODO: There should maybe be a callback for when the game is over...
+  }
+
+  // TODO: Better name!
+  endStatus(): GameEndParameters | undefined {
+    this._logger.info(
+      () => `Checking end status for game ${this.constructor.name}...`,
+    );
+
+    return this._endParameters;
+  }
+}

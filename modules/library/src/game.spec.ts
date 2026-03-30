@@ -7,7 +7,7 @@ import {
   PlayerInterface,
   playerInterfaceMarker,
 } from './interfaces/player-interface';
-import { ClientSnapshotData, Logger } from './game.types';
+import { ClientSnapshotData, Logger, NO_OP_LOGGER } from './game.types';
 import { PositiveRule } from './components/positive-rule';
 import { timeout } from '../tests/utility.spec';
 import { EntityID } from './components/entity.types';
@@ -60,6 +60,7 @@ class TestAction extends Action {
 }
 
 class TestGame extends Game {
+  public maxDepth: number = 10000;
   public name = 'TestGame';
 
   initialize() {
@@ -232,6 +233,16 @@ describe('game', () => {
     });
   });
 
+  describe('players', () => {
+    test('returns all registered player entities.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
+
+      // THEN
+      expect(game.players()).toHaveLength(2);
+    });
+  });
+
   describe('flush', () => {
     test('when an entity is spawned, and that entity is modified, it is flushed.', () => {
       // GIVEN
@@ -370,6 +381,33 @@ describe('game', () => {
   });
 
   describe('lifecycle', () => {
+    test('throws an error after a state depth of 10000 (or given depth) has reached.', () => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        public maxDepth = 3;
+      }
+
+      const game = new DummyGame();
+
+      // WHEN
+      let choiceExecutionCount = 0;
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_snapshots, choices, executor) => {
+          choiceExecutionCount++;
+          executor(choices[0]!);
+        },
+      );
+      expect(() =>
+        game.registerPlayerCallback(
+          game.entities(TestPlayerEntity)[1]!,
+          // Player 2 is not relevant for this test.
+          () => {},
+        ),
+      ).toThrowError(/maximum.+depth/gi);
+      expect(choiceExecutionCount).toEqual(4);
+    });
+
     test('logs an error if two players have a choice at the same time.', (done) => {
       // GIVEN
       const game = new TestGame(undefined, { logger });
@@ -784,6 +822,45 @@ describe('game', () => {
       timeout(done);
     });
 
+    test('triggers are passed the correct prior executed action.', (done) => {
+      // GIVEN
+      let triggerExecuted = false;
+
+      class DummyGame extends TestGame {
+        triggers() {
+          return new Set<Trigger>([
+            {
+              apply: (runtime, prior) => {
+                if (prior?.execution instanceof TestAction) {
+                  triggerExecuted = true;
+                }
+              },
+            },
+          ]);
+        }
+      }
+
+      // WHEN
+      const dummyGame = new DummyGame(undefined, { logger: NO_OP_LOGGER });
+      dummyGame.registerPlayerCallback(
+        dummyGame.entities(TestPlayerEntity)[0]!,
+        (_snapshots, choices, executor) => {
+          if (triggerExecuted) {
+            done();
+          } else if (choices.length > 0) {
+            executor(choices[0]!);
+          }
+        },
+      );
+      dummyGame.registerPlayerCallback(
+        dummyGame.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
+
     test('triggers are executed after in the initial game state.', (done) => {
       // GIVEN
       class DummyGame extends TestGame {
@@ -928,10 +1005,174 @@ describe('game', () => {
         ),
       ).toThrowError(/no choices/gi);
     });
+  });
 
-    test.todo('a game can end with a winner.', () => {});
-    test.todo('a game can end with multiple winners.', () => {});
-    test.todo('a game can end with a loser.', () => {});
-    test.todo('a game can end with multiple losers.', () => {});
+  describe('status', () => {
+    test('a game goes through "setup" into "running" status.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      // THEN
+      expect(game.status()).toEqual('setup');
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for this test.
+        () => {
+          // THEN
+          expect(game.status()).toEqual('running');
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
+  });
+
+  describe('end', () => {
+    test('a game can end with a winner.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      // THEN
+      expect(game.status()).toEqual('setup');
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for this test.
+        () => {
+          // THEN
+          expect(game.status()).toEqual('running');
+
+          game.end({ winners: [game.entities(TestPlayerEntity)[0]!] });
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {
+          if (game.status() === 'ended') {
+            done();
+          }
+        },
+      );
+
+      timeout(done);
+    });
+
+    test('if the game ends without anything, an error is thrown.', () => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      expect(() => game.end({})).toThrowError();
+    });
+
+    test('ignores a game over state if an ended game is ended again.', () => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for this test.
+        () => {},
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      game.end({ winners: [game.entities(TestPlayerEntity)[0]!] });
+      game.end({ winners: [game.entities(TestPlayerEntity)[1]!] });
+
+      // THEN
+      expect(game.endStatus()).toEqual({
+        winners: [game.entities(TestPlayerEntity)[0]!], // Not the 2nd player!
+        losers: [],
+        draws: [],
+      });
+    });
+
+    test.each([['winners'], ['losers'], ['draws']])(
+      'if the game assigns a non-registered player as either winner/loser/draw, an error is thrown.',
+      (target) => {
+        // GIVEN
+        const game = new TestGame();
+
+        // WHEN
+        expect(() =>
+          game.end({
+            [target]: [
+              {
+                $type: 'TestPlayerEntity',
+                [entityId]: 'non-existing-player-id',
+              } as any,
+            ],
+          }),
+        ).toThrowError(/non-existing-player-id/gi);
+      },
+    );
+  });
+
+  describe('end status', () => {
+    test('while the game is starting, end status is undefined.', () => {
+      // GIVEN
+      const game = new TestGame();
+
+      // THEN
+      expect(game.endStatus()).toBeUndefined();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for this test.
+        () => {
+          // THEN
+          expect(game.endStatus()).toBeUndefined();
+        },
+      );
+    });
+
+    test('returns the correct end status after the game ended.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for this test.
+        () => {
+          game.end({
+            winners: [game.entities(TestPlayerEntity)[0]!],
+            losers: [game.entities(TestPlayerEntity)[1]!],
+          });
+
+          // THEN
+          expect(game.endStatus()).toEqual({
+            winners: [game.entities(TestPlayerEntity)[0]!],
+            losers: [game.entities(TestPlayerEntity)[1]!],
+            draws: [],
+          });
+
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+
+      timeout(done);
+    });
   });
 });

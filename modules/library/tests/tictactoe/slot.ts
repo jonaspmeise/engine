@@ -11,4 +11,8 @@ export class Slot extends Entity {
   ) {
     super(`slot-${x}-${y}`);
   }
+
+  public isEmpty(): boolean {
+    return this.markedBy === null;
+  }
 }

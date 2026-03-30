@@ -88,6 +88,12 @@ export class StateService {
     return target;
   }
 
+  public lastExecution(): Choice<Action<any>> | undefined {
+    return this._state.currentSnapshots[
+      this._state.currentSnapshots.length - 1
+    ]!.executed;
+  }
+
   /**
    * Pushes a single item to the stack, which is worked off in the next snapshot.
    * @param items The items to add.
@@ -123,6 +129,11 @@ export class StateService {
     this._state.choices.get(choice.player)!.push(choice);
   }
 
+  /**
+   * Returns the first queued choice, if its exists.
+   * If multiple choices exist, only the first one will be returned.
+   * @returns The first queued choice, if it exists, otherwise undefined.
+   */
   public getQueuedChoice(): EnhancedChoice<Action<any>> | undefined {
     if (this._state.queuedChoices.length > 1) {
       this._logger.error(
@@ -131,6 +142,14 @@ export class StateService {
     }
 
     return this._state.queuedChoices[0];
+  }
+
+  /**
+   * Returns the total depth of the replays.
+   * @returns The total depth of the replays.
+   */
+  public depth(): Readonly<number> {
+    return this._state.pastSnapshots.length;
   }
 
   /**

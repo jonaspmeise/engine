@@ -5,6 +5,7 @@ import { Entity } from './components/entity';
 import { EntityID } from './components/entity.types';
 import { TriggerReturnType } from './components/trigger';
 import { PlayerInterface } from './interfaces/player-interface';
+import { PlayerEntity } from './services/entity/entity-service.types';
 
 export type GameParameters = Record<string, unknown>;
 
@@ -72,7 +73,7 @@ export type PlayerInterfaceCallback = (
   // The snapshots that were modified since the last inform.
   snapshots: Snapshot[],
   choices: EnhancedChoice<Action<any>>[],
-  execute: (choice: EnhancedChoice<Action<any>> | ChoiceId) => void,
+  execute: (choice: EnhancedChoice<Action<any>> | ChoiceId) => void, // TODO: We probably also need to pass other callbacks - force complete snapshot data, ....
 ) => void;
 
 export type Snapshot = {
@@ -102,3 +103,20 @@ export type ClientSnapshotData = {
   snapshots: Snapshot[];
   choices: EnhancedChoice<Action<any>>[];
 };
+
+export type GameStatus = 'setup' | 'running' | 'ended';
+
+export type GameEndParameters = {
+  winners: ReadonlyArray<PlayerEntity>;
+  losers: ReadonlyArray<PlayerEntity>;
+  draws: ReadonlyArray<PlayerEntity>;
+};
+
+// TODO: This file is growing. Refactor to different type somewhere else?
+export const randomChickenPlayer: () => PlayerInterfaceCallback =
+  () => (_, choices, execute) => {
+    // This player does only take random choices...
+    if (choices.length > 0) {
+      execute(choices[Math.floor(Math.random() * choices.length)]!);
+    }
+  };

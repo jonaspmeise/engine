@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { Game } from '../src/game';
-import { GameParameters } from '../src/game.types';
+import { GameParameters, randomChickenPlayer } from '../src/game.types';
 
 type Constructor<T, P> = new (params: P) => T;
 
@@ -24,10 +24,7 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
 
       test('initialize returns more than one entity.', () => {
         // GIVEN / WHEN
-        const game = new self.GameClass(self.parameters);
-
-        // WHEN
-        const state = game.entities();
+        const state = this.game.entities();
 
         // THEN
         expect(state).toBeDefined();
@@ -40,13 +37,18 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
         expect(this.game.entities().length).toBeGreaterThan(1);
       });
 
-      test.todo(
-        `${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`,
-        () => {
-          // GIVEN
-          const game = new self.GameClass(self.parameters);
-        },
-      );
+      test(`${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`, () => {
+        // GIVEN / WHEN
+        // TODO: Number of players needs to be configured...?
+        this.game.registerPlayerCallback(
+          this.game.players()[0]!,
+          randomChickenPlayer(),
+        );
+        this.game.registerPlayerCallback(
+          this.game.players()[1]!,
+          randomChickenPlayer(),
+        );
+      });
 
       this.additionalTests();
     });

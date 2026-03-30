@@ -1,4 +1,4 @@
-import { QueryableRuntime } from '../interfaces/queryable-runtime';
+import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
 import { Action } from './action';
 import { Choice } from './choice';
 import { Executable } from './choice.types';
@@ -16,7 +16,7 @@ export abstract class Trigger {
    * @returns A list of choices or executables to execute if the trigger is executed, or void if the trigger should not be executed.
    */
   abstract apply(
-    state: QueryableRuntime,
+    state: ModifiableRuntime,
     lastChoice: Choice<Action<any>> | undefined,
   ): TriggerReturnType[] | void;
 }

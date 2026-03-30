@@ -1,5 +1,6 @@
 import { Entity } from '../components/entity';
 import { Class } from '../game.types';
+import { PlayerEntity } from '../services/entity/entity-service.types';
 
 /**
  * @see QueryableRuntime models the capabilities of the runtime, which only holds query information.
@@ -13,6 +14,8 @@ export interface QueryableRuntime {
   entitySet(): ReadonlySet<Entity>;
 
   anyEntity<TYPE extends Entity>(type: Class<TYPE>): TYPE | null;
+
+  players(): ReadonlyArray<PlayerEntity>;
 
   // TODO: Maybe needed? history(): ReadonlyArray<EnhancedChoice<Action<any>>>;
 }

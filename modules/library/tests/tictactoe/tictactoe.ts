@@ -14,10 +14,11 @@ import { Class } from '../../src/game.types';
 import { Choice } from '../../src/components/choice';
 import { Trigger } from '../../src/components/trigger';
 import { ChangeTurnTrigger } from './change-turn-trigger';
+import { GameOverTrigger } from './game-over-trigger';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
   triggers(): Set<Trigger> | void {
-    return new Set([new ChangeTurnTrigger()]);
+    return new Set([new ChangeTurnTrigger(), new GameOverTrigger()]);
   }
 
   positiveRules(): Set<PositiveRule> {
@@ -29,16 +30,19 @@ export class TicTacToe extends Game<TicTacToeParameters> {
             .entities(TicTacToePlayer)
             .filter((player) => player.isCurrentPlayer)[0]!;
 
-          return runtime.entities(Slot).map(
-            (slot) =>
-              new Choice(
-                new MarkAction({
-                  slot: slot,
-                  player: currentPlayer,
-                }),
-                currentPlayer,
-              ),
-          );
+          return runtime
+            .entities(Slot)
+            .filter((slot) => slot.isEmpty())
+            .map(
+              (slot) =>
+                new Choice(
+                  new MarkAction({
+                    slot: slot,
+                    player: currentPlayer,
+                  }),
+                  currentPlayer,
+                ),
+            );
         },
       },
     ]);
