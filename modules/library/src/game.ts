@@ -5,6 +5,7 @@ import {
   DEFAULT_GAME_CONFIG,
   GameConfig,
   GameEndParameters,
+  GameLifecycle,
   GameParameters,
   GameStatus,
   Logger,
@@ -37,6 +38,7 @@ export abstract class Game<
   private readonly _entityService: EntityService;
   private readonly _choiceService: ChoiceService;
   private readonly _stateService: StateService;
+  private readonly _callbacks: Partial<GameLifecycle> = {};
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
   // TODO: ... handle drivers (for MTCS / replays).
@@ -50,8 +52,9 @@ export abstract class Game<
    * @param config The configuration for the game.
    */
   constructor(
-    // Parameters optional when `PARAMETERS` is `undefined`.
     parameters?: PARAMETERS extends undefined ? undefined : PARAMETERS,
+    // This parameter is not supplied via a function, because simply instantiating the game already does a lot of
+    // heavy lifting which is interesting for the caller to log!
     config: GameConfig = DEFAULT_GAME_CONFIG,
   ) {
     this._logger = {
@@ -288,7 +291,6 @@ export abstract class Game<
       this._stateService.registerChoice(choice.player, choice);
     }
 
-    // FIXME: Implement correctly.
     for (const player of this._entityService.players()) {
       this._stateService.informPlayer(player);
     }
@@ -433,7 +435,9 @@ export abstract class Game<
 
     // TODO: What happens if the same player is both a winner and a loser?
 
-    // TODO: There should maybe be a callback for when the game is over...
+    if (this._callbacks.onEnd !== undefined) {
+      this._callbacks.onEnd(this._endParameters);
+    }
   }
 
   // TODO: Better name!
@@ -443,5 +447,14 @@ export abstract class Game<
     );
 
     return this._endParameters;
+  }
+
+  registerCallbacks(callbacks: GameLifecycle): void {
+    this._logger.info(
+      () =>
+        `Registering game lifecycle callback for game ${this.constructor.name}...`,
+    );
+
+    Object.assign(this._callbacks, callbacks);
   }
 }

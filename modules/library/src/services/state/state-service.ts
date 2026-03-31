@@ -69,10 +69,22 @@ export class StateService {
       () => `Executing ${isChoice ? 'choice' : 'execution'} from stack...`,
     );
 
-    this._state.currentSnapshots.push({
-      dirtyEntities: {},
-      executed: isChoice ? target : undefined,
-    });
+    // Only add the snapshot if the prior snapshot actually changed something...
+    if (
+      Object.keys(
+        this._state.currentSnapshots[this._state.currentSnapshots.length - 1]!
+          .dirtyEntities,
+      ).length > 0
+    ) {
+      this._logger.debug(
+        () =>
+          `Adding snapshot for this ${isChoice ? 'choice' : 'execution'} to state...`,
+      );
+      this._state.currentSnapshots.push({
+        dirtyEntities: {},
+        executed: isChoice ? target : undefined,
+      });
+    }
 
     if (isChoice) {
       target.execution.apply(runtime);

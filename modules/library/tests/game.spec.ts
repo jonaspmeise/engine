@@ -1,8 +1,14 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { Game } from '../src/game';
-import { GameParameters, randomChickenPlayer } from '../src/game.types';
+import {
+  GameConfig,
+  GameParameters,
+  NO_OP_LOGGER,
+  randomChickenPlayer,
+} from '../src/game.types';
+import { entityId } from '../src/components/entity';
 
-type Constructor<T, P> = new (params: P) => T;
+type Constructor<T, P> = new (params: P, config?: GameConfig) => T;
 
 export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
   abstract readonly name: string;
@@ -40,13 +46,65 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
       test(`${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`, () => {
         // GIVEN / WHEN
         // TODO: Number of players needs to be configured...?
+        for (let i = 0; i < self.randomPlayDepth; i++) {
+          const game = new self.GameClass(self.parameters, {
+            logger: NO_OP_LOGGER,
+          });
+
+          game.registerCallbacks({
+            onEnd: (status) =>
+              console.log(
+                `Random play ${i + 1} ended. ${status.draws.length > 0 ? 'It was a draw.' : `Winner(s): ${status.winners.map((w) => w[entityId]).join(', ')}. Loser(s): ${status.losers.map((l) => l[entityId]).join(', ')}.`}`,
+              ),
+          });
+
+          game.registerPlayerCallback(
+            game.players()[0]!,
+            randomChickenPlayer(),
+          );
+          game.registerPlayerCallback(
+            game.players()[1]!,
+            randomChickenPlayer(),
+          );
+        }
+      });
+
+      // TODO: Important: Test this in the context of the engine test, not a game test!
+      test('no empty deltas are transmitted.', () => {
+        // GIVEN
         this.game.registerPlayerCallback(
           this.game.players()[0]!,
-          randomChickenPlayer(),
+          (snapshots, choices, execute) => {
+            expect(snapshots).toBeDefined();
+            expect(snapshots.length).toBeGreaterThan(0);
+            expect(
+              snapshots.every(
+                (snapshot) => Object.keys(snapshot.dirtyEntities).length > 0,
+              ),
+            ).toBe(true);
+
+            if (choices.length > 0) {
+              execute(choices[0]!);
+            }
+          },
         );
+
         this.game.registerPlayerCallback(
           this.game.players()[1]!,
-          randomChickenPlayer(),
+          (snapshots, choices, execute) => {
+            // THEN
+            expect(snapshots).toBeDefined();
+            expect(snapshots.length).toBeGreaterThan(0);
+            expect(
+              snapshots.every(
+                (snapshot) => Object.keys(snapshot.dirtyEntities).length > 0,
+              ),
+            ).toBe(true);
+
+            if (choices.length > 0) {
+              execute(choices[0]!);
+            }
+          },
         );
       });
 

@@ -9,7 +9,7 @@ import {
 } from './interfaces/player-interface';
 import { ClientSnapshotData, Logger, NO_OP_LOGGER } from './game.types';
 import { PositiveRule } from './components/positive-rule';
-import { timeout } from '../tests/utility.spec';
+import { timeout } from './utility.spec';
 import { EntityID } from './components/entity.types';
 import { Choice } from './components/choice';
 import { Trigger } from './components/trigger';
@@ -830,7 +830,7 @@ describe('game', () => {
         triggers() {
           return new Set<Trigger>([
             {
-              apply: (runtime, prior) => {
+              apply: (_runtime, prior) => {
                 if (prior?.execution instanceof TestAction) {
                   triggerExecuted = true;
                 }
@@ -1173,6 +1173,39 @@ describe('game', () => {
       );
 
       timeout(done);
+    });
+  });
+
+  describe('callbacks', () => {
+    test('onEnd is called when the game ends.', () => {
+      // GIVEN
+      const onEnd = mock(() => {});
+      const game = new TestGame();
+      game.registerCallbacks({ onEnd });
+
+      // WHEN
+      expect(onEnd).toHaveBeenCalledTimes(0);
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        // Player 1 is not relevant for this test.
+        () => {},
+      );
+      expect(onEnd).toHaveBeenCalledTimes(0);
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        // Player 2 is not relevant for this test.
+        () => {},
+      );
+      expect(onEnd).toHaveBeenCalledTimes(0);
+
+      // THEN
+      expect(onEnd).toHaveBeenCalledTimes(0);
+
+      // GIVEN
+      game.end({ winners: [game.entities(TestPlayerEntity)[0]!] });
+
+      // THEN
+      expect(onEnd).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -26,13 +26,8 @@ export class GameOverTrigger extends Trigger {
     return [
       (runtime) => {
         if (winningPlayer !== undefined) {
-          // TODO: "toString() on player?"
-          console.log(
-            `Game over! Player ${winningPlayer.mark} has won the game!`,
-          );
           runtime.end({ winners: [winningPlayer] });
         } else if (isDraw) {
-          console.log('Game over! It is a draw!');
           runtime.end({ draws: state.players() });
         }
       },

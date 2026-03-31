@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tic-Tac-Toe</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        font-family: system-ui, sans-serif;
+        background: #f5f5f5;
+      }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      #tic-tac-toe-target {
+        display: contents;
+      }
+
+      table#board {
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      table#board td {
+        width: 6rem;
+        height: 6rem;
+        text-align: center;
+        vertical-align: middle;
+        font-size: 2.5rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: 3px solid #222;
+        user-select: none;
+        transition: background 0.1s;
+      }
+
+      /* Remove outer borders so only the inner grid lines are visible */
+      table#board tr:first-child td {
+        border-top: none;
+      }
+      table#board tr:last-child td {
+        border-bottom: none;
+      }
+      table#board td:first-child {
+        border-left: none;
+      }
+      table#board td:last-child {
+        border-right: none;
+      }
+
+      table#board td:hover:empty {
+        background: #e8e8e8;
+      }
+
+      table#board td[data-mark='X'] {
+        color: #c0392b;
+      }
+      table#board td[data-mark='O'] {
+        color: #2980b9;
+      }
+    </style>
+
+    <script type="module" src="./index.ts"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Tic-Tac-Toe</h1>
+
+      <div id="tic-tac-toe-target">
+        <!-- Injected by client script -->
+      </div>
+    </main>
+  </body>
+</html>

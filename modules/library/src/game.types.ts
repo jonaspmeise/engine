@@ -11,7 +11,7 @@ export type GameParameters = Record<string, unknown>;
 
 export type Class<T> = abstract new (...args: any[]) => T;
 
-export type LoggerMethod = (message: unknown | (() => unknown)) => void;
+export type LoggerMethod = (...message: unknown[] | (() => unknown)[]) => void;
 
 export type GameConfig = {
   logger?: Partial<Logger>;
@@ -30,11 +30,15 @@ export type ResolvedGameConfig = {
 };
 
 export const DEFAULT_LOGGER_METHOD = (
-  message: unknown | (() => unknown),
   method: LoggerMethod,
+  ...message: unknown[] | (() => unknown)[]
 ) => {
-  if (typeof message === 'function') {
-    method(message());
+  if (message.length === 0) {
+    return;
+  }
+
+  if (typeof message[0] === 'function') {
+    method(message[0]());
   } else {
     method(message);
   }
@@ -51,11 +55,16 @@ export const NO_OP_LOGGER: Logger = {
 
 export const DEFAULT_GAME_CONFIG: ResolvedGameConfig = {
   logger: {
-    log: (message) => DEFAULT_LOGGER_METHOD(message, console.log),
-    warn: (message) => DEFAULT_LOGGER_METHOD(message, console.warn),
-    error: (message) => DEFAULT_LOGGER_METHOD(message, console.error),
-    info: (message) => DEFAULT_LOGGER_METHOD(message, console.info),
-    debug: (message) => DEFAULT_LOGGER_METHOD(message, console.debug),
+    log: (...message: unknown[] | (() => unknown)[]) =>
+      DEFAULT_LOGGER_METHOD(console.log, ...message),
+    warn: (...message: unknown[] | (() => unknown)[]) =>
+      DEFAULT_LOGGER_METHOD(console.warn, ...message),
+    error: (...message: unknown[] | (() => unknown)[]) =>
+      DEFAULT_LOGGER_METHOD(console.error, ...message),
+    info: (...message: unknown[] | (() => unknown)[]) =>
+      DEFAULT_LOGGER_METHOD(console.info, ...message),
+    debug: (...message: unknown[] | (() => unknown)[]) =>
+      DEFAULT_LOGGER_METHOD(console.debug, ...message),
   },
 };
 
@@ -117,6 +126,11 @@ export const randomChickenPlayer: () => PlayerInterfaceCallback =
   () => (_, choices, execute) => {
     // This player does only take random choices...
     if (choices.length > 0) {
-      execute(choices[Math.floor(Math.random() * choices.length)]!);
+      const choice = choices[Math.floor(Math.random() * choices.length)]!;
+      execute(choice);
     }
   };
+
+export type GameLifecycle = {
+  onEnd: (status: GameEndParameters) => void;
+};

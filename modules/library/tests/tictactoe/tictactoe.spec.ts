@@ -5,8 +5,8 @@ import { Slot } from './slot';
 import { GameTest } from '../game.spec';
 import { TicTacToePlayer } from './player';
 import { Lane } from './lane';
-import { timeout } from '../utility.spec';
 import { ClientSnapshotData } from '../../src/game.types';
+import { timeout } from '../../src/utility.spec';
 
 class TicTacToeSpec extends GameTest<TicTacToeParameters> {
   readonly name = 'TicTacToe';

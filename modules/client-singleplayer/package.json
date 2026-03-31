@@ -17,6 +17,7 @@
   "scripts": {
     "build": "tsc -b",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "example:tictactoe": "bun --hot examples/tictactoe/index.html"
   }
 }
