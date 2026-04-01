@@ -120,6 +120,12 @@ export abstract class Game<
   abstract triggers(): Set<Trigger> | void;
 
   /**
+   * Returns the set of all entity classes that are used in this game.
+   * This is necessary so that the client knows how to reconstruct entities sent in snapshots.
+   */
+  abstract entityClasses(): Set<Class<Entity>>;
+
+  /**
    * Flushes the current state of an entity to the engine.
    * This should be called, when that entity is changed or a new entity is spawned.
    * @param entity The entity to flush.

@@ -40,7 +40,11 @@ export const DEFAULT_LOGGER_METHOD = (
   if (typeof message[0] === 'function') {
     method(message[0]());
   } else {
-    method(message);
+    if (Array.isArray(message)) {
+      method(...message);
+    } else {
+      method(message);
+    }
   }
 };
 
@@ -87,7 +91,7 @@ export type PlayerInterfaceCallback = (
 
 export type Snapshot = {
   dirtyEntities: Record<EntityID, DeepReadonly<AnyEntity>>;
-  executed: Choice<Action<any>> | undefined;
+  executed?: Choice<Action<any>> | undefined;
 };
 
 /**

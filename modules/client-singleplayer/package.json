@@ -19,5 +19,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "example:tictactoe": "bun --hot examples/tictactoe/index.html"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.8.9"
   }
 }

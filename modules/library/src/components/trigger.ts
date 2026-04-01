@@ -15,6 +15,8 @@ export abstract class Trigger {
    * @param lastChoice The last choice that was executed, if any.
    * @returns A list of choices or executables to execute if the trigger is executed, or void if the trigger should not be executed.
    */
+  // TODO: IMPORTANT: We might also just directly call actions, which are debounced by the engine, instead of us having to debounce them...?
+  // TODO: Otherwise developers might get confused about what exactly the structure of this trigger / return type is.
   abstract apply(
     state: ModifiableRuntime,
     lastChoice: Choice<Action<any>> | undefined,

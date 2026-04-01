@@ -2,6 +2,8 @@
 
 import {
   DEFAULT_GAME_CONFIG,
+  Entity,
+  EntityService,
   type Action,
   type ChoiceId,
   type EnhancedChoice,
@@ -18,9 +20,7 @@ import { ClientState } from './client.types';
 // TODO: Rename to something like "HTMLClient" or "BrowserClient" to distinguish from potential future clients.
 export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
   // TODO: How to represent game state in the client? We only need Entities and Choices...
-  private readonly _state: ClientState = {
-    snapshots: [],
-  };
+  private readonly _state: ClientState;
   protected readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger;
 
   constructor(
@@ -28,6 +28,11 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
     logger?: Partial<Logger>,
   ) {
     Object.assign(this._logger, logger);
+
+    this._state = {
+      snapshots: [],
+      entityService: new EntityService(this._logger, () => {}),
+    };
   }
 
   /**
@@ -35,12 +40,19 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
    * @param callback The callback, that is issued by the engine / server or the communication layer.
    */
   // TODO: This are redundant types to PlayerInterfaceCallback, so either abstract it here or simply pass a single object...
-  public feed(
+  public async feed(
     snapshots: Snapshot[],
     choices: EnhancedChoice<Action<any>>[],
     execute: (choice: EnhancedChoice<Action<any>> | ChoiceId) => void,
-  ): void {
+  ): Promise<void> {
     this._logger.debug('Client is fed with data...', snapshots, choices);
+
+    for (const snapshot of snapshots) {
+      this._state.snapshots.push(snapshot);
+
+      this.render(this.renderTarget, {} as QueryableRuntime);
+      await this.animate(snapshots[snapshots.length - 1]!);
+    }
   }
 
   /**
@@ -48,7 +60,7 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
    * This is called after rendering the game state.
    * @returns A promise that resolves when the animation is complete.
    */
-  protected abstract animate(): Promise<void>;
+  protected abstract animate(snapshot: Snapshot): Promise<void>;
 
   /**
    * Renders the game state into the target element.

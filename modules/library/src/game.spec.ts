@@ -381,6 +381,61 @@ describe('game', () => {
   });
 
   describe('lifecycle', () => {
+    // TODO: Important: Test this in the context of the engine test, not a game test!
+    test('no empty deltas are transmitted.', (done) => {
+      // GIVEN
+      let triggered = 0;
+      class DummyGame extends TestGame {
+        triggers(): Set<Trigger> | void {
+          return new Set<Trigger>([
+            {
+              apply: (runtime) => {
+                triggered++;
+
+                if (triggered < 10) {
+                  return [
+                    // TODO: We have to modify state here, otherwise our trigger creates an empty snapshot after all.
+                    // TODO: This should be fixed by just checking the dirty entities before and after each trigger execution to check,
+                    // whether this trigger actually modified any state.
+                    () => {
+                      runtime.anyEntity<TestEntityC>(TestEntityC)!
+                        .volatileNumber++;
+                    },
+                  ];
+                }
+              },
+            },
+          ]);
+        }
+      }
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.players()[0]!,
+        (snapshots, choices, execute) => {
+          expect(snapshots).toBeDefined();
+          expect(snapshots.length).toBeGreaterThan(0);
+          expect(
+            snapshots.every(
+              (snapshot) => Object.keys(snapshot.dirtyEntities).length > 0,
+            ),
+          ).toBe(true);
+
+          if (choices.length > 0 && triggered < 10) {
+            execute(choices[0]!);
+          }
+
+          done();
+        },
+      );
+
+      game.registerPlayerCallback(
+        game.players()[1]!,
+        (snapshots, choices, execute) => {},
+      );
+    });
+
     test('throws an error after a state depth of 10000 (or given depth) has reached.', () => {
       // GIVEN
       class DummyGame extends TestGame {

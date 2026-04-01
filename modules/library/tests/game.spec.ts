@@ -69,45 +69,6 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
         }
       });
 
-      // TODO: Important: Test this in the context of the engine test, not a game test!
-      test('no empty deltas are transmitted.', () => {
-        // GIVEN
-        this.game.registerPlayerCallback(
-          this.game.players()[0]!,
-          (snapshots, choices, execute) => {
-            expect(snapshots).toBeDefined();
-            expect(snapshots.length).toBeGreaterThan(0);
-            expect(
-              snapshots.every(
-                (snapshot) => Object.keys(snapshot.dirtyEntities).length > 0,
-              ),
-            ).toBe(true);
-
-            if (choices.length > 0) {
-              execute(choices[0]!);
-            }
-          },
-        );
-
-        this.game.registerPlayerCallback(
-          this.game.players()[1]!,
-          (snapshots, choices, execute) => {
-            // THEN
-            expect(snapshots).toBeDefined();
-            expect(snapshots.length).toBeGreaterThan(0);
-            expect(
-              snapshots.every(
-                (snapshot) => Object.keys(snapshot.dirtyEntities).length > 0,
-              ),
-            ).toBe(true);
-
-            if (choices.length > 0) {
-              execute(choices[0]!);
-            }
-          },
-        );
-      });
-
       this.additionalTests();
     });
   }

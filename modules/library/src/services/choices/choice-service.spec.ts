@@ -55,6 +55,7 @@ describe('ChoiceService', () => {
     entities: mock(() => []),
     entitySet: mock(() => new Set()),
     history: mock(() => []),
+    players: mock(() => []),
   } as QueryableRuntime;
 
   beforeEach(() => {

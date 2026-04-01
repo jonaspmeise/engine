@@ -78,27 +78,17 @@ export class EntityService
     // Since we want individual classes to be respected, but also subclasses
     // (if A extends B, then querying for B should also return A),
     // we need to add the entity to all of its superclasses as well.
-    let currentConstructor: Function | null = entity.constructor;
-    while (
-      currentConstructor !== null &&
-      currentConstructor !== Object.prototype &&
-      currentConstructor.name !== '' // this is some native code, that we don't care about!
-    ) {
-      if (!this._entities.types.has(currentConstructor as Class<Entity>)) {
+    const prototypes = EntityService.getPrototypes(entity);
+
+    for (const prototype of prototypes) {
+      if (!this._entities.types.has(prototype as Class<Entity>)) {
         this._logger.debug(
-          () =>
-            `Creating new entity type set for type ${currentConstructor?.name}.`,
+          () => `Creating new entity type set for type ${prototype?.name}.`,
         );
-        this._entities.types.set(
-          currentConstructor as Class<Entity>,
-          new Set(),
-        );
+        this._entities.types.set(prototype as Class<Entity>, new Set());
       }
 
-      this._entities.types.get(currentConstructor as Class<Entity>)?.add(proxy);
-
-      // Move up the prototype chain to include all superclasses.
-      currentConstructor = Object.getPrototypeOf(currentConstructor);
+      this._entities.types.get(prototype as Class<Entity>)?.add(proxy);
     }
 
     // Notify the engine that state has changed.
@@ -207,4 +197,22 @@ export class EntityService
 
     return new Proxy(target, handler);
   };
+
+  public static getPrototypes(entity: Entity): Function[] {
+    const prototypes: Function[] = [];
+
+    let currentConstructor: Function | null = entity.constructor;
+    while (
+      currentConstructor !== null &&
+      currentConstructor !== Object.prototype &&
+      currentConstructor.name !== '' // this is some native code, that we don't care about!
+    ) {
+      prototypes.push(currentConstructor);
+
+      // Move up the prototype chain to include all superclasses.
+      currentConstructor = Object.getPrototypeOf(currentConstructor);
+    }
+
+    return prototypes;
+  }
 }
