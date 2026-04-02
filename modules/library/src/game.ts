@@ -3,6 +3,8 @@ import { FlushableRuntime } from './interfaces/flushable-runtime';
 import {
   Class,
   DEFAULT_GAME_CONFIG,
+  EntityClass,
+  EntityClassMapping,
   GameConfig,
   GameEndParameters,
   GameLifecycle,
@@ -25,6 +27,8 @@ import { PlayerEntity } from './services/entity/entity-service.types';
 import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 import { Trigger, TriggerReturnType } from './components/trigger';
 import { StateService } from './services/state/state-service';
+import { EnhancedChoice } from './components/choice';
+import { Action } from './components/action';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -123,7 +127,21 @@ export abstract class Game<
    * Returns the set of all entity classes that are used in this game.
    * This is necessary so that the client knows how to reconstruct entities sent in snapshots.
    */
-  abstract entityClasses(): Set<Class<Entity>>;
+  protected abstract entityClasses(): Set<EntityClass<Entity>>;
+
+  /**
+   * Returns a mapping of entity type strings to their corresponding classes.
+   * This is necessary to reconstruct entities from snapshots, since the snapshot only contains the entity type as a string.
+   * The client needs the constructor of the original entity.
+   */
+  public entityClassMapping(): EntityClassMapping {
+    return Object.fromEntries(
+      Array.from(this.entityClasses()).map((entityClass) => {
+        const $type = new entityClass().$type;
+        return [$type, entityClass] as const;
+      }),
+    );
+  }
 
   /**
    * Flushes the current state of an entity to the engine.
@@ -231,6 +249,9 @@ export abstract class Game<
    * Starts the actual game loop.
    */
   private _nextSnapshot(): void {
+    // Kind of redundant, but does not hurt...
+    this._stateService.setSettled(false);
+
     this._logger.info(
       () =>
         `Calculating next snapshot (depth: ${this._stateService.depth()})...`,
@@ -298,15 +319,34 @@ export abstract class Game<
     }
 
     for (const player of this._entityService.players()) {
-      this._stateService.informPlayer(player);
+      this._stateService.informPlayer(
+        player,
+        this._executePlayerChoice.bind(this),
+      );
     }
 
     // Drain queued executed choices.
     const choice = this._stateService.getQueuedChoice();
     if (choice !== undefined) {
-      this._stateService.executePlayerChoice(choice.player, choice, this);
-      this._nextSnapshot();
+      this._executePlayerChoice(choice.player, choice);
     }
+
+    this._stateService.setSettled(true);
+  }
+
+  // TODO: This could also belong to the state service...?
+  private _executePlayerChoice(
+    player: PlayerEntity,
+    choice: EnhancedChoice<Action<any>>,
+  ): void {
+    this._stateService.setSettled(false);
+    this._logger.info(
+      () =>
+        `Executing choice ${choice.execution.$type} for player interface with ID ${player[playerId]}...`,
+    );
+
+    this._stateService.executePlayerChoice(choice.player, choice, this);
+    this._nextSnapshot();
   }
 
   /**
@@ -342,7 +382,11 @@ export abstract class Game<
             `Player interface with ID ${player[playerId]} reconnected. Informing them about their state...`,
         );
 
-        this._stateService.informPlayer(player, true);
+        this._stateService.informPlayer(
+          player,
+          this._executePlayerChoice,
+          true,
+        );
       }
     }
   }

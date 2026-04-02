@@ -1,9 +1,9 @@
 /// <reference lib="dom" />
 
 import {
+  Choice,
   DEFAULT_GAME_CONFIG,
-  Entity,
-  EntityService,
+  Game,
   type Action,
   type ChoiceId,
   type EnhancedChoice,
@@ -12,6 +12,7 @@ import {
   type Snapshot,
 } from '@my-engine/library';
 import { ClientState } from './client.types';
+import { ClientEntityHandler } from './client-entity-handler';
 /**
  * Models a HTML5-based client for a game.
  * This client is responsible for rendering the game state, allowing the user to interact with the game
@@ -19,20 +20,34 @@ import { ClientState } from './client.types';
  */
 // TODO: Rename to something like "HTMLClient" or "BrowserClient" to distinguish from potential future clients.
 export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
+  private readonly CHOICE_CLASS = 'engine-choice';
+
   // TODO: How to represent game state in the client? We only need Entities and Choices...
   private readonly _state: ClientState;
+  private choiceExecuteCallback: (
+    choice: EnhancedChoice<Action<any>> | ChoiceId,
+  ) => void = () => {};
+
   protected readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger;
 
   constructor(
     private readonly renderTarget: TARGET_ELEMENT,
+    game: Game<any>,
     logger?: Partial<Logger>,
   ) {
     Object.assign(this._logger, logger);
 
     this._state = {
       snapshots: [],
-      entityService: new EntityService(this._logger, () => {}),
+      entityHandler: new ClientEntityHandler(
+        game.entityClassMapping(),
+        this._logger,
+      ),
     };
+
+    this._logger.debug('Injecting style element for choice highlighting...');
+    const styleElement = this.highlightStyle();
+    this.renderTarget.appendChild(styleElement);
   }
 
   /**
@@ -47,12 +62,26 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
   ): Promise<void> {
     this._logger.debug('Client is fed with data...', snapshots, choices);
 
+    this.choiceExecuteCallback = execute;
+
     for (const snapshot of snapshots) {
       this._state.snapshots.push(snapshot);
 
-      this.render(this.renderTarget, {} as QueryableRuntime);
-      await this.animate(snapshots[snapshots.length - 1]!);
+      // Feed the snapshot into our entity service!
+      for (const [id, entityDelta] of Object.entries(snapshot.dirtyEntities)) {
+        this._logger.debug(`Applying delta for entity ${id}...`, entityDelta);
+        this._state.entityHandler.apply(id, entityDelta);
+      }
+
+      if (snapshot.executed !== undefined) {
+        this._logger.debug(`Animating executed choice...`, snapshot.executed);
+        await this.animate(snapshot.executed);
+      }
+
+      this.render(this.renderTarget, this._state.entityHandler);
     }
+
+    this._highlightChoices(this.renderTarget, choices);
   }
 
   /**
@@ -60,7 +89,7 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
    * This is called after rendering the game state.
    * @returns A promise that resolves when the animation is complete.
    */
-  protected abstract animate(snapshot: Snapshot): Promise<void>;
+  protected abstract animate(choice: Choice<Action<any>>): Promise<void>;
 
   /**
    * Renders the game state into the target element.
@@ -73,4 +102,71 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
     renderTarget: TARGET_ELEMENT,
     runtime: QueryableRuntime,
   ): void;
+
+  /**
+   * Defines the style that should be applied to highlighted elements.
+   * @returns A css style element that defines the style for highlighted elements.
+   */
+  protected abstract highlightStyle(): HTMLStyleElement;
+
+  /**
+   * Highlights all elements of the render according to choices.
+   * All elements that are a part of a choice are highlighted.
+   * @param element The target render element.
+   * @param choices The choices for which to highlight their related elements.
+   */
+  private _highlightChoices(
+    element: TARGET_ELEMENT,
+    choices: EnhancedChoice<Action<any>>[],
+  ): void {
+    this._logger.debug('Highlighting choices...', choices);
+
+    // Clean all existing choices.
+    (
+      element.querySelectorAll(
+        `.${this.CHOICE_CLASS}`,
+      ) as NodeListOf<HTMLElement>
+    ).forEach((el) => {
+      el.classList.remove(this.CHOICE_CLASS);
+      el.onclick = null;
+    });
+
+    // TODO: Find a mapping of entity IDs -> possible choices.
+    for (const choice of choices) {
+      const entityIDs =
+        choice.execution.affectedEntities(this._state.entityHandler) ?? [];
+
+      for (const entityId of entityIDs) {
+        this._logger.debug(
+          `Highlighting entity ${entityId} for choice ${choice.id}...`,
+        );
+
+        const entityElement = element.querySelector(
+          `#${entityId}`,
+        )! as HTMLElement;
+
+        if (entityElement === null) {
+          this._logger.error(
+            `Could not find element for entity ${entityId} to highlight for choice ${choice.id}!`,
+          );
+          continue;
+        }
+
+        entityElement.classList.add(this.CHOICE_CLASS);
+        entityElement.onclick = () => this._handleChoicesClick([choice]);
+      }
+    }
+  }
+
+  private _handleChoicesClick(choices: EnhancedChoice<Action<any>>[]): void {
+    this._logger.debug(
+      `Handling click for choices ${choices.map((c) => c.id).join(', ')}...`,
+    );
+
+    if (choices.length === 1) {
+      const choice = choices[0]!;
+      this._logger.debug(`Executing choice ${choice.id}...`);
+      this.choiceExecuteCallback(choice.id);
+    }
+  }
 }

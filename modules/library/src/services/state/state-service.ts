@@ -28,6 +28,7 @@ export class StateService {
     choices: new Map<PlayerInterface, EnhancedChoice<Action<any>>[]>(),
     queuedChoices: [] as EnhancedChoice<Action<any>>[],
     stack: [] as TriggerReturnType[],
+    isSettled: true,
   };
 
   constructor(private readonly _logger: Logger) {}
@@ -164,15 +165,25 @@ export class StateService {
     return this._state.pastSnapshots.length;
   }
 
+  public setSettled(isSettled: boolean): void {
+    this._logger.debug(() => `Setting state to settled: ${isSettled}...`);
+    this._state.isSettled = isSettled;
+  }
+
   /**
    * Informs a player about their current state.
    * @param player The player to inform about their state.
+   * @param executeChoiceCallback A callback that can be called to execute a choice within the engine.
    * @param sendFullState Whether to send the full state to the player, or only a diff.
    * For example, if a player disconnected and reconnected, they should be informed about their full state.
    * Normally, only the diff is sent.
    */
   public informPlayer(
     player: PlayerEntity,
+    executeChoiceCallback: (
+      player: PlayerEntity,
+      choice: EnhancedChoice<Action<any>>,
+    ) => void,
     sendFullState: boolean = false,
   ): void {
     this._logger.debug(
@@ -195,9 +206,13 @@ export class StateService {
             `Player ${player[playerId]} tries to execute choice "${choice.id}" (${choice.execution.$type})...`,
         );
 
-        // Debounce this execution, so that if multiple players are informed or want to execute a choice,
-        // they have a fair chance to do so before first player in the loop simply takes all their actions and forces new snapshots.
-        this._state.queuedChoices.push(choice);
+        if (this._state.isSettled) {
+          executeChoiceCallback(player, choice);
+        } else {
+          // Debounce this execution, so that if multiple players are informed or want to execute a choice,
+          // they have a fair chance to do so before first player in the loop simply takes all their actions and forces new snapshots.
+          this._state.queuedChoices.push(choice);
+        }
       },
     );
   }

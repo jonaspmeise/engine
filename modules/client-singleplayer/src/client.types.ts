@@ -1,5 +1,5 @@
 import { Snapshot } from '@my-engine/library';
-import { EntityService } from '../../library/src/services/entity/entity-service';
+import { ClientEntityHandler } from './client-entity-handler';
 
 /**
  * Models the internal state that a client has.
@@ -8,5 +8,5 @@ import { EntityService } from '../../library/src/services/entity/entity-service'
 export type ClientState = {
   // TODO: Snapshot[] vs. ClientSnapshotData[]? Is the past choice data really necessary...?
   snapshots: Snapshot[];
-  entityService: EntityService;
+  entityHandler: ClientEntityHandler;
 };

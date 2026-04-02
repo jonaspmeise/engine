@@ -10,6 +10,9 @@ import { PlayerEntity } from './services/entity/entity-service.types';
 export type GameParameters = Record<string, unknown>;
 
 export type Class<T> = abstract new (...args: any[]) => T;
+export type EntityClass<T extends Entity> = new (...args: any[]) => T;
+
+export type EntityClassMapping = Record<string, EntityClass<Entity>>;
 
 export type LoggerMethod = (...message: unknown[] | (() => unknown)[]) => void;
 
@@ -106,6 +109,8 @@ export type SnapshotData = {
   queuedChoices: EnhancedChoice<Action<any>>[];
   // Which executions are currently queued to be executed?
   stack: TriggerReturnType[];
+  //  Is the current state settled, meaning that all triggers have been worked off and input of player can be accepted?
+  isSettled: boolean;
 };
 
 /**

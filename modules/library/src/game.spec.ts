@@ -1,100 +1,20 @@
 import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
-import { Game } from './game';
 import { Action } from './components/action';
 import { Entity, entityId } from './components/entity';
-import { QueryableRuntime } from './interfaces/queryable-runtime';
-import {
-  PlayerInterface,
-  playerInterfaceMarker,
-} from './interfaces/player-interface';
 import { ClientSnapshotData, Logger, NO_OP_LOGGER } from './game.types';
 import { PositiveRule } from './components/positive-rule';
 import { timeout } from './utility.spec';
 import { EntityID } from './components/entity.types';
 import { Choice } from './components/choice';
 import { Trigger } from './components/trigger';
-
-class TestEntityA extends Entity {
-  public $type: string = 'TestEntityA';
-  constructor(_id: number) {
-    super(`testentityA-${_id}`);
-  }
-}
-
-class TestEntityB extends Entity {
-  public $type: string = 'TestEntityB';
-  constructor(id: number | string) {
-    super(typeof id === 'number' ? `testentityB-${id}` : id);
-  }
-}
-
-class TestEntityC extends TestEntityB {
-  public $type: string = 'TestEntityC';
-  public volatileNumber: number = 0;
-
-  constructor(_id: number) {
-    super(`testentityC-${_id}`);
-  }
-}
-
-class TestPlayerEntity extends Entity implements PlayerInterface {
-  public $type: string = 'TestPlayerEntity';
-  constructor(_id: number) {
-    super(`testPlayerEntity-${_id}`);
-  }
-  [playerInterfaceMarker] = true as const;
-}
-
-class TestAction extends Action {
-  public message(): string {
-    return 'TestAction executed!';
-  }
-  public prompt(): string {
-    return 'Execute TestAction';
-  }
-  public affectedEntities() {}
-  public $type = 'TestAction';
-  apply(_runtime: QueryableRuntime): void {
-    _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
-  }
-}
-
-class TestGame extends Game {
-  public maxDepth: number = 10000;
-  public name = 'TestGame';
-
-  initialize() {
-    const entities = new Set<Entity>();
-
-    entities.add(new TestEntityA(1));
-    entities.add(new TestEntityA(2));
-    entities.add(new TestEntityA(3));
-
-    entities.add(new TestEntityB(1));
-    entities.add(new TestEntityB(2));
-
-    // TestEntityC also should count as TestEntityB since its a subclass!
-    entities.add(new TestEntityC(1));
-
-    entities.add(new TestPlayerEntity(1));
-    entities.add(new TestPlayerEntity(2));
-
-    return entities;
-  }
-  positiveRules(): Set<PositiveRule> {
-    return new Set<PositiveRule>([
-      {
-        name: 'test-positive-rule',
-        apply: (runtime) =>
-          runtime
-            .entities(TestPlayerEntity)
-            .map((player) => new Choice(new TestAction(undefined), player)),
-      },
-    ]);
-  }
-  negativeRules(): void {}
-  triggers(): Set<Trigger> | void {}
-}
+import {
+  TestGame,
+  TestEntityA,
+  TestPlayerEntity,
+  TestEntityB,
+  TestEntityC,
+  TestAction,
+} from './game.spec.types';
 
 describe('game', () => {
   afterEach(() => {
@@ -381,7 +301,6 @@ describe('game', () => {
   });
 
   describe('lifecycle', () => {
-    // TODO: Important: Test this in the context of the engine test, not a game test!
     test('no empty deltas are transmitted.', (done) => {
       // GIVEN
       let triggered = 0;
@@ -430,10 +349,37 @@ describe('game', () => {
         },
       );
 
+      game.registerPlayerCallback(game.players()[1]!, () => {});
+    });
+
+    test('delayed choice executions are handled correctly.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      let triggered = 0;
+      game.registerPlayerCallback(
+        game.players()[0]!,
+        (_snapshots, choices, execute) => {
+          if (choices.length > 0 && triggered == 0) {
+            setTimeout(() => {
+              triggered++;
+              execute(choices[0]!);
+            }, 50);
+          }
+
+          if (triggered === 1) {
+            done();
+          }
+        },
+      );
       game.registerPlayerCallback(
         game.players()[1]!,
-        (snapshots, choices, execute) => {},
+        // Player 2 is not relevant for this test.
+        () => {},
       );
+
+      timeout(done, 100);
     });
 
     test('throws an error after a state depth of 10000 (or given depth) has reached.', () => {
@@ -703,9 +649,8 @@ describe('game', () => {
       // WHEN
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
-        (_snapshots, choices, executor) => {
-          playerAtriggered++;
 
+        (_snapshots, choices, executor) => {
           // This implicitly also tests, that the choice execution here using "executor(...)" does not instantly loop back
           // to the player callback again. The rest of the function should be executed too, otherwise we run into a stack overflow error.
           if (playerAtriggered < 5) {
@@ -713,9 +658,11 @@ describe('game', () => {
           } else {
             // THEN
             expect(playerAtriggered).toEqual(5);
-            expect(playerBtriggered).toEqual(5 - 1);
+            expect(playerBtriggered).toEqual(5);
             done();
           }
+
+          playerAtriggered++;
         },
       );
       game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, () => {
@@ -1261,6 +1208,21 @@ describe('game', () => {
 
       // THEN
       expect(onEnd).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('entityClassMapping', () => {
+    test('returns the correct mapping.', () => {
+      // GIVEN
+      const game = new TestGame();
+
+      // THEN
+      expect(game.entityClassMapping()).toEqual({
+        TestEntityA: TestEntityA,
+        TestEntityB: TestEntityB,
+        TestEntityC: TestEntityC,
+        TestPlayerEntity: TestPlayerEntity,
+      });
     });
   });
 });

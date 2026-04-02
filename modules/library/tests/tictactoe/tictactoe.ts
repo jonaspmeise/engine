@@ -10,13 +10,23 @@ import { HorizontalLane } from './horizontal-lane';
 import { DiagonalLane } from './diagonal-lane';
 import { NegativeRule } from '../../src/components/negative-rule';
 import { PositiveRule } from '../../src/components/positive-rule';
-import { Class } from '../../src/game.types';
+import { Class, EntityClass } from '../../src/game.types';
 import { Choice } from '../../src/components/choice';
 import { Trigger } from '../../src/components/trigger';
 import { ChangeTurnTrigger } from './change-turn-trigger';
 import { GameOverTrigger } from './game-over-trigger';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
+  entityClasses(): Set<EntityClass<Entity>> {
+    return new Set<EntityClass<Entity>>([
+      Slot,
+      TicTacToePlayer,
+      VerticalLane,
+      HorizontalLane,
+      DiagonalLane,
+    ]);
+  }
+
   triggers(): Set<Trigger> | void {
     return new Set([new ChangeTurnTrigger(), new GameOverTrigger()]);
   }

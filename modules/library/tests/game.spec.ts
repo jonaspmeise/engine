@@ -69,6 +69,15 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
         }
       });
 
+      test('a registered type name -> entity class mapping is given.', () => {
+        // THEN
+        const mapping = this.game.entityClassMapping();
+
+        expect(mapping).toBeDefined();
+        expect(mapping).not.toBeNull();
+        expect(Object.keys(mapping).length).toBeGreaterThan(0);
+      });
+
       this.additionalTests();
     });
   }

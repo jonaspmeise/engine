@@ -1,7 +1,14 @@
 /// <reference lib="dom" />
 import { describe, test, mock, beforeEach, jest, expect } from 'bun:test';
 import { Client } from './client';
-import { QueryableRuntime, Snapshot } from '@my-engine/library';
+import { TestGame } from '../../library/src/game.spec.types';
+import {
+  Action,
+  Choice,
+  PlayerEntity,
+  QueryableRuntime,
+  Snapshot,
+} from '@my-engine/library';
 
 const animate = mock(() => Promise.resolve());
 const render = mock(() => {});
@@ -14,13 +21,18 @@ class DummyClient extends Client {
   protected render(renderTarget: HTMLElement, runtime: QueryableRuntime): void {
     return render();
   }
+  protected highlightStyle(): HTMLStyleElement {
+    const style = document.createElement('style');
+    // No highlighting needed here...
+    return style;
+  }
 }
 
 describe('client', () => {
   let client: Client;
 
   beforeEach(() => {
-    client = new DummyClient(element);
+    client = new DummyClient(element, new TestGame());
     jest.clearAllMocks();
   });
 
@@ -31,7 +43,7 @@ describe('client', () => {
         {
           dirtyEntities: {
             'entity-1': {
-              $type: 'TestEntity',
+              $type: 'TestEntityA',
             },
           },
         },
@@ -42,7 +54,8 @@ describe('client', () => {
 
       // THEN
       expect(render).toHaveBeenCalled();
-      expect(animate).toHaveBeenCalled();
+      // We did not provide a executed choice, so there is nothing to animate!
+      expect(animate).not.toHaveBeenCalled();
     });
 
     test('feed method calls render into animate for multiple snapshots.', async () => {
@@ -51,16 +64,17 @@ describe('client', () => {
         {
           dirtyEntities: {
             'entity-1': {
-              $type: 'TestEntity',
+              $type: 'TestEntityA',
             },
           },
         },
         {
           dirtyEntities: {
             'entity-1': {
-              $type: 'TestEntity',
+              $type: 'TestEntityA',
             },
           },
+          executed: new Choice({} as Action<any>, {} as PlayerEntity),
         },
       ];
 
@@ -69,7 +83,10 @@ describe('client', () => {
 
       // THEN
       expect(render).toHaveBeenCalledTimes(2);
-      expect(animate).toHaveBeenCalledTimes(2);
+      // We only provided an executed choice in the second snapshot, so only this one should be animated.
+      expect(animate).toHaveBeenCalledTimes(1);
     });
+
+    // TODO: IMPORTANT: Write many tests for all other integrated components, including the UI (stuff like highlighting, ...)!
   });
 });
