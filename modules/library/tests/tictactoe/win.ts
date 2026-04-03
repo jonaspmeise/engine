@@ -1,6 +1,11 @@
 import { TicTacToePlayer } from './player';
 import { Action } from '../../src/components/action';
-import { ModifiableRuntime, QueryableRuntime, EntityID } from '../../src';
+import {
+  ModifiableRuntime,
+  QueryableRuntime,
+  EntityID,
+  entityId,
+} from '../../src';
 
 /**
  * Because this Action should
@@ -28,7 +33,7 @@ export class Win extends Action<{
     return `Win the game!`;
   }
   public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
-    // Does not matter, because this never exists as a choice.
+    return [this.parameters.player[entityId]];
   }
 
   public $type = 'Win';

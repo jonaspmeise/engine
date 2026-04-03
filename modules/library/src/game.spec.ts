@@ -1069,6 +1069,27 @@ describe('game', () => {
       timeout(done);
     });
 
+    test.each([
+      ['winners', 'losers'],
+      ['winners', 'draws'],
+      ['losers', 'draws'],
+    ])(
+      'if a player occurs in more than one category, an error is thrown.',
+      (category1, category2) => {
+        // GIVEN
+        const game = new TestGame();
+        const player = game.entities(TestPlayerEntity)[0]!;
+
+        // WHEN
+        expect(() =>
+          game.end({
+            [category1]: [player],
+            [category2]: [player],
+          }),
+        ).toThrowError(/multiple categories/gi);
+      },
+    );
+
     test('if the game ends without anything, an error is thrown.', () => {
       // GIVEN
       const game = new TestGame();

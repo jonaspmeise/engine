@@ -1,4 +1,4 @@
-import { Entity } from '../../src/components/entity';
+import { Entity, entityId } from '../../src/components/entity';
 import { Slot } from './slot';
 import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
 import { TicTacToePlayer } from './player';
@@ -15,7 +15,9 @@ export abstract class Lane extends Entity {
 
     if (
       slots.every(
-        (slot) => slot.markedBy === slots[0]!.markedBy && !slot.isEmpty(),
+        (slot) =>
+          slot.markedBy?.[entityId] === slots[0]!.markedBy?.[entityId] &&
+          !slot.isEmpty(),
       )
     ) {
       return slots[0]!.markedBy!;

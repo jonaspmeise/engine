@@ -48,6 +48,9 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
     this._logger.debug('Injecting style element for choice highlighting...');
     const styleElement = this.highlightStyle();
     this.renderTarget.appendChild(styleElement);
+
+    // Register this object in global window scope.
+    (window as any).client = this;
   }
 
   /**

@@ -458,9 +458,18 @@ export abstract class Game<
       ...(parameters.losers ?? []),
       ...(parameters.draws ?? []),
     ];
+
     if (players.length === 0) {
       throw new Error(
         `Cannot end game without any winners, losers or draws! Please provide at least one winner, loser or draw.`,
+      );
+    }
+
+    // Are there players overlapping in each category?
+    const uniquePlayers = new Set(players);
+    if (uniquePlayers.size !== players.length) {
+      throw new Error(
+        `Some players are listed in multiple categories (winners, losers, draws)! Please make sure each player is only listed in one category.`,
       );
     }
 
