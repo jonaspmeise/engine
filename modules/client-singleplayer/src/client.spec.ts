@@ -10,13 +10,17 @@ import {
   Snapshot,
 } from '@my-engine/library';
 
-const animate = mock(() => Promise.resolve());
+const animateBefore = mock(() => Promise.resolve());
+const animateAfter = mock(() => Promise.resolve());
 const render = mock(() => {});
 const element: HTMLElement = document.createElement('div');
 
 class DummyClient extends Client {
-  protected animate(): Promise<void> {
-    return animate();
+  protected animateBefore(): Promise<void> {
+    return animateBefore();
+  }
+  protected animateAfter(): Promise<void> {
+    return animateAfter();
   }
   protected render(renderTarget: HTMLElement, runtime: QueryableRuntime): void {
     return render();
@@ -32,7 +36,7 @@ describe('client', () => {
   let client: Client;
 
   beforeEach(() => {
-    client = new DummyClient(element, new TestGame());
+    client = new DummyClient(element, new TestGame(), {} as PlayerEntity);
     jest.clearAllMocks();
   });
 
@@ -55,7 +59,8 @@ describe('client', () => {
       // THEN
       expect(render).toHaveBeenCalled();
       // We did not provide a executed choice, so there is nothing to animate!
-      expect(animate).not.toHaveBeenCalled();
+      expect(animateBefore).not.toHaveBeenCalled();
+      expect(animateAfter).not.toHaveBeenCalled();
     });
 
     test('feed method calls render into animate for multiple snapshots.', async () => {
@@ -74,7 +79,7 @@ describe('client', () => {
               $type: 'TestEntityA',
             },
           },
-          executed: new Choice({} as Action<any>, {} as PlayerEntity),
+          executed: new Choice({} as Action<string, any>, {} as PlayerEntity),
         },
       ];
 
@@ -84,7 +89,8 @@ describe('client', () => {
       // THEN
       expect(render).toHaveBeenCalledTimes(2);
       // We only provided an executed choice in the second snapshot, so only this one should be animated.
-      expect(animate).toHaveBeenCalledTimes(1);
+      expect(animateBefore).toHaveBeenCalledTimes(1);
+      expect(animateAfter).toHaveBeenCalledTimes(1);
     });
 
     // TODO: IMPORTANT: Write many tests for all other integrated components, including the UI (stuff like highlighting, ...)!

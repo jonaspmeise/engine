@@ -62,7 +62,7 @@ export class TicTacToe extends Game<TicTacToeParameters> {
     // No negative rules in this game.
   }
 
-  actions(): Set<Class<Action<any>>> {
+  actions(): Set<Class<Action<string, any>>> {
     return new Set([MarkAction]);
   }
 

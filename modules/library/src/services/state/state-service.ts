@@ -25,8 +25,8 @@ export class StateService {
       },
     ],
     pastSnapshots: [],
-    choices: new Map<PlayerInterface, EnhancedChoice<Action<any>>[]>(),
-    queuedChoices: [] as EnhancedChoice<Action<any>>[],
+    choices: new Map<PlayerInterface, EnhancedChoice<Action<string, any>>[]>(),
+    queuedChoices: [] as EnhancedChoice<Action<string, any>>[],
     stack: [] as TriggerReturnType[],
     isSettled: true,
   };
@@ -101,7 +101,7 @@ export class StateService {
     return target;
   }
 
-  public lastExecution(): Choice<Action<any>> | undefined {
+  public lastExecution(): Choice<Action<string, any>> | undefined {
     return this._state.currentSnapshots[
       this._state.currentSnapshots.length - 1
     ]!.executed;
@@ -129,7 +129,7 @@ export class StateService {
 
   public registerChoice(
     player: PlayerInterface,
-    choice: EnhancedChoice<Action<any>>,
+    choice: EnhancedChoice<Action<string, any>>,
   ): void {
     this._logger.debug(
       () =>
@@ -147,7 +147,7 @@ export class StateService {
    * If multiple choices exist, only the first one will be returned.
    * @returns The first queued choice, if it exists, otherwise undefined.
    */
-  public getQueuedChoice(): EnhancedChoice<Action<any>> | undefined {
+  public getQueuedChoice(): EnhancedChoice<Action<string, any>> | undefined {
     if (this._state.queuedChoices.length > 1) {
       this._logger.error(
         `Multiple choices were executed in the same snapshot (${this._state.queuedChoices.length}). This can lead to unexpected behavior, since the game state is not updated between these executions. Consider debouncing choice executions on the client or server side to prevent this.`,
@@ -182,7 +182,7 @@ export class StateService {
     player: PlayerEntity,
     executeChoiceCallback: (
       player: PlayerEntity,
-      choice: EnhancedChoice<Action<any>>,
+      choice: EnhancedChoice<Action<string, any>>,
     ) => void,
     sendFullState: boolean = false,
   ): void {
@@ -194,7 +194,7 @@ export class StateService {
     player[handler]!(
       this._state.currentSnapshots,
       this._state.choices.get(player) ?? [],
-      (rawChoice: EnhancedChoice<Action<any>> | ChoiceId) => {
+      (rawChoice: EnhancedChoice<Action<string, any>> | ChoiceId) => {
         const choice = this._fetchChoice(player, rawChoice);
 
         if (choice === undefined) {
@@ -225,7 +225,7 @@ export class StateService {
    */
   public executePlayerChoice(
     player: PlayerEntity,
-    choice: EnhancedChoice<Action<any>>,
+    choice: EnhancedChoice<Action<string, any>>,
     runtime: ModifiableRuntime, // TODO: Modifiable vs. Queryable?
   ): void {
     this._logger.info(
@@ -246,9 +246,9 @@ export class StateService {
 
   private _fetchChoice(
     player: PlayerEntity,
-    rawChoice: EnhancedChoice<Action<any>> | ChoiceId,
-  ): EnhancedChoice<Action<any>> | undefined {
-    const choice: EnhancedChoice<Action<any>> | undefined =
+    rawChoice: EnhancedChoice<Action<string, any>> | ChoiceId,
+  ): EnhancedChoice<Action<string, any>> | undefined {
+    const choice: EnhancedChoice<Action<string, any>> | undefined =
       typeof rawChoice === 'object'
         ? rawChoice
         : this._state.choices.get(player)?.find((c) => c.id === rawChoice);

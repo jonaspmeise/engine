@@ -1,4 +1,3 @@
-import { entityId } from '../../src';
 import { Action } from '../../src/components/action';
 import { Choice } from '../../src/components/choice';
 import { Trigger, TriggerReturnType } from '../../src/components/trigger';
@@ -11,7 +10,7 @@ import { Win } from './win';
 export class GameOverTrigger extends Trigger {
   apply(
     state: QueryableRuntime,
-    lastChoice: Choice<Action<any>> | undefined,
+    lastChoice: Choice<Action<string, any>> | undefined,
   ): TriggerReturnType[] | void {
     if (!(lastChoice?.execution instanceof MarkAction)) {
       return;

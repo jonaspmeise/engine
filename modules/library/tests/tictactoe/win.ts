@@ -14,9 +14,12 @@ import {
  * we explicitly model it as an Action for this game.
  * It doesn't do much, just internally wraps the ending-of-the-game logic.
  */
-export class Win extends Action<{
-  player: TicTacToePlayer;
-}> {
+export class Win extends Action<
+  'win',
+  {
+    player: TicTacToePlayer;
+  }
+> {
   apply(runtime: ModifiableRuntime): void {
     runtime.end({
       winners: [this.parameters.player],
@@ -36,5 +39,5 @@ export class Win extends Action<{
     return [this.parameters.player[entityId]];
   }
 
-  public $type = 'Win';
+  public readonly $type = 'win' as const;
 }

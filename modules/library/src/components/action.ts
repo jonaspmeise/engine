@@ -9,6 +9,7 @@ import { QueryableRuntime } from '../interfaces/queryable-runtime';
  * An Action does not need to have parameters.
  */
 export abstract class Action<
+  TYPE extends string = string,
   PARAMETERS extends ActionParameters | undefined = undefined,
 > {
   public readonly parameters: PARAMETERS;
@@ -31,7 +32,7 @@ export abstract class Action<
    * This is needed to identify the type of this Action client-side, since due to minification, generating
    * it from the class name might produce non-sensible results.
    */
-  public abstract readonly $type: string;
+  public abstract readonly $type: TYPE;
 
   /**
    * Returns a message describing the effect, after this action is executed.

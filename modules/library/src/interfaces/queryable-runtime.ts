@@ -17,5 +17,5 @@ export interface QueryableRuntime {
 
   players(): ReadonlyArray<PlayerEntity>;
 
-  // TODO: Maybe needed? history(): ReadonlyArray<EnhancedChoice<Action<any>>>;
+  // TODO: Maybe needed? history(): ReadonlyArray<EnhancedChoice<Action<string, any>>>;
 }

@@ -1,12 +1,9 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { Game } from '../src/game';
-import {
-  GameConfig,
-  GameParameters,
-  NO_OP_LOGGER,
-  randomChickenPlayer,
-} from '../src/game.types';
+import { GameConfig, GameParameters, NO_OP_LOGGER } from '../src/game.types';
 import { entityId } from '../src/components/entity';
+import { timeout } from '../src/utility.spec';
+import { Players } from '../src/components/players';
 
 type Constructor<T, P> = new (params: P, config?: GameConfig) => T;
 
@@ -43,7 +40,7 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
         expect(this.game.entities().length).toBeGreaterThan(1);
       });
 
-      test(`${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`, () => {
+      test(`${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`, (done) => {
         // GIVEN / WHEN
         // TODO: Number of players needs to be configured...?
         for (let i = 0; i < self.randomPlayDepth; i++) {
@@ -52,21 +49,28 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
           });
 
           game.registerCallbacks({
-            onEnd: (status) =>
+            onEnd: (status) => {
               console.log(
                 `Random play ${i + 1} ended. ${status.draws.length > 0 ? 'It was a draw.' : `Winner(s): ${status.winners.map((w) => w[entityId]).join(', ')}. Loser(s): ${status.losers.map((l) => l[entityId]).join(', ')}.`}`,
-              ),
+              );
+
+              if (i === self.randomPlayDepth - 1) {
+                done();
+              }
+            },
           });
 
           game.registerPlayerCallback(
             game.players()[0]!,
-            randomChickenPlayer(),
+            Players.randomChickenPlayer(),
           );
           game.registerPlayerCallback(
             game.players()[1]!,
-            randomChickenPlayer(),
+            Players.randomChickenPlayer(),
           );
         }
+
+        timeout(done, 10000);
       });
 
       test('a registered type name -> entity class mapping is given.', () => {
@@ -76,6 +80,20 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
         expect(mapping).toBeDefined();
         expect(mapping).not.toBeNull();
         expect(Object.keys(mapping).length).toBeGreaterThan(0);
+      });
+
+      test('a MCTS player always wins against a random chicken player.', () => {
+        // GIVEN
+        // TODO: What about games with more than 2 players?
+        this.game.registerPlayerCallback(
+          this.game.players()[0]!,
+          Players.randomChickenPlayer(),
+        );
+
+        this.game.registerPlayerCallback(
+          this.game.players()[1]!,
+          Players.mctsPlayer(this.game),
+        );
       });
 
       this.additionalTests();

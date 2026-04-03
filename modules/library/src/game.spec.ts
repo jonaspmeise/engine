@@ -1,5 +1,6 @@
 import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Action } from './components/action';
+import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 import { Entity, entityId } from './components/entity';
 import { ClientSnapshotData, Logger, NO_OP_LOGGER } from './game.types';
 import { PositiveRule } from './components/positive-rule';
@@ -746,14 +747,17 @@ describe('game', () => {
 
     test('referenced entities in choices are serialized using a placeholder.', (done) => {
       // GIVEN
-      class TargetedAction extends Action<{
-        target: Entity;
-        nested: { target: Entity };
-      }> {
+      class TargetedAction extends Action<
+        'TargetedAction',
+        {
+          target: Entity;
+          nested: { target: Entity };
+        }
+      > {
         apply(): void {
           // Not relevant for this test.
         }
-        public $type: string = 'TargetedAction';
+        public $type: 'TargetedAction' = 'TargetedAction';
         public prompt(): string {
           return 'Execute TargetedAction';
         }
@@ -1006,6 +1010,71 @@ describe('game', () => {
           () => {},
         ),
       ).toThrowError(/no choices/gi);
+    });
+
+    test('when the game ends through a trigger-executed action, the final snapshot is sent to all players.', (done) => {
+      // GIVEN
+      class EndGameAction extends Action {
+        apply(runtime: ModifiableRuntime): void {
+          runtime.end({ winners: [runtime.players()[0]!] });
+        }
+        public message() {
+          return '';
+        }
+        public prompt() {
+          return '';
+        }
+        public affectedEntities() {}
+        public $type = 'EndGameAction';
+      }
+
+      let endTriggered = false;
+      class DummyGame extends TestGame {
+        triggers() {
+          return new Set<Trigger>([
+            {
+              apply: (runtime) => {
+                if (!endTriggered) {
+                  endTriggered = true;
+                  return [
+                    new Choice(
+                      new EndGameAction(),
+                      runtime.entities(TestPlayerEntity)[0]!,
+                    ),
+                  ];
+                }
+              },
+            },
+          ]);
+        }
+      }
+
+      const game = new DummyGame();
+
+      let player1Notified = false;
+      let player2Notified = false;
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (_snapshots) => {
+          if (game.status() === 'ended') {
+            player1Notified = true;
+            if (player2Notified) done();
+          }
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        (_snapshots) => {
+          if (game.status() === 'ended') {
+            player2Notified = true;
+            if (player1Notified) done();
+          }
+        },
+      );
+
+      timeout(done);
     });
   });
 

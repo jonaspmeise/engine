@@ -5,10 +5,13 @@ import { ModifiableRuntime } from '../../src/interfaces/modifiable-runtime';
 import { TicTacToePlayer } from './player';
 import { Slot } from './slot';
 
-export class MarkAction extends Action<{
-  slot: Slot;
-  player: TicTacToePlayer;
-}> {
+export class MarkAction extends Action<
+  'mark',
+  {
+    slot: Slot;
+    player: TicTacToePlayer;
+  }
+> {
   public message(): string {
     return `Player ${this.parameters.player.mark} marked slot ${this.parameters.slot[entityId]}!`;
   }
@@ -21,7 +24,7 @@ export class MarkAction extends Action<{
     return [this.parameters.slot[entityId]];
   }
 
-  public $type: string = 'mark';
+  public readonly $type = 'mark' as const;
 
   apply(_runtime: ModifiableRuntime): void {
     this.parameters.slot.markedBy = this.parameters.player;

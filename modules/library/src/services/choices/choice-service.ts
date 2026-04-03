@@ -53,10 +53,10 @@ export class ChoiceService {
    */
   public calculateChoices(
     runtime: QueryableRuntime,
-  ): Set<EnhancedChoice<Action<any>>> {
+  ): Set<EnhancedChoice<Action<string, any>>> {
     this._logger.debug(() => `Calculating choice space...`);
 
-    const choices = new Set<EnhancedChoice<Action<any>>>();
+    const choices = new Set<EnhancedChoice<Action<string, any>>>();
 
     for (const rule of this._state.positiveRules) {
       const generatedChoices = rule.apply(runtime);

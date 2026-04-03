@@ -173,6 +173,14 @@ export class EntityService
 
         // If the value is an object (and not null), wrap it in a proxy once.
         if (typeof value === 'object' && value !== null) {
+          // If the value is already an Entity (or Entity proxy), don't double-wrap it.
+          // Otherwise accessing entity-typed properties (e.g. slot.markedBy) would produce
+          // a new proxy wrapper each time, breaking reference equality with the canonical
+          // proxy stored in _entities.
+          if (entityId in value) {
+            return value;
+          }
+
           return EntityService._createRecursiveProxy(
             value,
             callback,

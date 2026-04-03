@@ -9,8 +9,8 @@ import { TicTacToePlayer } from './player';
 export class ChangeTurnTrigger extends Trigger {
   apply(
     _state: QueryableRuntime,
-    lastChoice: Choice<Action<any>> | undefined,
-  ): (Choice<Action<any>> | Executable)[] | void {
+    lastChoice: Choice<Action<string, any>> | undefined,
+  ): (Choice<Action<string, any>> | Executable)[] | void {
     if (!(lastChoice?.execution instanceof MarkAction)) {
       return;
     }

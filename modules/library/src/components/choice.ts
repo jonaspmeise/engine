@@ -9,7 +9,7 @@ import { NegativeRule } from './negative-rule';
  * This is one of the main objects (besides the raw game state) that is communicated to the player.
  * The player visualizes these choices and can select one of them to execute.
  */
-export class Choice<ACTION extends Action<any>> {
+export class Choice<ACTION extends Action<string, any>> {
   /**
    * Instantiate a choice.
    * @param execution The action that will be executed when the player selects this choice, including the parameters for that action.
@@ -65,7 +65,9 @@ export class Choice<ACTION extends Action<any>> {
 /**
  * This enhanced version of the Choice class is issued by the engine and communicated to the player.
  */
-export class EnhancedChoice<ACTION extends Action<any>> extends Choice<ACTION> {
+export class EnhancedChoice<
+  ACTION extends Action<string, any>,
+> extends Choice<ACTION> {
   constructor(
     public readonly id: ChoiceId,
     execution: ACTION,
@@ -82,7 +84,7 @@ export class EnhancedChoice<ACTION extends Action<any>> extends Choice<ACTION> {
     };
   }
 
-  static fromChoice<ACTION extends Action<any>>(
+  static fromChoice<ACTION extends Action<string, any>>(
     choice: Choice<ACTION>,
     id: ChoiceId,
   ): EnhancedChoice<ACTION> {

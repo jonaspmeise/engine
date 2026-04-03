@@ -17,7 +17,7 @@ export type NegativeRule = Rule & {
    * @returns whether the choice should be denied.
    */
   apply: (
-    choice: Choice<Action<any>>,
+    choice: Choice<Action<string, any>>,
     runtime: QueryableRuntime,
   ) => boolean | void;
 };

@@ -4,6 +4,7 @@ import { ChoiceId } from './components/choice.types';
 import { Entity } from './components/entity';
 import { EntityID } from './components/entity.types';
 import { TriggerReturnType } from './components/trigger';
+import { Game } from './game';
 import { PlayerInterface } from './interfaces/player-interface';
 import { PlayerEntity } from './services/entity/entity-service.types';
 
@@ -88,13 +89,13 @@ type AnyEntity = Record<string, unknown> & Entity;
 export type PlayerInterfaceCallback = (
   // The snapshots that were modified since the last inform.
   snapshots: Snapshot[],
-  choices: EnhancedChoice<Action<any>>[],
-  execute: (choice: EnhancedChoice<Action<any>> | ChoiceId) => void, // TODO: We probably also need to pass other callbacks - force complete snapshot data, ....
+  choices: EnhancedChoice<Action<string, any>>[],
+  execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void, // TODO: We probably also need to pass other callbacks - force complete snapshot data, ....
 ) => void;
 
 export type Snapshot = {
   dirtyEntities: Record<EntityID, DeepReadonly<AnyEntity>>;
-  executed?: Choice<Action<any>> | undefined;
+  executed?: Choice<Action<string, any>> | undefined;
 };
 
 /**
@@ -104,9 +105,9 @@ export type SnapshotData = {
   currentSnapshots: Snapshot[];
   pastSnapshots: Snapshot[];
   // Which choices are currently available for each player?
-  choices: Map<PlayerInterface, EnhancedChoice<Action<any>>[]>;
+  choices: Map<PlayerInterface, EnhancedChoice<Action<string, any>>[]>;
   // Which choices were executed since the last snapshot?
-  queuedChoices: EnhancedChoice<Action<any>>[];
+  queuedChoices: EnhancedChoice<Action<string, any>>[];
   // Which executions are currently queued to be executed?
   stack: TriggerReturnType[];
   //  Is the current state settled, meaning that all triggers have been worked off and input of player can be accepted?
@@ -119,7 +120,7 @@ export type SnapshotData = {
  */
 export type ClientSnapshotData = {
   snapshots: Snapshot[];
-  choices: EnhancedChoice<Action<any>>[];
+  choices: EnhancedChoice<Action<string, any>>[];
 };
 
 export type GameStatus = 'setup' | 'running' | 'ended';
@@ -129,16 +130,6 @@ export type GameEndParameters = {
   losers: ReadonlyArray<PlayerEntity>;
   draws: ReadonlyArray<PlayerEntity>;
 };
-
-// TODO: This file is growing. Refactor to different type somewhere else?
-export const randomChickenPlayer: () => PlayerInterfaceCallback =
-  () => (_, choices, execute) => {
-    // This player does only take random choices...
-    if (choices.length > 0) {
-      const choice = choices[Math.floor(Math.random() * choices.length)]!;
-      execute(choice);
-    }
-  };
 
 export type GameLifecycle = {
   onEnd: (status: GameEndParameters) => void;

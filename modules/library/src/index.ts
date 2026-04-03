@@ -25,3 +25,4 @@ export * from './services/choices/choice-service.types';
 export * from './services/entity/entity-service';
 export * from './services/entity/entity-service.types';
 export * from './services/state/state-service';
+export * from './components/players';

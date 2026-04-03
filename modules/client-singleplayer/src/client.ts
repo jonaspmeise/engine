@@ -4,6 +4,7 @@ import {
   Choice,
   DEFAULT_GAME_CONFIG,
   Game,
+  PlayerInterface,
   type Action,
   type ChoiceId,
   type EnhancedChoice,
@@ -25,14 +26,22 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
   // TODO: How to represent game state in the client? We only need Entities and Choices...
   private readonly _state: ClientState;
   private choiceExecuteCallback: (
-    choice: EnhancedChoice<Action<any>> | ChoiceId,
+    choice: EnhancedChoice<Action<string, any>> | ChoiceId,
   ) => void = () => {};
 
   protected readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger;
 
+  /**
+   * Initializes a HTML5-based client for a game.
+   * @param renderTarget The target element into which the game should be rendered.
+   * @param game The reference to the base game. The game is not instantiated, just used to access setup methods.
+   * @param player The player interface that this client represents.
+   * @param logger A custom logger that can be provided.
+   */
   constructor(
     private readonly renderTarget: TARGET_ELEMENT,
     game: Game<any>,
+    protected readonly player: PlayerInterface,
     logger?: Partial<Logger>,
   ) {
     Object.assign(this._logger, logger);
@@ -60,12 +69,14 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
   // TODO: This are redundant types to PlayerInterfaceCallback, so either abstract it here or simply pass a single object...
   public async feed(
     snapshots: Snapshot[],
-    choices: EnhancedChoice<Action<any>>[],
-    execute: (choice: EnhancedChoice<Action<any>> | ChoiceId) => void,
+    choices: EnhancedChoice<Action<string, any>>[],
+    execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void,
   ): Promise<void> {
     this._logger.debug('Client is fed with data...', snapshots, choices);
 
     this.choiceExecuteCallback = execute;
+    // Erase prior highlights!
+    this._highlightChoices(this.renderTarget, []);
 
     for (const snapshot of snapshots) {
       this._state.snapshots.push(snapshot);
@@ -77,22 +88,47 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
       }
 
       if (snapshot.executed !== undefined) {
-        this._logger.debug(`Animating executed choice...`, snapshot.executed);
-        await this.animate(snapshot.executed);
+        this._logger.debug(
+          `Animating executed choice (before)...`,
+          snapshot.executed,
+        );
+        await this.animateBefore(snapshot.executed);
       }
 
       this.render(this.renderTarget, this._state.entityHandler);
+
+      if (snapshot.executed !== undefined) {
+        this._logger.debug(
+          `Animating executed choice (after)...`,
+          snapshot.executed,
+        );
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+        await this.animateAfter(snapshot.executed);
+      }
     }
 
     this._highlightChoices(this.renderTarget, choices);
   }
 
   /**
-   * Animates the game state.
+   * Animates the game state before the UI is rendered.
+   * This is called before rendering the game state.
+   * @returns A promise that resolves when the animation is complete.
+   */
+  protected abstract animateBefore(
+    choice: Choice<Action<string, any>>,
+  ): Promise<void>;
+
+  /**
+   * Animates the game state after the UI is rendered.
    * This is called after rendering the game state.
    * @returns A promise that resolves when the animation is complete.
    */
-  protected abstract animate(choice: Choice<Action<any>>): Promise<void>;
+  protected abstract animateAfter(
+    choice: Choice<Action<string, any>>,
+  ): Promise<void>;
 
   /**
    * Renders the game state into the target element.
@@ -120,7 +156,7 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
    */
   private _highlightChoices(
     element: TARGET_ELEMENT,
-    choices: EnhancedChoice<Action<any>>[],
+    choices: EnhancedChoice<Action<string, any>>[],
   ): void {
     this._logger.debug('Highlighting choices...', choices);
 
@@ -161,7 +197,9 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
     }
   }
 
-  private _handleChoicesClick(choices: EnhancedChoice<Action<any>>[]): void {
+  private _handleChoicesClick(
+    choices: EnhancedChoice<Action<string, any>>[],
+  ): void {
     this._logger.debug(
       `Handling click for choices ${choices.map((c) => c.id).join(', ')}...`,
     );

@@ -1,15 +1,25 @@
-import { Action, Choice, entityId, QueryableRuntime } from '@my-engine/library';
+import {
+  Action,
+  Choice,
+  entityId,
+  PlayerInterface,
+  QueryableRuntime,
+} from '@my-engine/library';
 import { Client } from '../../src/client';
 import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
 import { HorizontalLane } from '../../../library/tests/tictactoe/horizontal-lane';
+import { Win } from '../../../library/tests/tictactoe/win';
+import { playerId } from '../../../library/src/interfaces/player-interface';
+import { MarkAction } from '../../../library/tests/tictactoe/mark';
 
 export class TicTacToeClient extends Client<HTMLDivElement> {
-  constructor() {
+  constructor(player: PlayerInterface) {
     super(
       document.getElementById('tic-tac-toe-target') as HTMLDivElement,
       new TicTacToe({
         firstPlayer: 'X',
       }),
+      player,
     );
   }
 
@@ -60,8 +70,40 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
     }
   }
 
-  animate(choice: Choice<Action<any>>): Promise<void> {
-    return Promise.resolve();
+  protected async animateBefore(
+    choice: Choice<Action<string, any>>,
+  ): Promise<void> {}
+
+  protected async animateAfter(
+    choice: Choice<MarkAction | Win>,
+  ): Promise<void> {
+    switch (choice.execution.$type) {
+      case 'win': {
+        if (choice.execution.parameters.player === this.player) {
+          alert('You win!');
+        } else {
+          alert('You lose!');
+        }
+        break;
+      }
+      case 'mark': {
+        // We animate the move by having the mark of that current player "zoom in" slowly to its full size.
+        const slotId = choice.execution.parameters.slot[entityId];
+        const slotElement = document.getElementById(slotId);
+        if (slotElement) {
+          await slotElement.animate(
+            [
+              { transform: 'scale(0.1)', opacity: '0.5' },
+              { transform: 'scale(1)', opacity: '1' },
+            ],
+            {
+              duration: 300,
+              easing: 'ease-out',
+            },
+          ).finished;
+        }
+      }
+    }
   }
 
   highlightStyle(): HTMLStyleElement {

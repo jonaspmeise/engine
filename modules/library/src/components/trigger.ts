@@ -19,8 +19,8 @@ export abstract class Trigger {
   // TODO: Otherwise developers might get confused about what exactly the structure of this trigger / return type is.
   abstract apply(
     state: ModifiableRuntime,
-    lastChoice: Choice<Action<any>> | undefined,
+    lastChoice: Choice<Action<string, any>> | undefined,
   ): TriggerReturnType[] | void;
 }
 
-export type TriggerReturnType = Choice<Action<any>> | Executable;
+export type TriggerReturnType = Choice<Action<string, any>> | Executable;

@@ -285,7 +285,24 @@ export abstract class Game<
       this._logger.debug(
         () => `Finished working off stack item, moving to next snapshot...`,
       );
-      this._nextSnapshot();
+
+      // @ts-ignore TODO: This is a bit hacky, but we need to check whether the game ended during the execution of a stack item (e.g. a trigger-executed action called end()). If so, we should not execute any further triggers or inform players about choices, but directly send the final snapshot to all players.
+      if (this._status !== 'ended') {
+        this._nextSnapshot();
+      } else {
+        // The game ended during a stack item execution (e.g. a trigger-executed action called end()).
+        // Inform all players about the final state so they receive the terminal snapshot.
+        this._logger.info(
+          () =>
+            `Game ${this.constructor.name} has ended. Sending final state to all players...`,
+        );
+        for (const player of this._entityService.players()) {
+          this._stateService.informPlayer(
+            player,
+            this._executePlayerChoice.bind(this),
+          );
+        }
+      }
       return;
     }
 
@@ -337,7 +354,7 @@ export abstract class Game<
   // TODO: This could also belong to the state service...?
   private _executePlayerChoice(
     player: PlayerEntity,
-    choice: EnhancedChoice<Action<any>>,
+    choice: EnhancedChoice<Action<string, any>>,
   ): void {
     this._stateService.setSettled(false);
     this._logger.info(

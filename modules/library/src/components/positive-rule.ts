@@ -16,5 +16,5 @@ export type PositiveRule = Rule & {
    * @returns The choices to add to the choice space of the given player.
    * If no choices should be added, this can also not return anything.
    */
-  apply: (runtime: QueryableRuntime) => Choice<Action<any>>[] | void;
+  apply: (runtime: QueryableRuntime) => Choice<Action<string, any>>[] | void;
 };
