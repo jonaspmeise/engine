@@ -8,14 +8,14 @@ import { Action } from '../../src/components/action';
  * we explicitly model it as an Action for this game.
  * It doesn't do much, just internally wraps the ending-of-the-game logic.
  */
-export class Draw extends Action {
+export class Draw extends Action<'draw'> {
   apply(runtime: ModifiableRuntime): void {
     runtime.end({
       draws: runtime.players(),
     });
   }
 
-  public $type: string = 'Draw';
+  public $type: 'draw' = 'draw';
 
   public message(): string {
     return `The game is a draw!`;

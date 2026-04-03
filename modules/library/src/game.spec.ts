@@ -1014,7 +1014,7 @@ describe('game', () => {
 
     test('when the game ends through a trigger-executed action, the final snapshot is sent to all players.', (done) => {
       // GIVEN
-      class EndGameAction extends Action {
+      class EndGameAction extends Action<'EndGameAction'> {
         apply(runtime: ModifiableRuntime): void {
           runtime.end({ winners: [runtime.players()[0]!] });
         }
@@ -1025,7 +1025,7 @@ describe('game', () => {
           return '';
         }
         public affectedEntities() {}
-        public $type = 'EndGameAction';
+        public $type: 'EndGameAction' = 'EndGameAction';
       }
 
       let endTriggered = false;

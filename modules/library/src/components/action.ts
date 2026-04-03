@@ -9,7 +9,7 @@ import { QueryableRuntime } from '../interfaces/queryable-runtime';
  * An Action does not need to have parameters.
  */
 export abstract class Action<
-  TYPE extends string = string,
+  TYPE extends string,
   PARAMETERS extends ActionParameters | undefined = undefined,
 > {
   public readonly parameters: PARAMETERS;

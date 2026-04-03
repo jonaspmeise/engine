@@ -42,7 +42,7 @@ export class TestPlayerEntity extends Entity implements PlayerInterface {
   [playerInterfaceMarker] = true as const;
 }
 
-export class TestAction extends Action {
+export class TestAction extends Action<'TestAction'> {
   public message(): string {
     return 'TestAction executed!';
   }
@@ -50,7 +50,7 @@ export class TestAction extends Action {
     return 'Execute TestAction';
   }
   public affectedEntities() {}
-  public $type = 'TestAction';
+  public $type: 'TestAction' = 'TestAction';
   apply(_runtime: QueryableRuntime): void {
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
