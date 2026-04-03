@@ -31,6 +31,8 @@ import { Trigger, TriggerReturnType } from './components/trigger';
 import { StateService } from './services/state/state-service';
 import { EnhancedChoice } from './components/choice';
 import { Action } from './components/action';
+import { ViewFilter } from './components/view-filter';
+import { ViewFilterService } from './services/view-filter/view-filter-service';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -44,6 +46,7 @@ export abstract class Game<
   private readonly _entityService: EntityService;
   private readonly _choiceService: ChoiceService;
   private readonly _stateService: StateService;
+  private readonly _viewFilterService: ViewFilterService;
   private readonly _callbacks: Partial<GameLifecycle> = {};
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
@@ -80,6 +83,8 @@ export abstract class Game<
       this._logger,
     );
     this._stateService = new StateService(this._logger);
+
+    this._viewFilterService = new ViewFilterService(this._logger);
 
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
     this._setup(parameters as PARAMETERS);
@@ -124,6 +129,13 @@ export abstract class Game<
    * Returns the set of all triggers that are registered in this game.
    */
   abstract triggers(): Set<Trigger> | void;
+
+  /**
+   * Returns the set of all view filters that should be applied in this game.
+   * View filters allow games with hidden information (e.g. UNO) to expose only
+   * a player-specific subset of each entity's state.
+   */
+  abstract viewFilters(): Set<ViewFilter> | void;
 
   /**
    * Returns the set of all entity classes that are used in this game.
@@ -192,6 +204,11 @@ export abstract class Game<
     }
 
     this._logger.info(() => `Spawned a total of ${spawnCount} entities.`);
+
+    // Register view filters so that hidden-information games can provide per-player entity views.
+    for (const filter of this.viewFilters() ?? []) {
+      this._viewFilterService.create(filter);
+    }
   }
 
   /**
@@ -302,6 +319,7 @@ export abstract class Game<
           this._stateService.informPlayer(
             player,
             this._executePlayerChoice.bind(this),
+            false,
           );
         }
       }
@@ -341,6 +359,8 @@ export abstract class Game<
       this._stateService.informPlayer(
         player,
         this._executePlayerChoice.bind(this),
+        false,
+        this._viewFilterService.createSnapshotFilter(player),
       );
     }
 
@@ -405,6 +425,7 @@ export abstract class Game<
           player,
           this._executePlayerChoice,
           true,
+          this._viewFilterService.createSnapshotFilter(player),
         );
       }
     }

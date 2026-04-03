@@ -3,6 +3,7 @@ import { Choice } from './components/choice';
 import { Entity } from './components/entity';
 import { PositiveRule } from './components/positive-rule';
 import { Trigger } from './components/trigger';
+import { ViewFilter } from './components/view-filter';
 import { Game } from './game';
 import { EntityClass } from './game.types';
 import {
@@ -101,4 +102,5 @@ export class TestGame extends Game {
   }
   negativeRules(): void {}
   triggers(): Set<Trigger> | void {}
+  viewFilters(): Set<ViewFilter> | void {}
 }

@@ -3,7 +3,7 @@ import { Choice, EnhancedChoice } from '../../components/choice';
 import { ChoiceId } from '../../components/choice.types';
 import { Entity, entityId } from '../../components/entity';
 import { TriggerReturnType } from '../../components/trigger';
-import { DeepReadonly, Logger, SnapshotData } from '../../game.types';
+import { DeepReadonly, Logger, Snapshot, SnapshotData } from '../../game.types';
 import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
 import {
   PlayerInterface,
@@ -177,6 +177,9 @@ export class StateService {
    * @param sendFullState Whether to send the full state to the player, or only a diff.
    * For example, if a player disconnected and reconnected, they should be informed about their full state.
    * Normally, only the diff is sent.
+   * @param snapshotFilter An optional per-player snapshot transformer. When provided, each snapshot
+   * is passed through this function before being delivered to the player, allowing the caller
+   * to apply hidden-information filters (e.g. via {@link ViewFilterService}).
    */
   public informPlayer(
     player: PlayerEntity,
@@ -185,14 +188,20 @@ export class StateService {
       choice: EnhancedChoice<Action<string, any>>,
     ) => void,
     sendFullState: boolean = false,
+    snapshotFilter?: (snapshot: Snapshot) => Snapshot,
   ): void {
     this._logger.debug(
       () =>
         `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
     );
 
+    const rawSnapshots = this._state.currentSnapshots;
+    const snapshots = snapshotFilter
+      ? rawSnapshots.map(snapshotFilter)
+      : rawSnapshots;
+
     player[handler]!(
-      this._state.currentSnapshots,
+      snapshots,
       this._state.choices.get(player) ?? [],
       (rawChoice: EnhancedChoice<Action<string, any>> | ChoiceId) => {
         const choice = this._fetchChoice(player, rawChoice);

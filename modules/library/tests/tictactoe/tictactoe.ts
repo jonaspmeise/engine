@@ -13,6 +13,7 @@ import { PositiveRule } from '../../src/components/positive-rule';
 import { Class, EntityClass } from '../../src/game.types';
 import { Choice } from '../../src/components/choice';
 import { Trigger } from '../../src/components/trigger';
+import { ViewFilter } from '../../src/components/view-filter';
 import { ChangeTurnTrigger } from './change-turn-trigger';
 import { GameOverTrigger } from './game-over-trigger';
 
@@ -60,6 +61,10 @@ export class TicTacToe extends Game<TicTacToeParameters> {
 
   negativeRules(): void | Set<NegativeRule> {
     // No negative rules in this game.
+  }
+
+  viewFilters(): void | Set<ViewFilter> {
+    // TicTacToe has no hidden information.
   }
 
   actions(): Set<Class<Action<string, any>>> {
