@@ -1,7 +1,7 @@
 import { Action } from './action';
 import { EnhancedChoice } from './choice';
 import { Game } from '../game';
-import { NO_OP_LOGGER, PlayerInterfaceCallback } from '../game.types';
+import { Logger, NO_OP_LOGGER, PlayerInterfaceCallback } from '../game.types';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { entityId } from '@my-engine/library';
 
@@ -38,15 +38,26 @@ function _ucb1SelectIndex(node: _MctsNode, numChoices: number): number {
   return bestIdx;
 }
 
-function _runMcts(
+const _MCTS_CHUNK_SIZE = 25;
+
+async function _runMctsAsync(
   game: Game<any>,
   selfPlayer: PlayerEntity,
   choices: EnhancedChoice<Action<string, any>>[],
   iterations: number,
-): EnhancedChoice<Action<string, any>> {
+  logger: Logger,
+): Promise<EnhancedChoice<Action<string, any>>> {
   const root = _createNode(null);
 
+  // Track time for all executions.
+  const start = performance.now();
+
   for (let i = 0; i < iterations; i++) {
+    // Yield to the browser every chunk so paint/animation frames can run.
+    if (i > 0 && i % _MCTS_CHUNK_SIZE === 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    logger.debug(`MCTS iteration ${i + 1}/${iterations}...`);
     const simGame = game.clone({ logger: NO_OP_LOGGER });
 
     // Per-iteration mutable state captured by the callback closures.
@@ -132,6 +143,13 @@ function _runMcts(
     }
   }
 
+  // Show time it took.
+  const end = performance.now();
+  const iterationsPerSecond = (iterations / ((end - start) / 1000)).toFixed(2);
+  logger.info(
+    `MCTS completed ${iterations} iterations in ${(end - start).toFixed(2)} ms (${iterationsPerSecond} iterations per second).`,
+  );
+
   return choices[Math.min(bestIdx, choices.length - 1)]!;
 }
 
@@ -167,8 +185,9 @@ export namespace Players {
     game: Game<any>,
     player: PlayerEntity,
     iterations?: number,
+    logger?: Logger,
   ) => PlayerInterfaceCallback =
-    (game, player, iterations = 300) =>
+    (game, player, iterations = 300, logger: Logger = NO_OP_LOGGER) =>
     (_, choices, execute) => {
       if (choices.length === 0) return;
       if (choices.length === 1) {
@@ -176,12 +195,16 @@ export namespace Players {
         return;
       }
 
-      const best = _runMcts(
-        game,
-        player,
-        choices as EnhancedChoice<Action<string, any>>[],
-        iterations,
-      );
-      execute(best);
+      // Run asynchronously so the browser can paint between MCTS chunks.
+      setTimeout(async () => {
+        const best = await _runMctsAsync(
+          game,
+          player,
+          choices as EnhancedChoice<Action<string, any>>[],
+          iterations,
+          logger,
+        );
+        execute(best);
+      }, 0);
     };
 }

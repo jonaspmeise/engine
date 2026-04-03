@@ -18,7 +18,8 @@
     "build": "tsc -b",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "example:tictactoe": "bun --hot examples/tictactoe/index.html"
+    "example:tictactoe": "bun --hot examples/tictactoe/index.html",
+    "example:tictactoe:build": "bun build ./examples/tictactoe/index.ts --outdir ./examples/tictactoe/dist --target browser"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.8.9"

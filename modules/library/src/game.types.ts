@@ -4,7 +4,6 @@ import { ChoiceId } from './components/choice.types';
 import { Entity } from './components/entity';
 import { EntityID } from './components/entity.types';
 import { TriggerReturnType } from './components/trigger';
-import { Game } from './game';
 import { PlayerInterface } from './interfaces/player-interface';
 import { PlayerEntity } from './services/entity/entity-service.types';
 

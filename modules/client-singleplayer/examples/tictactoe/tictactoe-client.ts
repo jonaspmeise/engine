@@ -74,20 +74,105 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
     choice: Choice<Action<string, any>>,
   ): Promise<void> {}
 
+  private _launchFireworks(): void {
+    const colors = [
+      '#fbbf24',
+      '#f472b6',
+      '#34d399',
+      '#60a5fa',
+      '#a78bfa',
+      '#fb923c',
+    ];
+    for (let b = 0; b < 7; b++) {
+      setTimeout(() => {
+        const burst = document.createElement('div');
+        burst.className = 'firework-burst';
+        burst.style.left = `${15 + Math.random() * 70}vw`;
+        burst.style.top = `${10 + Math.random() * 55}vh`;
+        document.body.appendChild(burst);
+
+        const numParticles = 20;
+        for (let i = 0; i < numParticles; i++) {
+          const angle = (i / numParticles) * 2 * Math.PI;
+          const dist = 55 + Math.random() * 90;
+          const p = document.createElement('div');
+          p.className = 'firework-particle';
+          p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+          p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+          p.style.setProperty('--dur', `${0.65 + Math.random() * 0.55}s`);
+          p.style.background =
+            colors[Math.floor(Math.random() * colors.length)]!;
+          burst.appendChild(p);
+        }
+
+        setTimeout(() => burst.remove(), 1600);
+      }, b * 320);
+    }
+  }
+
+  private _showResult(type: 'win' | 'lose' | 'draw'): Promise<void> {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('result-overlay')!;
+      const text = document.getElementById('result-text')!;
+      const btn = document.getElementById('play-again')!;
+
+      const labels: Record<string, string> = {
+        win: 'You Win!',
+        lose: 'You Lose!',
+        draw: "It's a Draw!",
+      };
+
+      overlay.className = `result-${type} visible`;
+      text.textContent = labels[type]!;
+
+      // Force CSS animations to replay (they already fired on first game).
+      for (const el of [text, btn] as HTMLElement[]) {
+        el.style.animation = 'none';
+        el.offsetHeight; // force reflow
+        el.style.animation = '';
+      }
+
+      if (type === 'win') {
+        this._launchFireworks();
+      }
+
+      const doRestart = (): void => {
+        overlay.className = '';
+        this.clear();
+        resolve();
+      };
+
+      // "Play again?" button restarts immediately.
+      btn.addEventListener(
+        'click',
+        (e) => {
+          e.stopPropagation();
+          doRestart();
+        },
+        { once: true },
+      );
+
+      // Clicking elsewhere on the overlay just dismisses it (board stays visible).
+      const dismiss = (): void => {
+        overlay.className = '';
+        overlay.removeEventListener('click', dismiss);
+        resolve();
+      };
+      overlay.addEventListener('click', dismiss);
+    });
+  }
+
   protected async animateAfter(
     choice: Choice<MarkAction | Win | Draw>,
   ): Promise<void> {
     switch (choice.execution.$type) {
       case 'win': {
-        if (choice.execution.parameters!.player === this.player) {
-          alert('You win!');
-        } else {
-          alert('You lose!');
-        }
+        const didWin = choice.execution.parameters!.player === this.player;
+        await this._showResult(didWin ? 'win' : 'lose');
         break;
       }
       case 'draw': {
-        alert("It's a draw!");
+        await this._showResult('draw');
         break;
       }
       case 'mark': {

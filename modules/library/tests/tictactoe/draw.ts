@@ -23,7 +23,7 @@ export class Draw extends Action<'draw'> {
   public prompt(): string {
     return `Draw the game!`;
   }
-  public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
+  public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
     // Does not matter, because this never exists as a choice.
   }
 }

@@ -22,7 +22,10 @@ class DummyClient extends Client {
   protected animateAfter(): Promise<void> {
     return animateAfter();
   }
-  protected render(renderTarget: HTMLElement, runtime: QueryableRuntime): void {
+  protected render(
+    _renderTarget: HTMLElement,
+    _runtime: QueryableRuntime,
+  ): void {
     return render();
   }
   protected highlightStyle(): HTMLStyleElement {

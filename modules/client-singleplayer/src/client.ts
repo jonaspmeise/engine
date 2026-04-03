@@ -2,7 +2,9 @@
 
 import {
   Choice,
+  Clearable,
   DEFAULT_GAME_CONFIG,
+  EntityClassMapping,
   Game,
   PlayerInterface,
   type Action,
@@ -20,16 +22,19 @@ import { ClientEntityHandler } from './client-entity-handler';
  * through the DOM and updating its internal state.
  */
 // TODO: Rename to something like "HTMLClient" or "BrowserClient" to distinguish from potential future clients.
-export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
+export abstract class Client<
+  TARGET_ELEMENT extends HTMLElement = HTMLElement,
+> implements Clearable {
   private readonly CHOICE_CLASS = 'engine-choice';
 
   // TODO: How to represent game state in the client? We only need Entities and Choices...
-  private readonly _state: ClientState;
+  private _state: ClientState;
   private choiceExecuteCallback: (
     choice: EnhancedChoice<Action<string, any>> | ChoiceId,
   ) => void = () => {};
 
   protected readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger;
+  private readonly _entityClassMapping: EntityClassMapping;
 
   /**
    * Initializes a HTML5-based client for a game.
@@ -46,10 +51,11 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
   ) {
     Object.assign(this._logger, logger);
 
+    this._entityClassMapping = game.entityClassMapping();
     this._state = {
       snapshots: [],
       entityHandler: new ClientEntityHandler(
-        game.entityClassMapping(),
+        this._entityClassMapping,
         this._logger,
       ),
     };
@@ -60,6 +66,25 @@ export abstract class Client<TARGET_ELEMENT extends HTMLElement = HTMLElement> {
 
     // Register this object in global window scope.
     (window as any).client = this;
+  }
+
+  /**
+   * Resets the client to its initial state, clearing all internal state and the render target.
+   * Fires a 'game:reset' event on the render target so external code can reinitialise the game.
+   */
+  public clear(): void {
+    this._state = {
+      snapshots: [],
+      entityHandler: new ClientEntityHandler(
+        this._entityClassMapping,
+        this._logger,
+      ),
+    };
+    this.choiceExecuteCallback = () => {};
+    this.renderTarget.replaceChildren();
+    this.renderTarget.dispatchEvent(
+      new CustomEvent('game:reset', { bubbles: true }),
+    );
   }
 
   /**
