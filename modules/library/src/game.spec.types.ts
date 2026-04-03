@@ -95,7 +95,7 @@ export class TestGame extends Game {
         apply: (runtime) =>
           runtime
             .entities(TestPlayerEntity)
-            .map((player) => new Choice(new TestAction(undefined), player)),
+            .map((player) => new Choice(new TestAction(), player)),
       },
     ]);
   }

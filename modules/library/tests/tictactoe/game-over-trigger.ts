@@ -2,8 +2,10 @@ import { Action } from '../../src/components/action';
 import { Choice } from '../../src/components/choice';
 import { Trigger, TriggerReturnType } from '../../src/components/trigger';
 import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
+import { Draw } from './draw';
 import { Lane } from './lane';
 import { MarkAction } from './mark';
+import { Win } from './win';
 
 export class GameOverTrigger extends Trigger {
   apply(
@@ -14,6 +16,11 @@ export class GameOverTrigger extends Trigger {
       return;
     }
 
+    console.log(
+      'Lanes are',
+      state.entities(Lane).map((lane) => lane.wonBy(state)),
+    );
+
     const winningPlayer = state
       .entities(Lane)
       .map((lane) => lane.wonBy(state))
@@ -23,14 +30,12 @@ export class GameOverTrigger extends Trigger {
       winningPlayer === undefined &&
       state.entities(Lane).every((lane) => lane.isFull(state));
 
-    return [
-      (runtime) => {
-        if (winningPlayer !== undefined) {
-          runtime.end({ winners: [winningPlayer] });
-        } else if (isDraw) {
-          runtime.end({ draws: state.players() });
-        }
-      },
-    ];
+    if (isDraw) {
+      return [new Choice(new Draw(), lastChoice.player)];
+    } else if (winningPlayer !== undefined) {
+      return [new Choice(new Win({ player: winningPlayer }), winningPlayer)];
+    } else {
+      return;
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { entityId, QueryableRuntime } from '@my-engine/library';
+import { Action, Choice, entityId, QueryableRuntime } from '@my-engine/library';
 import { Client } from '../../src/client';
 import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
 import { HorizontalLane } from '../../../library/tests/tictactoe/horizontal-lane';
@@ -60,7 +60,7 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
     }
   }
 
-  animate(): Promise<void> {
+  animate(choice: Choice<Action<any>>): Promise<void> {
     return Promise.resolve();
   }
 

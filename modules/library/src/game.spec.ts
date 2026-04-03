@@ -931,7 +931,7 @@ describe('game', () => {
                 if (triggersExecuted++ === 0) {
                   return [
                     new Choice(
-                      new TestAction(undefined),
+                      new TestAction(),
                       this.entities(TestPlayerEntity)[0]!,
                     ),
                   ];

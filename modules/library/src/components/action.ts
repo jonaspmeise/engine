@@ -13,8 +13,10 @@ export abstract class Action<
 > {
   public readonly parameters: PARAMETERS;
 
-  constructor(parameters: PARAMETERS) {
-    this.parameters = parameters as PARAMETERS;
+  constructor(
+    ...args: PARAMETERS extends undefined ? [] : [parameters: PARAMETERS]
+  ) {
+    this.parameters = args[0] as PARAMETERS;
   }
 
   /**

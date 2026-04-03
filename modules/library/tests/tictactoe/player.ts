@@ -20,4 +20,8 @@ export class TicTacToePlayer extends Entity implements PlayerInterface {
   generateId(): EntityID {
     return `player-${this.mark}`;
   }
+
+  toString(): string {
+    return `Player ${this.mark}`;
+  }
 }
