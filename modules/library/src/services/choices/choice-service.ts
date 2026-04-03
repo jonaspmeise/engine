@@ -111,6 +111,7 @@ export class ChoiceService {
     for (const choice of choices) {
       playersWithChoices.add(choice.player);
     }
+
     if (playersWithChoices.size === 0) {
       throw new Error(
         `No choices generated for any player! At least one player should have at least one choice. Please check your rules!`,

@@ -1,15 +1,15 @@
 import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
 import { TicTacToeClient } from './tictactoe-client';
 import { Players } from '@my-engine/library';
-// Setting up the game.
 
+// Setting up the game.
 const game = new TicTacToe({
   firstPlayer: 'X',
 });
 
 game.registerPlayerCallback(
   game.players()![0],
-  Players.randomChickenPlayer(() => Math.random() * 1000 + 500),
+  Players.mcts(game, game.players()![0]!),
 );
 
 const client = new TicTacToeClient(game.players()![1]);

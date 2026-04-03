@@ -28,6 +28,7 @@ export class EntityService
       types: new Map<Class<Entity>, Set<Entity>>(),
       ids: new Map<EntityID, Entity>(),
       players: [],
+      nonProxies: new WeakMap<Entity, Entity>(),
     };
   }
 
@@ -36,6 +37,7 @@ export class EntityService
     types: new Map<Class<Entity>, Set<Entity>>(),
     ids: new Map<EntityID, Entity>(),
     players: [] as Array<Entity & PlayerInterface>,
+    nonProxies: new WeakMap<Entity, Entity>(),
   };
 
   /**
@@ -54,12 +56,15 @@ export class EntityService
     const proxy = EntityService._createRecursiveProxy(
       entity,
       this._flushCallback,
+      undefined,
+      this._entities.ids,
     );
 
     if (this._entities.ids.has(id)) {
       throw new Error(`Duplicate entity ID ${id}. Entity IDs must be unique.`);
     }
     this._entities.ids.set(id, proxy);
+    this._entities.nonProxies.set(proxy, entity);
 
     // This entity might potentially be a player...
     if (isPlayerInterface(proxy)) {
@@ -166,6 +171,7 @@ export class EntityService
     target: any,
     callback: (root: any) => void,
     rootProxy?: any,
+    ids?: Map<EntityID, Entity>,
   ): any => {
     const handler: ProxyHandler<any> = {
       get: (target, prop, receiver) => {
@@ -173,11 +179,15 @@ export class EntityService
 
         // If the value is an object (and not null), wrap it in a proxy once.
         if (typeof value === 'object' && value !== null) {
-          // If the value is already an Entity (or Entity proxy), don't double-wrap it.
-          // Otherwise accessing entity-typed properties (e.g. slot.markedBy) would produce
-          // a new proxy wrapper each time, breaking reference equality with the canonical
-          // proxy stored in _entities.
+          // If the value is an Entity (raw or proxy from any game instance), resolve it
+          // to the canonical proxy registered in this game's entity service.
+          // This ensures cross-game entity references (e.g. live proxies stored in a
+          // cloned entity's properties) are transparently remapped to the local proxy.
           if (entityId in value) {
+            if (ids !== undefined) {
+              const canonical = ids.get((value as Entity)[entityId]);
+              if (canonical !== undefined) return canonical;
+            }
             return value;
           }
 
@@ -185,6 +195,7 @@ export class EntityService
             value,
             callback,
             rootProxy || receiver,
+            ids,
           );
         }
 
@@ -222,5 +233,9 @@ export class EntityService
     }
 
     return prototypes;
+  }
+
+  public getNonProxy<T extends Entity>(entity: T): T | undefined {
+    return this._entities.nonProxies.get(entity) as T | undefined;
   }
 }

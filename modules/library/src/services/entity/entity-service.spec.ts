@@ -238,4 +238,24 @@ describe('entityService', () => {
       expect(service.players()).toHaveLength(2);
     });
   });
+
+  describe('getNonProxy', () => {
+    test('returns the original non-proxy object for a proxied entity.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+      const original = new TestEntityA(1);
+
+      // THEN
+      expect(entity).not.toBe(original);
+      expect(service.getNonProxy(entity)).toEqual(original);
+    });
+
+    test('returns undefined if the entity is not registered.', () => {
+      // GIVEN
+      const entity = new TestEntityA(1);
+
+      // THEN
+      expect(service.getNonProxy(entity)).toBeUndefined();
+    });
+  });
 });

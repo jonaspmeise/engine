@@ -60,14 +60,8 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
             },
           });
 
-          game.registerPlayerCallback(
-            game.players()[0]!,
-            Players.randomChickenPlayer(),
-          );
-          game.registerPlayerCallback(
-            game.players()[1]!,
-            Players.randomChickenPlayer(),
-          );
+          game.registerPlayerCallback(game.players()[0]!, Players.chicken());
+          game.registerPlayerCallback(game.players()[1]!, Players.chicken());
         }
 
         timeout(done, 10000);
@@ -82,18 +76,30 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
         expect(Object.keys(mapping).length).toBeGreaterThan(0);
       });
 
-      test('a MCTS player always wins against a random chicken player.', () => {
+      test('a MCTS player always wins against a random chicken player.', (done) => {
         // GIVEN
         // TODO: What about games with more than 2 players?
         this.game.registerPlayerCallback(
           this.game.players()[0]!,
-          Players.randomChickenPlayer(),
+          Players.chicken(),
         );
 
+        const mctsPlayer = this.game.players()[1]!;
         this.game.registerPlayerCallback(
-          this.game.players()[1]!,
-          Players.mctsPlayer(this.game),
+          mctsPlayer,
+          Players.mcts(this.game, mctsPlayer),
         );
+
+        this.game.registerCallbacks({
+          onEnd: (status) => {
+            // THEN
+            expect(status.winners).toHaveLength(1);
+            expect(status.winners[0]).toBe(mctsPlayer);
+            done();
+          },
+        });
+
+        timeout(done, 10000);
       });
 
       this.additionalTests();

@@ -11,6 +11,7 @@ import {
   GameParameters,
   GameStatus,
   Logger,
+  NO_OP_LOGGER,
   PlayerInterfaceCallback,
 } from './game.types';
 import { QueryableRuntime } from './interfaces/queryable-runtime';
@@ -18,6 +19,7 @@ import { EntityService } from './services/entity/entity-service';
 import {
   PlayerInterface,
   handler,
+  isPlayerInterface,
   playerId,
 } from './interfaces/player-interface';
 import { PositiveRule } from './components/positive-rule';
@@ -532,5 +534,49 @@ export abstract class Game<
     );
 
     Object.assign(this._callbacks, callbacks);
+  }
+
+  /**
+   * Creates a deep clone of the current game state, suitable for use in MCTS or other lookahead searches.
+   * The clone starts in `setup` status with no player callbacks registered.
+   * Entity cross-references (fields that point to other entities) are fixed up to use the new cloned proxies.
+   * @param config Optional game config for the cloned game — defaults to a no-op logger for silent simulations.
+   * @returns A new game instance of the same concrete type with an identical entity state.
+   */
+  public clone(config: GameConfig = { logger: NO_OP_LOGGER }): this {
+    // Step 1: clone every entity, preserving class prototype and all own properties (including symbols).
+    const allEntities = Array.from(this.entities());
+    const originalToClone = new Map<Entity, Entity>();
+
+    for (const entity of allEntities) {
+      const raw = this._entityService.getNonProxy(entity)!;
+      const clone = Object.create(Object.getPrototypeOf(raw)) as Entity;
+      Object.defineProperties(clone, Object.getOwnPropertyDescriptors(raw));
+      originalToClone.set(entity, clone);
+
+      // Remove callbacks on the clone; they will be registered explicitly.
+      if (isPlayerInterface(clone)) {
+        // @ts-ignore TODO: Fix type
+        clone[handler] = undefined as unknown as PlayerInterfaceCallback;
+      }
+    }
+
+    // Cross-references (e.g. slot.markedBy) are left pointing to live proxies here.
+    // They are resolved transparently to the correct cloned proxy at access-time by
+    // the entity-service proxy get trap, which canonicalises any entity value through
+    // the cloned game's own ids map.
+
+    const clonedEntities = new Set(originalToClone.values());
+
+    // We create a cloned game that simply instantiates the state that we want to have.
+    const GameClass = this.constructor;
+
+    class ClonedGame extends (GameClass as any) {
+      initialize(_params: unknown): Set<Entity> {
+        return clonedEntities;
+      }
+    }
+
+    return new (ClonedGame as any)(undefined, config) as this;
   }
 }
