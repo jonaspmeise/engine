@@ -1,7 +1,7 @@
-import { Action } from '../../src/components/action';
-import { entityId } from '../../src/components/entity';
-import { EntityID } from '../../src/components/entity.types';
-import { ModifiableRuntime } from '../../src/interfaces/modifiable-runtime';
+import { Action } from '../../../src/components/action';
+import { entityId } from '../../../src/components/entity';
+import { EntityID } from '../../../src/components/entity.types';
+import { ModifiableRuntime } from '../../../src/interfaces/modifiable-runtime';
 import { TicTacToePlayer } from './player';
 import { Slot } from './slot';
 

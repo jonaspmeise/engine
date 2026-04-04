@@ -1,16 +1,18 @@
 import { test, expect } from 'bun:test';
 import { TicTacToe } from './tictactoe';
 import { TicTacToeParameters } from './tictactoe.typed';
-import { Slot } from './slot';
-import { GameTest } from '../game.spec';
-import { TicTacToePlayer } from './player';
-import { Lane } from './lane';
+import { BaseGameTest } from '../game.spec';
 import { ClientSnapshotData } from '../../src/game.types';
 import { timeout } from '../../src/utility.spec';
+import { Lane } from './entities/lane';
+import { TicTacToePlayer } from './entities/player';
+import { Slot } from './entities/slot';
 
-class TicTacToeSpec extends GameTest<TicTacToeParameters> {
+class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
+  readonly numberOfPlayers = 2;
+  readonly initializer = (parameters: TicTacToeParameters) =>
+    new TicTacToe(parameters);
   readonly name = 'TicTacToe';
-  readonly GameClass = TicTacToe;
   readonly randomPlayDepth = 100;
   readonly parameters = {
     firstPlayer: 'X' as const,

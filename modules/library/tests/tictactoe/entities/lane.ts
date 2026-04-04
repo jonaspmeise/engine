@@ -1,7 +1,6 @@
-import { Entity, entityId } from '../../src/components/entity';
-import { Slot } from './slot';
-import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
+import { Entity, QueryableRuntime, entityId } from '../../../src';
 import { TicTacToePlayer } from './player';
+import { Slot } from './slot';
 
 export abstract class Lane extends Entity {
   constructor(public readonly index: number) {

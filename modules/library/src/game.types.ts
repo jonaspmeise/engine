@@ -60,27 +60,27 @@ export const NO_OP_LOGGER: Logger = {
   debug: NO_OP_LOGGER_METHOD,
 };
 
+export const DEFAULT_LOGGER: Logger = {
+  log: (...message: unknown[] | (() => unknown)[]) =>
+    DEFAULT_LOGGER_METHOD(console.log, ...message),
+  warn: (...message: unknown[] | (() => unknown)[]) =>
+    DEFAULT_LOGGER_METHOD(console.warn, ...message),
+  error: (...message: unknown[] | (() => unknown)[]) =>
+    DEFAULT_LOGGER_METHOD(console.error, ...message),
+  info: (...message: unknown[] | (() => unknown)[]) =>
+    DEFAULT_LOGGER_METHOD(console.info, ...message),
+  debug: (...message: unknown[] | (() => unknown)[]) =>
+    DEFAULT_LOGGER_METHOD(console.debug, ...message),
+};
+
 export const DEFAULT_GAME_CONFIG: ResolvedGameConfig = {
-  logger: {
-    log: (...message: unknown[] | (() => unknown)[]) =>
-      DEFAULT_LOGGER_METHOD(console.log, ...message),
-    warn: (...message: unknown[] | (() => unknown)[]) =>
-      DEFAULT_LOGGER_METHOD(console.warn, ...message),
-    error: (...message: unknown[] | (() => unknown)[]) =>
-      DEFAULT_LOGGER_METHOD(console.error, ...message),
-    info: (...message: unknown[] | (() => unknown)[]) =>
-      DEFAULT_LOGGER_METHOD(console.info, ...message),
-    debug: (...message: unknown[] | (() => unknown)[]) =>
-      DEFAULT_LOGGER_METHOD(console.debug, ...message),
-  },
+  logger: DEFAULT_LOGGER,
 };
 
 export type DeepReadonly<T> = Partial<{
-  readonly [P in keyof T]: T[P] extends object
-    ? DeepReadonly<T[P]>
-    : T[P] extends Function
-      ? undefined // Should not be included!
-      : DeepReadonly<T[P]>;
+  readonly [P in keyof T as T[P] extends Function
+    ? never
+    : P]: T[P] extends Object ? DeepReadonly<T[P]> : T[P];
 }>;
 
 type AnyEntity = Record<string, unknown> & Entity;

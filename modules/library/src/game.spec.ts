@@ -134,6 +134,9 @@ describe('game', () => {
         game.anyEntity(
           class NonExistingEntity extends Entity {
             public $type: string = 'NonExistingEntity';
+            public toString(): string {
+              return `NonExistingEntity`;
+            }
           },
         ),
       ).toBeNull();
@@ -309,6 +312,7 @@ describe('game', () => {
         triggers(): Set<Trigger> | void {
           return new Set<Trigger>([
             {
+              name: 'Test Trigger',
               apply: (runtime) => {
                 triggered++;
 
@@ -836,6 +840,7 @@ describe('game', () => {
         triggers() {
           return new Set<Trigger>([
             {
+              name: 'Test Trigger',
               apply: (_runtime, prior) => {
                 if (prior?.execution instanceof TestAction) {
                   triggerExecuted = true;
@@ -931,6 +936,7 @@ describe('game', () => {
         triggers() {
           return new Set<Trigger>([
             {
+              name: 'Test Trigger',
               apply: () => {
                 if (triggersExecuted++ === 0) {
                   return [
@@ -1033,6 +1039,7 @@ describe('game', () => {
         triggers() {
           return new Set<Trigger>([
             {
+              name: 'Test Trigger',
               apply: (runtime) => {
                 if (!endTriggered) {
                   endTriggered = true;

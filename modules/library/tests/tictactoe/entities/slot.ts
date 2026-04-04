@@ -1,7 +1,11 @@
-import { Entity } from '../../src/components/entity';
 import { TicTacToePlayer } from './player';
+import { Entity } from '@my-engine/library';
 
 export class Slot extends Entity {
+  public toString(): string {
+    return `Slot (${this.x}, ${this.y})`;
+  }
+
   public $type: string = 'slot';
   public markedBy: TicTacToePlayer | null = null;
 

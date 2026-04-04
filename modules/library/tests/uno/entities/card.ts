@@ -1,4 +1,4 @@
-import { Entity } from '../../src';
+import { Entity } from '../../../src';
 import { UnoZone } from './zone';
 
 export abstract class UnoCard extends Entity {
@@ -12,7 +12,8 @@ export abstract class UnoCard extends Entity {
     super(`${id}-card`);
   }
 
-  public abstract readonly color: 'red' | 'yellow' | 'green' | 'blue' | 'wild';
+  public abstract readonly color: 'red' | 'yellow' | 'green' | 'blue' | 'black';
+  public abstract readonly drawCards: number | undefined;
   public abstract readonly value:
     | number
     | 'skip'
@@ -20,4 +21,10 @@ export abstract class UnoCard extends Entity {
     | 'draw-two'
     | 'wild'
     | 'wild-draw-four';
+
+  public abstract playableOn(otherCard: UnoCard): boolean;
+
+  public toString(): string {
+    return `${this.color} ${this.value}`;
+  }
 }

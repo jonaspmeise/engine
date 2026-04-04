@@ -1,21 +1,21 @@
 import { TicTacToeParameters, Mark } from './tictactoe.typed';
 import { Game } from '../../src/game';
 import { Entity } from '../../src/components/entity';
-import { Slot } from './slot';
-import { MarkAction } from './mark';
+import { MarkAction } from './actions/mark';
 import { Action } from '../../src/components/action';
-import { TicTacToePlayer } from './player';
-import { VerticalLane } from './vertical-lane';
-import { HorizontalLane } from './horizontal-lane';
-import { DiagonalLane } from './diagonal-lane';
+import { DiagonalLane } from './entities/diagonal-lane';
 import { NegativeRule } from '../../src/components/negative-rule';
 import { PositiveRule } from '../../src/components/positive-rule';
 import { Class, EntityClass } from '../../src/game.types';
 import { Choice } from '../../src/components/choice';
 import { Trigger } from '../../src/components/trigger';
 import { ViewFilter } from '../../src/components/view-filter';
-import { ChangeTurnTrigger } from './change-turn-trigger';
-import { GameOverTrigger } from './game-over-trigger';
+import { ChangeTurnTrigger } from './triggers/change-turn-trigger';
+import { GameOverTrigger } from './triggers/game-over-trigger';
+import { HorizontalLane } from './entities/horizontal-lane';
+import { TicTacToePlayer } from './entities/player';
+import { Slot } from './entities/slot';
+import { VerticalLane } from './entities/vertical-lane';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
   entityClasses(): Set<EntityClass<Entity>> {

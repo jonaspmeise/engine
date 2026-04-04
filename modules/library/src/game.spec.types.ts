@@ -17,12 +17,18 @@ export class TestEntityA extends Entity {
   constructor(_id: number) {
     super(`testentityA-${_id}`);
   }
+  public toString(): string {
+    return `TestEntityA`;
+  }
 }
 
 export class TestEntityB extends Entity {
   public $type: string = 'TestEntityB';
   constructor(id: number | string) {
     super(typeof id === 'number' ? `testentityB-${id}` : id);
+  }
+  public toString(): string {
+    return `TestEntityB`;
   }
 }
 
@@ -33,6 +39,9 @@ export class TestEntityC extends TestEntityB {
   constructor(_id: number) {
     super(`testentityC-${_id}`);
   }
+  public toString(): string {
+    return `TestEntityC`;
+  }
 }
 
 export class TestPlayerEntity extends Entity implements PlayerInterface {
@@ -41,6 +50,9 @@ export class TestPlayerEntity extends Entity implements PlayerInterface {
     super(`testPlayerEntity-${_id}`);
   }
   [playerInterfaceMarker] = true as const;
+  public toString(): string {
+    return `TestPlayerEntity`;
+  }
 }
 
 export class TestAction extends Action<'TestAction'> {

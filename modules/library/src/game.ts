@@ -134,8 +134,9 @@ export abstract class Game<
    * Returns the set of all view filters that should be applied in this game.
    * View filters allow games with hidden information (e.g. UNO) to expose only
    * a player-specific subset of each entity's state.
+   * @param runtime A reference to the runtime, which allows access to the game state and entities for the context of this method.
    */
-  abstract viewFilters(): Set<ViewFilter> | void;
+  abstract viewFilters(runtime: QueryableRuntime): Set<ViewFilter> | void;
 
   /**
    * Returns the set of all entity classes that are used in this game.
@@ -206,7 +207,7 @@ export abstract class Game<
     this._logger.info(() => `Spawned a total of ${spawnCount} entities.`);
 
     // Register view filters so that hidden-information games can provide per-player entity views.
-    for (const filter of this.viewFilters() ?? []) {
+    for (const filter of this.viewFilters(this) ?? []) {
       this._viewFilterService.create(filter);
     }
   }

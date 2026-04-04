@@ -1,12 +1,14 @@
-import { Action } from '../../src/components/action';
-import { Choice } from '../../src/components/choice';
-import { Executable } from '../../src/components/choice.types';
-import { Trigger } from '../../src/components/trigger';
-import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
-import { MarkAction } from './mark';
-import { TicTacToePlayer } from './player';
+import { Action } from '../../../src/components/action';
+import { Choice } from '../../../src/components/choice';
+import { Executable } from '../../../src/components/choice.types';
+import { Trigger } from '../../../src/components/trigger';
+import { QueryableRuntime } from '../../../src/interfaces/queryable-runtime';
+import { MarkAction } from '../actions/mark';
+import { TicTacToePlayer } from '../entities/player';
 
-export class ChangeTurnTrigger extends Trigger {
+export class ChangeTurnTrigger implements Trigger {
+  public readonly name: string = 'change-turn-after-mark';
+
   apply(
     _state: QueryableRuntime,
     lastChoice: Choice<Action<string, any>> | undefined,

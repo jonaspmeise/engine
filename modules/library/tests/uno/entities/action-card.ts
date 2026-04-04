@@ -9,5 +9,13 @@ export class ActionCard extends UnoCard {
     position: number,
   ) {
     super(`action-${color}-${value}`, location, position);
+
+    this.drawCards = value === 'draw-two' ? 2 : undefined;
+  }
+
+  drawCards: number | undefined;
+
+  public playableOn(otherCard: UnoCard): boolean {
+    return this.color === otherCard.color || this.value === otherCard.value;
   }
 }

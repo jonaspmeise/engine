@@ -1,10 +1,10 @@
-import { Entity } from '../../src/components/entity';
-import { EntityID } from '../../src/components/entity.types';
 import {
+  Entity,
   PlayerInterface,
   playerInterfaceMarker,
-} from '../../src/interfaces/player-interface';
-import { Mark } from './tictactoe.typed';
+  EntityID,
+} from '../../../src';
+import { Mark } from '../tictactoe.typed';
 
 export class TicTacToePlayer extends Entity implements PlayerInterface {
   public $type: string = 'TicTacToePlayer';

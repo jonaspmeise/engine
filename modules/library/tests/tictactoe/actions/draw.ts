@@ -1,5 +1,5 @@
-import { ModifiableRuntime, QueryableRuntime, EntityID } from '../../src';
-import { Action } from '../../src/components/action';
+import { ModifiableRuntime, QueryableRuntime, EntityID } from '../../../src';
+import { Action } from '../../../src/components/action';
 
 /**
  * Because this Action should

@@ -20,9 +20,16 @@ class TestEntity extends Entity {
   constructor(readonly _id: number) {
     super(`TestEntity-${_id}`);
   }
+
+  public toString(): string {
+    return `TestEntity`;
+  }
 }
 
-class TestActionA extends Action<{ shouldBePrevented: boolean } | undefined> {
+class TestActionA extends Action<
+  'TestActionA',
+  { shouldBePrevented: boolean } | undefined
+> {
   public message(): string {
     return 'TestActionA executed!';
   }
@@ -36,14 +43,18 @@ class TestActionA extends Action<{ shouldBePrevented: boolean } | undefined> {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }
 
-  public $type: string = 'TestActionA';
+  public $type: 'TestActionA' = 'TestActionA';
 }
 
 class TestPlayer extends Entity implements PlayerInterface {
-  public $type: string = 'TestPlayer';
+  public $type: 'TestPlayer' = 'TestPlayer';
 
   constructor() {
     super(`player-${Math.random()}`);
+  }
+
+  public toString(): string {
+    return `TestPlayer`;
   }
 
   [playerInterfaceMarker] = true as const;
@@ -231,9 +242,12 @@ describe('ChoiceService', () => {
         negativeRules: new Set([
           {
             name: 'TestNegativeRule',
-            apply: (choice: Choice<TestActionA>, _runtime: QueryableRuntime) =>
-              (choice as Choice<TestActionA>).execution.parameters
-                ?.shouldBePrevented ?? false,
+            apply: (
+              choice: Choice<Action<string, any>>,
+              _runtime: QueryableRuntime,
+            ) =>
+              (choice.execution as TestActionA).parameters?.shouldBePrevented ??
+              false,
           },
         ]),
       });

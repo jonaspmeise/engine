@@ -7,8 +7,11 @@ import { Executable } from './choice.types';
  * A trigger is a component that after an action is done, checks whether it should be executed
  * based on the current game state.
  */
-// TODO: Should this be a class or just a type? Since triggers (might) have internal state, maybe its better as a class...
-export abstract class Trigger {
+// TODO: All components should just be interfaces, and there should be abstract classes "Base___" for each component.
+export interface Trigger {
+  // The name of the trigger.
+  readonly name: string;
+
   /**
    * Checks whether this trigger should be executed based on the current game state.
    * @param state The current state of the game.
@@ -17,7 +20,7 @@ export abstract class Trigger {
    */
   // TODO: IMPORTANT: We might also just directly call actions, which are debounced by the engine, instead of us having to debounce them...?
   // TODO: Otherwise developers might get confused about what exactly the structure of this trigger / return type is.
-  abstract apply(
+  apply(
     state: ModifiableRuntime,
     lastChoice: Choice<Action<string, any>> | undefined,
   ): TriggerReturnType[] | void;

@@ -1,7 +1,8 @@
 import { UnoCard } from './card';
 import { UnoZone } from './zone';
 
-export class DefaultCard extends UnoCard {
+export class UnoDefaultCard extends UnoCard {
+  public drawCards: number | undefined = undefined;
   public $type: string = 'DefaultCard';
 
   constructor(
@@ -11,5 +12,9 @@ export class DefaultCard extends UnoCard {
     position: number,
   ) {
     super(`default-${color}-${value}`, location, position);
+  }
+
+  public playableOn(otherCard: UnoCard): boolean {
+    return this.color === otherCard.color || this.value === otherCard.value;
   }
 }

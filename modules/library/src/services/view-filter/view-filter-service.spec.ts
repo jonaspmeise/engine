@@ -25,6 +25,10 @@ class TestEntity extends Entity {
   constructor(id: string) {
     super(id);
   }
+
+  public toString(): string {
+    return `TestEntity`;
+  }
 }
 
 class TestPlayer extends Entity implements PlayerInterface {
@@ -34,6 +38,10 @@ class TestPlayer extends Entity implements PlayerInterface {
 
   constructor(id: string) {
     super(id);
+  }
+
+  public toString(): string {
+    return `TestPlayer`;
   }
 }
 

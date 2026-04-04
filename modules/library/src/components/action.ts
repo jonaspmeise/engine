@@ -2,6 +2,7 @@ import { ActionParameters } from './action.types';
 import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
 import { EntityID } from './entity.types';
 import { QueryableRuntime } from '../interfaces/queryable-runtime';
+import { PlayerEntity } from '../services/entity/entity-service.types';
 
 /**
  * Models a single type of @see Action.
@@ -38,8 +39,9 @@ export abstract class Action<
    * Returns a message describing the effect, after this action is executed.
    * This can be used in the client to show a message to the player after they executed this action.
    * An example would be "You attacked the goblin and dealt 5 damage!".
+   * @param player The player for which the message should be generated. This can be used to generate different messages for different players, e.g. the active player gets "You attacked the goblin and dealt 5 damage!", while the opponent gets "The opponent attacked the goblin and dealt 5 damage!".
    */
-  public abstract message(): string;
+  public abstract message(player: PlayerEntity): string;
 
   /**
    * Returns a prompt describing this action, which can be used to present this action as a choice to the player.

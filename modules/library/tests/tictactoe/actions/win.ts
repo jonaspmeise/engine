@@ -1,11 +1,11 @@
-import { TicTacToePlayer } from './player';
-import { Action } from '../../src/components/action';
+import { Action } from '../../../src/components/action';
 import {
   ModifiableRuntime,
   QueryableRuntime,
   EntityID,
   entityId,
-} from '../../src';
+} from '../../../src';
+import { TicTacToePlayer } from '../entities/player';
 
 /**
  * Because this Action should

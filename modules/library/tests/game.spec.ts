@@ -1,17 +1,18 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { Game } from '../src/game';
-import { GameConfig, GameParameters, NO_OP_LOGGER } from '../src/game.types';
+import { GameConfig, GameParameters } from '../src/game.types';
 import { entityId } from '../src/components/entity';
 import { timeout } from '../src/utility.spec';
 import { Players } from '../src/components/players';
 
-type Constructor<T, P> = new (params: P, config?: GameConfig) => T;
-
-export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
+export abstract class BaseGameTest<
+  PARAMETERS extends GameParameters | undefined = undefined,
+> {
   abstract readonly name: string;
-  abstract readonly GameClass: Constructor<Game<PARAMETERS>, PARAMETERS>;
+  abstract readonly initializer: (parameters: PARAMETERS) => Game<PARAMETERS>;
   abstract readonly parameters: PARAMETERS;
   abstract readonly randomPlayDepth: number;
+  abstract readonly numberOfPlayers: number;
 
   abstract additionalTests(): void;
 
@@ -22,7 +23,7 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
 
     describe(this.name, () => {
       beforeEach(() => {
-        this.game = new self.GameClass(self.parameters);
+        this.game = self.initializer(self.parameters);
       });
 
       test('initialize returns more than one entity.', () => {
@@ -42,11 +43,8 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
 
       test(`${this.randomPlayDepth} random plays end in a terminal state and do not throw any errors.`, (done) => {
         // GIVEN / WHEN
-        // TODO: Number of players needs to be configured...?
         for (let i = 0; i < self.randomPlayDepth; i++) {
-          const game = new self.GameClass(self.parameters, {
-            logger: NO_OP_LOGGER,
-          });
+          const game = self.initializer(self.parameters);
 
           game.registerCallbacks({
             onEnd: (status) => {
@@ -60,8 +58,12 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
             },
           });
 
-          game.registerPlayerCallback(game.players()[0]!, Players.chicken());
-          game.registerPlayerCallback(game.players()[1]!, Players.chicken());
+          for (let player = 0; player < self.numberOfPlayers; player++) {
+            game.registerPlayerCallback(
+              game.players()[player]!,
+              Players.chicken(),
+            );
+          }
         }
 
         timeout(done, 10000);
@@ -78,13 +80,14 @@ export abstract class GameTest<PARAMETERS extends GameParameters | undefined> {
 
       test('a MCTS player always wins against a random chicken player.', (done) => {
         // GIVEN
-        // TODO: What about games with more than 2 players?
-        this.game.registerPlayerCallback(
-          this.game.players()[0]!,
-          Players.chicken(),
-        );
+        for (let player = 0; player < self.numberOfPlayers - 1; player++) {
+          this.game.registerPlayerCallback(
+            this.game.players()[player]!,
+            Players.chicken(),
+          );
+        }
 
-        const mctsPlayer = this.game.players()[1]!;
+        const mctsPlayer = this.game.players()[self.numberOfPlayers - 1]!;
         this.game.registerPlayerCallback(
           mctsPlayer,
           Players.mcts(this.game, mctsPlayer),

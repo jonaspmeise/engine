@@ -24,6 +24,9 @@ class TestEntityA extends Entity {
   constructor(readonly _id: number) {
     super(`TestEntityA-${_id}`);
   }
+  public toString(): string {
+    return `TestEntityA`;
+  }
 }
 
 class TestEntityB extends Entity {
@@ -31,11 +34,19 @@ class TestEntityB extends Entity {
   constructor(readonly _id: number | string) {
     super(typeof _id === 'number' ? `TestEntityB-${_id}` : _id);
   }
+
+  public toString(): string {
+    return `TestEntityB`;
+  }
 }
 
 class TestEntityC extends TestEntityB {
   constructor(id: number) {
     super(`TestEntityC-${id}`);
+  }
+
+  public toString(): string {
+    return `TestEntityC`;
   }
 }
 

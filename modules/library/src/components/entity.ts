@@ -15,6 +15,11 @@ export abstract class Entity {
    */
   public abstract readonly $type: string;
 
+  /**
+   * A string representation for this entity, which appears in logs, the UI, ...
+   */
+  public abstract toString(): string;
+
   public readonly [entityId]: EntityID;
 
   /**

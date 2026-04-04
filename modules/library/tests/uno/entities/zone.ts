@@ -1,4 +1,4 @@
-import { Entity, QueryableRuntime } from '../../src';
+import { Entity, QueryableRuntime } from '../../../src';
 import { UnoCard } from './card';
 
 export abstract class UnoZone extends Entity {

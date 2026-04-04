@@ -174,6 +174,14 @@ export abstract class Client<
   protected abstract highlightStyle(): HTMLStyleElement;
 
   /**
+   * Returns a representation for the saved state as collected by the client.
+   * This is only necessary for debugging.
+   */
+  public state(): QueryableRuntime {
+    return this._state.entityHandler;
+  }
+
+  /**
    * Highlights all elements of the render according to choices.
    * All elements that are a part of a choice are highlighted.
    * @param element The target render element.

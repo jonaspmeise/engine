@@ -1,6 +1,10 @@
 import { UnoZone } from './zone';
 
-export class DiscardPile extends UnoZone {
+export class UnoDiscardPile extends UnoZone {
+  public toString(): string {
+    return 'Discard Pile';
+  }
+
   public $type: string = 'DiscardPile';
 
   constructor() {

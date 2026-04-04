@@ -3,7 +3,7 @@ import { describe, test, mock, beforeEach, jest, expect } from 'bun:test';
 import { Entity, entityId } from '@my-engine/library';
 import { ClientEntityHandler } from './client-entity-handler';
 import { ClientEntity } from './client-entity-handler.types';
-import { TestEntityA } from '../../library/src/game.spec.types';
+import { TestEntityA, TestEntityC } from '../../library/src/game.spec.types';
 
 const animate = mock(() => Promise.resolve());
 const render = mock(() => {});
@@ -16,6 +16,7 @@ describe('Client Entity Handler', () => {
     service = new ClientEntityHandler(
       {
         TestEntityA: TestEntityA,
+        TestEntityC: TestEntityC,
       },
       console,
     );
@@ -79,5 +80,41 @@ describe('Client Entity Handler', () => {
         name: 'Modified Name',
       }),
     ).toThrow('Unknown entity type: UnknownEntity');
+  });
+
+  test('multiple snapshots passed are correctly parsed into the client state.', async () => {
+    // GIVEN / WHEN
+    service.apply('testentityC-0', {
+      $type: 'TestEntityC',
+    });
+    service.apply('testentityC-0', {
+      $type: 'TestEntityC',
+      volatileNumber: 42,
+    });
+
+    // THEN
+    const expected = new TestEntityC(0);
+    expected.volatileNumber = 42;
+
+    expect(service.anyEntity(TestEntityC)).toEqual(expected);
+  });
+
+  test('changing the type of the entity throughout works.', () => {
+    // GIVEN / WHEN
+    service.apply('testentityC-0', {
+      $type: 'TestEntityA',
+    });
+    service.apply('testentityC-0', {
+      $type: 'TestEntityC',
+      volatileNumber: 42,
+    });
+
+    // THEN
+    const expected = new TestEntityC(0);
+    expected.volatileNumber = 42;
+
+    console.log(service);
+
+    expect(service.anyEntity(TestEntityC)).toEqual(expected);
   });
 });

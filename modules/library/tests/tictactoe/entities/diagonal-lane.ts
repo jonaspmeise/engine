@@ -1,8 +1,12 @@
-import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
+import { QueryableRuntime } from '../../../src/interfaces/queryable-runtime';
 import { Lane } from './lane';
 import { Slot } from './slot';
 
 export class DiagonalLane extends Lane {
+  public toString(): string {
+    return `Diagonal Lane ${this.index}`;
+  }
+
   public $type: string = 'diagonal-lane';
   public slots(runtime: QueryableRuntime): Set<Slot> {
     return new Set(

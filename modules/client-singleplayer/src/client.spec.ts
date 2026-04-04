@@ -1,7 +1,12 @@
 /// <reference lib="dom" />
 import { describe, test, mock, beforeEach, jest, expect } from 'bun:test';
 import { Client } from './client';
-import { TestGame } from '../../library/src/game.spec.types';
+import {
+  TestEntityA,
+  TestEntityB,
+  TestEntityC,
+  TestGame,
+} from '../../library/src/game.spec.types';
 import {
   Action,
   Choice,
