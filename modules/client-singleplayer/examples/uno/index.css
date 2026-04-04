@@ -1,0 +1,490 @@
+/* ═══════════════════════════════════════════════════════════
+   UNO – Game Client Styles
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Reset & Custom Properties ─────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  /* Card dimensions (fluid, capped at comfortable desktop size) */
+  --card-w: clamp(2.6rem, 4.5vmin, 4.2rem);
+  --card-h: calc(var(--card-w) * 1.54);
+  --card-r: calc(var(--card-w) * 0.1);
+
+  /* UNO colours */
+  --uno-red: #dc2626;
+  --uno-yellow: #ca8a04;
+  --uno-green: #16a34a;
+  --uno-blue: #2563eb;
+  --uno-black: #111827;
+
+  /* Table / UI */
+  --felt: #166534;
+  --felt-dark: #14532d;
+  --card-back: #1e3a5f;
+  --card-back2: #0d1f3c;
+  --ui-bg: #0c1a2e;
+  --text: #f0f4f8;
+}
+
+/* ── Page layout ────────────────────────────────────────────── */
+body {
+  margin: 0;
+  background: var(--ui-bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* extra bottom padding so the human's hand is not cut off */
+  padding: 0.75rem 1rem calc(var(--card-h) + 3rem);
+  width: 100%;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.2rem, 3vmin, 2rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Table container
+   ═══════════════════════════════════════════════════════════ */
+#uno-target {
+  position: relative;
+  /* Centred, no overflow clip – hand cards can hang below the circle */
+}
+
+/* The circular felt surface */
+#game-table {
+  position: relative;
+  width: min(82vw, 82svh, 620px);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse 70% 70% at 50% 50%,
+    #1a7a3a 0%,
+    var(--felt) 50%,
+    var(--felt-dark) 100%
+  );
+  box-shadow:
+    0 0 0 6px var(--felt-dark),
+    inset 0 0 40px rgba(0, 0, 0, 0.35),
+    0 10px 50px rgba(0, 0, 0, 0.65);
+  /* overflow visible: player hands extend outside the circle */
+  overflow: visible;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Centre zone – deck & discard pile
+   ═══════════════════════════════════════════════════════════ */
+#center-zone {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: clamp(0.5rem, 2vmin, 1.2rem);
+  align-items: center;
+}
+
+/* Shared card-slot base (deck + discard pile) */
+.zone-card {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: var(--card-r);
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.2s;
+}
+
+/* Deck – face-down stripe pattern */
+.deck-card {
+  background:
+    radial-gradient(
+      ellipse 55% 80% at 50% 50%,
+      rgba(255, 255, 255, 0.06) 0%,
+      transparent 70%
+    ),
+    repeating-linear-gradient(
+      128deg,
+      var(--card-back) 0,
+      var(--card-back) 6px,
+      var(--card-back2) 6px,
+      var(--card-back2) 12px
+    );
+  border: 2px solid rgba(255, 255, 255, 0.22);
+}
+
+/* Remaining card count */
+.deck-card::after {
+  content: attr(data-count);
+  position: absolute;
+  bottom: 0.25rem;
+  right: 0.35rem;
+  font-size: calc(var(--card-w) * 0.2);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1;
+}
+
+/* Discard pile – shows top card colour + value */
+.discard-card {
+  background-color: var(--c, rgba(255, 255, 255, 0.06));
+  border: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+.discard-card::before {
+  /* big centre label */
+  content: attr(data-label);
+  font-size: calc(var(--card-h) * 0.38);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Colour mapping (cards + discard pile)
+   ═══════════════════════════════════════════════════════════ */
+[data-color='red'] {
+  --c: var(--uno-red);
+}
+[data-color='yellow'] {
+  --c: var(--uno-yellow);
+}
+[data-color='green'] {
+  --c: var(--uno-green);
+}
+[data-color='blue'] {
+  --c: var(--uno-blue);
+}
+[data-color='black'] {
+  --c: var(--uno-black);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Player boards – circular layout
+   Uses CSS sin() / cos() (Chrome 111+, Firefox 108+, Safari 15.4+)
+
+   --n : total number of players   (set on #game-table)
+   --i : index of this player's board, human = 0 → bottom
+   ═══════════════════════════════════════════════════════════ */
+.player-board {
+  /* angle: 0 = top; human at i=0 maps to 180° = bottom */
+  --angle: calc((var(--i) / var(--n) * 360 + 180) * 1deg);
+
+  position: absolute;
+  /* 38% of table diameter from centre along the angle */
+  left: calc(50% + sin(var(--angle)) * 38%);
+  top: calc(50% - cos(var(--angle)) * 38%);
+  transform: translate(-50%, -50%);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+/* Highlight current player's name */
+.player-board[data-current='true'] .player-name {
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.75);
+}
+
+.player-name {
+  font-size: clamp(0.55rem, 1.4vmin, 0.8rem);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  transition:
+    color 0.3s,
+    text-shadow 0.3s;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Hand – fan container
+   --cn : card count (set per hand by JS)
+   ═══════════════════════════════════════════════════════════ */
+.hand {
+  --step: calc(var(--card-w) * 0.44); /* horizontal overlap step per card */
+
+  position: relative;
+  /* width fits exactly the fanned span */
+  width: calc((var(--cn, 1) - 1) * var(--step) + var(--card-w));
+  max-width: 70vw;
+  height: calc(var(--card-h) + 1.8rem); /* extra height for rotation arc */
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Individual cards
+   --ci : index of this card within the hand (0-based)
+   --cn : total cards in hand
+   --step : inherited from .hand
+   ═══════════════════════════════════════════════════════════ */
+.card {
+  /* Horizontal offset from hand centre */
+  --off: calc(var(--ci, 0) - (var(--cn, 1) - 1) * 0.5);
+  /* Fan rotation: ±7° per step from centre */
+  --deg: calc(var(--off) * 7deg);
+
+  position: absolute;
+  bottom: 0;
+  left: calc(50% + var(--off) * var(--step, 2rem));
+  transform: translateX(-50%) rotate(var(--deg));
+  transform-origin: bottom center;
+  transition:
+    transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 0.18s ease,
+    z-index 0s;
+
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: var(--card-r);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    1px 3px 10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+
+  background-color: var(--c, var(--card-back));
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Diagonal oval ring – classic UNO-card detail */
+.card:not(.hidden) {
+  background-image: radial-gradient(
+    ellipse 68% 95% at 50% 50%,
+    transparent 56%,
+    rgba(255, 255, 255, 0.14) 57%,
+    rgba(255, 255, 255, 0.14) 70%,
+    transparent 71%
+  );
+}
+
+/* Corner label (top-left) */
+.card:not(.hidden)::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 0.22em;
+  left: 0.28em;
+  font-size: calc(var(--card-h) * 0.15);
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  line-height: 1;
+  z-index: 1;
+}
+
+/* Centre value */
+.card:not(.hidden)::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: calc(var(--card-h) * 0.38);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  line-height: 1;
+  z-index: 1;
+}
+
+.card.hidden {
+  background:
+    radial-gradient(
+      ellipse 55% 80% at 50% 50%,
+      rgba(255, 255, 255, 0.05) 0%,
+      transparent 70%
+    ),
+    repeating-linear-gradient(
+      128deg,
+      var(--card-back) 0,
+      var(--card-back) 6px,
+      var(--card-back2) 6px,
+      var(--card-back2) 12px
+    );
+  --c: transparent; /* suppress colour variable */
+}
+
+/* Card back inner frame */
+.card.hidden::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border-radius: calc(var(--card-r) * 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.engine-choice {
+  outline: none;
+}
+.color-pick-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: grid;
+  place-items: center;
+  z-index: 500;
+  animation: fade-in 0.15s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.color-pick-panel {
+  background: #1e293b;
+  border-radius: 1rem;
+  padding: 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  animation: pop-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.color-pick-panel p {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.04em;
+}
+
+.color-pick-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Each button is a card-sized swatch. Inherits --c from [data-color] rules. */
+.color-pick-btn {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: var(--card-r);
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  background-color: var(--c, #555);
+  cursor: pointer;
+  transition:
+    transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.15s ease,
+    border-color 0.15s;
+}
+
+.color-pick-btn:hover {
+  transform: translateY(-6px) scale(1.08);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Result overlay
+   ═══════════════════════════════════════════════════════════ */
+#result-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  place-items: center;
+  z-index: 100;
+}
+
+#result-overlay.visible {
+  display: grid;
+}
+
+#result-content {
+  background: #1e293b;
+  border-radius: 1rem;
+  padding: 2.5rem 3.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+#result-text {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+#play-again {
+  padding: 0.75rem 2rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#play-again:hover {
+  background: #1d4ed8;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Responsive adjustments
+   ═══════════════════════════════════════════════════════════ */
+
+/* Tighter spacing on small screens */
+@media (max-width: 480px) {
+  :root {
+    --card-w: clamp(2.2rem, 8vmin, 3rem);
+  }
+
+  #game-table {
+    width: min(94vw, 94svh);
+  }
+
+  main {
+    padding-bottom: calc(var(--card-h) + 2.5rem);
+  }
+}
+
+/* Wider table on large screens */
+@media (min-width: 1200px) {
+  :root {
+    --card-w: 4.5rem;
+  }
+  #game-table {
+    width: 680px;
+  }
+}

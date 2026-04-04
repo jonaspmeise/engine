@@ -9,6 +9,10 @@ const animate = mock(() => Promise.resolve());
 const render = mock(() => {});
 const element: HTMLElement = document.createElement('div');
 
+abstract class TestAbstractEntity extends Entity {
+  public $type: string = 'TestAbstractEntity';
+}
+
 describe('Client Entity Handler', () => {
   let service: ClientEntityHandler;
 
@@ -17,6 +21,7 @@ describe('Client Entity Handler', () => {
       {
         TestEntityA: TestEntityA,
         TestEntityC: TestEntityC,
+        TestAbstractEntity: TestAbstractEntity,
       },
       console,
     );
@@ -113,8 +118,16 @@ describe('Client Entity Handler', () => {
     const expected = new TestEntityC(0);
     expected.volatileNumber = 42;
 
-    console.log(service);
-
     expect(service.anyEntity(TestEntityC)).toEqual(expected);
+  });
+
+  test('can be spawned for an abstract class.', () => {
+    // GIVEN / WHEN
+    service.apply('TestAbstractEntity-1', {
+      $type: 'TestAbstractEntity',
+    });
+
+    // THEN
+    expect(service.anyEntity(TestAbstractEntity)).toBeDefined();
   });
 });

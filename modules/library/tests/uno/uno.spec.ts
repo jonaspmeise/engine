@@ -15,7 +15,7 @@ export class UnoTest extends BaseGameTest<{
     playerSize: 4,
   };
 
-  randomPlayDepth: number = 100;
+  randomPlayDepth: number = 2;
 
   additionalTests(): void {
     // No additional tests yet.

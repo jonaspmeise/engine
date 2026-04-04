@@ -10,7 +10,9 @@ import { PlayerEntity } from './services/entity/entity-service.types';
 export type GameParameters = Record<string, unknown>;
 
 export type Class<T> = abstract new (...args: any[]) => T;
-export type EntityClass<T extends Entity> = new (...args: any[]) => T;
+export type EntityClass<T extends Entity> =
+  | (abstract new (...args: any[]) => T)
+  | (new (...args: any[]) => T);
 
 export type EntityClassMapping = Record<string, EntityClass<Entity>>;
 

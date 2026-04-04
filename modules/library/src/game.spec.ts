@@ -1322,4 +1322,150 @@ describe('game', () => {
       });
     });
   });
+
+  describe('setupActions', () => {
+    test('setup actions are executed before the first snapshot is sent to players.', (done) => {
+      // GIVEN
+      class GameWithSetup extends TestGame {
+        setupActions() {
+          return [
+            () => {
+              this.anyEntity(TestEntityC)!.volatileNumber = 99;
+            },
+          ];
+        }
+      }
+
+      const game = new GameWithSetup();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (snapshots) => {
+          // THEN – at least two snapshots: one from the setup action, one with the initial full state / choices
+          expect(snapshots).toHaveLength(2);
+          // THEN – the setup action already ran, so entity state reflects it
+          const entityCDelta = snapshots
+            .flatMap((s) => Object.values(s.dirtyEntities))
+            .find((e) => (e as any).$type === 'TestEntityC') as any;
+
+          expect(entityCDelta).toBeDefined();
+          expect(entityCDelta.volatileNumber).toBe(99);
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        () => {},
+      );
+
+      timeout(done);
+    });
+
+    test('setup actions modify state correctly and appear as snapshots before the interactive snapshot.', (done) => {
+      // GIVEN
+      class GameWithSetup extends TestGame {
+        setupActions() {
+          return [
+            () => {
+              this.anyEntity(TestEntityC)!.volatileNumber = 42;
+            },
+          ];
+        }
+      }
+
+      const game = new GameWithSetup();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (snapshots) => {
+          // THEN – at least two snapshots: one from the setup action, one with the initial full state / choices
+          expect(snapshots.length).toBeGreaterThanOrEqual(2);
+
+          // The snapshot produced by the setup action contains the modified entity
+          const setupSnapshot = snapshots.find((s) =>
+            Object.values(s.dirtyEntities).some(
+              (e) => (e as any).volatileNumber === 42,
+            ),
+          );
+          expect(setupSnapshot).toBeDefined();
+
+          // The entity value seen by the player is already 42
+          expect(game.anyEntity(TestEntityC)!.volatileNumber).toBe(42);
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        () => {},
+      );
+
+      timeout(done);
+    });
+
+    test('setup actions are not called when setupActions() returns void.', (done) => {
+      // GIVEN – default TestGame returns void from setupActions()
+      const pushSpy = spyOn(
+        // Access the private _stateService via any cast to verify we never push to the stack from _start
+        // Instead we verify observable behaviour: only one snapshot batch is sent (no extra stack processing)
+        TestGame.prototype,
+        'setupActions',
+      );
+
+      const game = new TestGame();
+
+      // WHEN
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        (snapshots) => {
+          // THEN – setupActions was called exactly once (during _start)
+          expect(pushSpy).toHaveBeenCalledTimes(1);
+          // And the snapshot contains the plain initial state (volatileNumber == 0)
+          const entityCDelta = snapshots
+            .flatMap((s) => Object.values(s.dirtyEntities))
+            .find((e) => (e as any).$type === 'TestEntityC') as any;
+          expect(entityCDelta?.volatileNumber).toBe(0);
+          done();
+        },
+      );
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        () => {},
+      );
+
+      timeout(done);
+    });
+
+    test('multiple setup actions are all executed before the first player notification.', (done) => {
+      // GIVEN
+      class GameWithMultipleSetup extends TestGame {
+        setupActions() {
+          return [
+            () => {
+              this.anyEntity(TestEntityC)!.volatileNumber += 1;
+            },
+            () => {
+              this.anyEntity(TestEntityC)!.volatileNumber += 10;
+            },
+          ];
+        }
+      }
+
+      const game = new GameWithMultipleSetup();
+
+      // WHEN
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, () => {
+        // THEN – both actions ran (LIFO: +10 first, then +1, total = 11)
+        expect(game.anyEntity(TestEntityC)!.volatileNumber).toBe(11);
+        done();
+      });
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        () => {},
+      );
+
+      timeout(done);
+    });
+  });
 });

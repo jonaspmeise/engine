@@ -1,8 +1,12 @@
-import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
 import { Lane } from './lane';
 import { Slot } from './slot';
+import { QueryableRuntime } from '@my-engine/library';
 
 export class VerticalLane extends Lane {
+  public toString(): string {
+    return `Vertical Lane #${this.index}`;
+  }
+
   public $type: string = 'vertical-lane';
 
   public slots(runtime: QueryableRuntime): Set<Slot> {

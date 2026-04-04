@@ -1,7 +1,12 @@
 import { Action } from './action';
 import { EnhancedChoice } from './choice';
 import { Game } from '../game';
-import { Logger, NO_OP_LOGGER, PlayerInterfaceCallback } from '../game.types';
+import {
+  DEFAULT_LOGGER,
+  Logger,
+  NO_OP_LOGGER,
+  PlayerInterfaceCallback,
+} from '../game.types';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { entityId } from '@my-engine/library';
 
@@ -155,9 +160,19 @@ async function _runMctsAsync(
 
 export namespace Players {
   // TODO: This file is growing. Refactor to different type somewhere else?
-  export const chicken: (delay?: () => number) => PlayerInterfaceCallback =
-    (delay: () => number = () => 0) =>
+  export const chicken: (
+    delay?: () => number,
+    logger?: Logger,
+    name?: string,
+  ) => PlayerInterfaceCallback =
+    (
+      delay: () => number = () => 0,
+      logger: Logger = DEFAULT_LOGGER,
+      name?: string,
+    ) =>
     (_, choices, execute) => {
+      logger.debug(`Chicken player "${name}" has choices:`, choices);
+
       // This player does only take random choices...
       if (choices.length > 0) {
         setTimeout(() => {

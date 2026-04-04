@@ -35,6 +35,7 @@ export abstract class Client<
 
   protected readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger;
   private readonly _entityClassMapping: EntityClassMapping;
+  private _debugPanel: HTMLElement | null = null;
 
   /**
    * Initializes a HTML5-based client for a game.
@@ -42,12 +43,14 @@ export abstract class Client<
    * @param game The reference to the base game. The game is not instantiated, just used to access setup methods.
    * @param player The player interface that this client represents.
    * @param logger A custom logger that can be provided.
+   * @param debug When true, a toggleable debug panel showing snapshot data is rendered in the top-right corner.
    */
   constructor(
     private readonly renderTarget: TARGET_ELEMENT,
     game: Game<any>,
     protected readonly player: PlayerInterface,
     logger?: Partial<Logger>,
+    debug: boolean = false,
   ) {
     Object.assign(this._logger, logger);
 
@@ -63,6 +66,11 @@ export abstract class Client<
     this._logger.debug('Injecting style element for choice highlighting...');
     const styleElement = this.highlightStyle();
     this.renderTarget.appendChild(styleElement);
+
+    if (debug) {
+      this._debugPanel = this._createDebugPanel();
+      document.body.appendChild(this._debugPanel);
+    }
 
     // Register this object in global window scope.
     (window as any).client = this;
@@ -135,6 +143,10 @@ export abstract class Client<
     }
 
     this._highlightChoices(this.renderTarget, choices);
+
+    if (this._debugPanel) {
+      this._updateDebugPanel(this._debugPanel, snapshots, choices);
+    }
   }
 
   /**
@@ -228,6 +240,112 @@ export abstract class Client<
         entityElement.onclick = () => this._handleChoicesClick([choice]);
       }
     }
+  }
+
+  private _createDebugPanel(): HTMLElement {
+    const panel = document.createElement('div');
+    panel.id = 'engine-debug-panel';
+    panel.style.cssText = [
+      'position:fixed',
+      'top:8px',
+      'right:8px',
+      'z-index:99999',
+      'max-width:420px',
+      'width:max-content',
+      'font:12px/1.4 monospace',
+      'background:rgba(15,15,20,0.92)',
+      'color:#e8e8e8',
+      'border:1px solid #444',
+      'border-radius:6px',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.6)',
+      'overflow:hidden',
+    ].join(';');
+
+    const toggle = document.createElement('button');
+    toggle.textContent = '🐛 Debug';
+    toggle.style.cssText = [
+      'display:block',
+      'width:100%',
+      'padding:6px 10px',
+      'background:transparent',
+      'border:none',
+      'border-bottom:1px solid #444',
+      'color:#e8e8e8',
+      'font:inherit',
+      'cursor:pointer',
+      'text-align:left',
+    ].join(';');
+
+    const body = document.createElement('div');
+    body.id = 'engine-debug-body';
+    body.style.cssText =
+      'display:none;padding:8px 10px;max-height:80vh;overflow-y:auto;';
+
+    toggle.addEventListener('click', () => {
+      body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    });
+
+    panel.appendChild(toggle);
+    panel.appendChild(body);
+    return panel;
+  }
+
+  private _updateDebugPanel(
+    panel: HTMLElement,
+    snapshots: Snapshot[],
+    choices: EnhancedChoice<Action<string, any>>[],
+  ): void {
+    const body = panel.querySelector('#engine-debug-body') as HTMLElement;
+
+    const section = (label: string, open = false): HTMLDetailsElement => {
+      const d = document.createElement('details');
+      if (open) d.open = true;
+      d.style.cssText = 'margin-bottom:6px;';
+      const s = document.createElement('summary');
+      s.style.cssText = 'cursor:pointer;color:#7dd3fc;margin-bottom:4px;';
+      s.textContent = label;
+      d.appendChild(s);
+      return d;
+    };
+
+    const pre = (text: string): HTMLPreElement => {
+      const p = document.createElement('pre');
+      p.style.cssText =
+        'margin:0;white-space:pre-wrap;word-break:break-all;color:#d4d4d4;font-size:11px;';
+      p.textContent = text;
+      return p;
+    };
+
+    body.replaceChildren();
+
+    // Choices section
+    const choicesSection = section(`Choices (${choices.length})`);
+    if (choices.length === 0) {
+      choicesSection.appendChild(pre('(none)'));
+    } else {
+      for (const choice of choices) {
+        const d = section(`${choice.id} — ${choice.execution.$type}`);
+        d.appendChild(
+          pre(JSON.stringify(JSON.parse(JSON.stringify(choice)), null, 2)),
+        );
+        choicesSection.appendChild(d);
+      }
+    }
+    body.appendChild(choicesSection);
+
+    // Snapshots / dirty entities section
+    const snapshotsSection = section(`Snapshots (${snapshots.length})`);
+    for (let i = 0; i < snapshots.length; i++) {
+      const snap = snapshots[i]!;
+      const dirtyCount = Object.keys(snap.dirtyEntities).length;
+      const executed = snap.executed
+        ? `executed: ${(snap.executed as any).execution?.$type ?? '?'}`
+        : 'no execution';
+      const snapDetail = section(`[${i}] ${executed} — ${dirtyCount} dirty`);
+      snapDetail.appendChild(pre(JSON.stringify(snap.dirtyEntities, null, 2)));
+      snapshotsSection.appendChild(snapDetail);
+    }
+    body.appendChild(snapshotsSection);
   }
 
   private _handleChoicesClick(

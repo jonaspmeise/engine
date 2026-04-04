@@ -84,6 +84,7 @@ export class ChoiceService {
     }
 
     // Filter out choices that are prevented by any negative rule.
+    const filteredChoices = new Set<EnhancedChoice<Action<string, any>>>();
     outer: for (const choice of choices) {
       for (const rule of this._state.negativeRules) {
         if (rule.apply(choice, runtime)) {
@@ -91,14 +92,20 @@ export class ChoiceService {
             () =>
               `Choice ${choice.execution.$type} is prevented by rule ${rule.name}. Removing from choice space...`,
           );
-          choices.delete(choice);
           continue outer;
         }
       }
+
+      filteredChoices.add(choice);
     }
 
+    this._logger.debug(
+      () =>
+        `Choice space calculated. ${filteredChoices.size} choices available for players, ${choices.size} choices unfiltered.`,
+    );
+
     // Are all players, for which choices are generated, registered in the runtime?
-    for (const choice of choices) {
+    for (const choice of filteredChoices) {
       if (!runtime.entitySet().has(choice.player)) {
         throw new Error(
           `Player ${choice.player[entityId]} is not registered in the runtime.`,
@@ -108,11 +115,12 @@ export class ChoiceService {
 
     // Do all players have at least one choice?
     const playersWithChoices = new Set();
-    for (const choice of choices) {
+    for (const choice of filteredChoices) {
       playersWithChoices.add(choice.player);
     }
 
     if (playersWithChoices.size === 0) {
+      this._logger.error(`Choices prior to filtering were:`, choices);
       throw new Error(
         `No choices generated for any player! At least one player should have at least one choice. Please check your rules!`,
       );
@@ -123,6 +131,6 @@ export class ChoiceService {
       );
     }
 
-    return choices;
+    return filteredChoices;
   }
 }

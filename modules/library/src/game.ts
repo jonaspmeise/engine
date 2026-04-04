@@ -131,6 +131,16 @@ export abstract class Game<
   abstract triggers(): Set<Trigger> | void;
 
   /**
+   * Returns a list of actions (or raw executables) that are automatically executed
+   * at the very start of the game, before the first snapshot is sent to any player.
+   * Use this to perform deterministic setup steps that should appear in the game log,
+   * such as dealing cards or placing initial tokens.
+   *
+   * @returns A list of {@link TriggerReturnType} items to execute, or void if there are none.
+   */
+  abstract setupActions(runtime: QueryableRuntime): TriggerReturnType[] | void;
+
+  /**
    * Returns the set of all view filters that should be applied in this game.
    * View filters allow games with hidden information (e.g. UNO) to expose only
    * a player-specific subset of each entity's state.
@@ -150,12 +160,16 @@ export abstract class Game<
    * The client needs the constructor of the original entity.
    */
   public entityClassMapping(): EntityClassMapping {
-    return Object.fromEntries(
-      Array.from(this.entityClasses()).map((entityClass) => {
-        const $type = new entityClass().$type;
-        return [$type, entityClass] as const;
-      }),
-    );
+    const mapping: EntityClassMapping = {};
+    for (const entity of this.entityClasses()) {
+      // Because we may use some of our "base entity classes" when representing hidden information,
+      // we need to be able to register these abstract classes as well.
+      // @ts-expect-error entity may be abstract, but we only call it here to read $type
+      const dummy: Entity = new entity(0 as any) as Entity;
+
+      mapping[dummy.$type] = entity;
+    }
+    return mapping;
   }
 
   /**
@@ -440,6 +454,16 @@ export abstract class Game<
       () =>
         `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
     );
+
+    // Push setup actions to the stack so they execute before the first snapshot reaches players.
+    const setupActions = this.setupActions(this);
+    if (setupActions && setupActions.length > 0) {
+      this._logger.info(
+        () =>
+          `Pushing ${setupActions.length} setup action(s) to the stack before game start...`,
+      );
+      this._stateService.pushToStack(...setupActions);
+    }
 
     // Calculate first snapshot.
     this._nextSnapshot();

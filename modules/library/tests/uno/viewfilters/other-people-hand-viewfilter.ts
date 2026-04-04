@@ -18,8 +18,9 @@ export class UnoOtherPlayerHandViewFilter extends ViewFilter {
         // TODO: Type safety would be good here!
         [entityId]: entity[entityId],
         $type: 'UnoCard', // You can still know that it's a card, but not which one!
+        location: entity.location, // You can still know who holds the card, but not which one!
         // All other properties are hidden!
-      } as ENTITY;
+      } as unknown as ENTITY;
     }
 
     return entity;

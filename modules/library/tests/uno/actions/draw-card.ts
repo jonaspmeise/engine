@@ -20,11 +20,21 @@ export class UnoDrawCardAction extends Action<
     const hand = this.parameters.player.hand(runtime);
     const deck = runtime.anyEntity(UnoDeck)!;
 
+    if (deck.cards(runtime).length < this.parameters.amount) {
+      // Shuffle discard pile into deck.
+      // TODO: This should be its own action, but how would we execute this "inside" our current action...?
+      const discardPile = runtime.anyEntity(UnoDeck)!.cards(runtime);
+      discardPile.forEach((card) => {
+        card.location = deck;
+        card.position = 0;
+      });
+    }
+
     for (let i = 0; i < this.parameters.amount; i++) {
       const card = deck.cards(runtime).pop();
 
       if (!card) {
-        throw new Error('Deck is empty! Cannot draw a card.'); // TODO: Implement shuffling.
+        return;
       }
 
       card.location = hand;

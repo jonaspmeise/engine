@@ -7,10 +7,10 @@ import {
 } from '@my-engine/library';
 import { Client } from '../../src/client';
 import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
-import { HorizontalLane } from '../../../library/tests/tictactoe/horizontal-lane';
-import { Win } from '../../../library/tests/tictactoe/win';
-import { MarkAction } from '../../../library/tests/tictactoe/mark';
-import { Draw } from '../../../library/tests/tictactoe/draw';
+import { HorizontalLane } from '../../../library/tests/tictactoe/entities/horizontal-lane';
+import { Draw } from '../../../library/tests/tictactoe/actions/draw';
+import { MarkAction } from '../../../library/tests/tictactoe/actions/mark';
+import { Win } from '../../../library/tests/tictactoe/actions/win';
 
 export class TicTacToeClient extends Client<HTMLDivElement> {
   constructor(player: PlayerInterface) {
@@ -27,7 +27,7 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
     // Render board.
     let board = renderTarget.querySelector('#board');
     if (board === null) {
-      const board = document.createElement('div');
+      board = document.createElement('div');
       board.id = 'board';
       renderTarget.appendChild(board);
     }

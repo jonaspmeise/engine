@@ -7,6 +7,7 @@ import {
 } from '../../../src';
 import { UnoCard } from '../entities/card';
 import { UnoDiscardPile } from '../entities/discard-pile';
+import { UnoMeta } from '../entities/meta';
 
 export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
   apply(runtime: ModifiableRuntime): void {
@@ -14,7 +15,12 @@ export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
 
     const discardPile = runtime.anyEntity(UnoDiscardPile)!;
     card.location = discardPile;
-    card.position = discardPile.cards(runtime).length; // top of the pile!
+    card.position = discardPile.cards(runtime).length;
+
+    // Accumulate forced draw cards for the next player.
+    if (card.drawCards) {
+      runtime.anyEntity(UnoMeta)!.drawOverloads += card.drawCards;
+    }
   }
 
   public $type: 'play_card' = 'play_card';

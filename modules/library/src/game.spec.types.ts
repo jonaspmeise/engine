@@ -2,7 +2,7 @@ import { Action } from './components/action';
 import { Choice } from './components/choice';
 import { Entity } from './components/entity';
 import { PositiveRule } from './components/positive-rule';
-import { Trigger } from './components/trigger';
+import { Trigger, TriggerReturnType } from './components/trigger';
 import { ViewFilter } from './components/view-filter';
 import { Game } from './game';
 import { EntityClass } from './game.types';
@@ -91,6 +91,8 @@ export class TestGame extends Game {
 
     return entities;
   }
+
+  setupActions(_runtime: QueryableRuntime): TriggerReturnType[] | void {}
 
   entityClasses(): Set<EntityClass<Entity>> {
     return new Set<EntityClass<Entity>>([

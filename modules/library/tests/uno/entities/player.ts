@@ -8,6 +8,7 @@ import {
   QueryableRuntime,
 } from '../../../src';
 import { UnoHand } from './hand';
+import { entityId } from '@my-engine/library';
 
 export class UnoPlayer extends Entity implements PlayerInterface {
   public $type: string = 'UnoPlayer';
@@ -25,7 +26,9 @@ export class UnoPlayer extends Entity implements PlayerInterface {
   }
 
   public hand(runtime: QueryableRuntime): UnoHand {
-    return runtime.entities(UnoHand).find((hand) => hand.player === this)!;
+    return runtime
+      .entities(UnoHand)
+      .find((hand) => hand.player[entityId] === this[entityId])!;
   }
 
   public toString(): string {

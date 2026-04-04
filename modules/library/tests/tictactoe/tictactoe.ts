@@ -8,7 +8,7 @@ import { NegativeRule } from '../../src/components/negative-rule';
 import { PositiveRule } from '../../src/components/positive-rule';
 import { Class, EntityClass } from '../../src/game.types';
 import { Choice } from '../../src/components/choice';
-import { Trigger } from '../../src/components/trigger';
+import { Trigger, TriggerReturnType } from '../../src/components/trigger';
 import { ViewFilter } from '../../src/components/view-filter';
 import { ChangeTurnTrigger } from './triggers/change-turn-trigger';
 import { GameOverTrigger } from './triggers/game-over-trigger';
@@ -18,6 +18,8 @@ import { Slot } from './entities/slot';
 import { VerticalLane } from './entities/vertical-lane';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
+  setupActions(): TriggerReturnType[] | void {}
+
   entityClasses(): Set<EntityClass<Entity>> {
     return new Set<EntityClass<Entity>>([
       Slot,

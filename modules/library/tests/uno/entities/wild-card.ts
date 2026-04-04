@@ -2,7 +2,8 @@ import { UnoCard } from './card';
 import { UnoZone } from './zone';
 
 export class UnoWildCard extends UnoCard {
-  public color: 'black' = 'black';
+  public $type: string = 'WildCard';
+  public color: 'red' | 'yellow' | 'green' | 'blue' | 'black' = 'black';
   drawCards: number | undefined;
 
   constructor(
