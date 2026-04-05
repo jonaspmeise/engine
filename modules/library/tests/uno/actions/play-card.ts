@@ -1,7 +1,6 @@
 import {
   Action,
-  entityId,
-  EntityID,
+  Entity,
   ModifiableRuntime,
   QueryableRuntime,
 } from '../../../src';
@@ -10,7 +9,7 @@ import { UnoDiscardPile } from '../entities/discard-pile';
 import { UnoMeta } from '../entities/meta';
 
 export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
-  apply(runtime: ModifiableRuntime): void {
+  doApply(runtime: ModifiableRuntime): void {
     const card = this.parameters.card;
 
     const discardPile = runtime.anyEntity(UnoDiscardPile)!;
@@ -33,7 +32,7 @@ export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
     return `Play ${this.parameters.card}.`;
   }
 
-  public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
-    return [this.parameters.card[entityId]];
+  public affectedEntities(_runtime: QueryableRuntime): Entity[] | void {
+    return [this.parameters.card];
   }
 }

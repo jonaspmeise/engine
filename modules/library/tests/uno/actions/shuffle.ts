@@ -12,14 +12,14 @@ import { UnoZone } from '../entities/zone';
 
 export class UnoShuffleAction extends Action<
   'shuffle',
-  { from: UnoZone; deck: UnoDeck }
+  { from: UnoZone; to: UnoDeck }
 > {
-  apply(runtime: ModifiableRuntime): void {
+  doApply(runtime: ModifiableRuntime): void {
     this.parameters.from.cards(runtime).forEach((card) => {
-      card.location = this.parameters.deck;
+      card.location = this.parameters.to;
     });
 
-    const deckId = this.parameters.deck[entityId];
+    const deckId = this.parameters.to[entityId];
     const cards = runtime
       .entities(UnoCard)
       .filter((c) => c.location?.[entityId] === deckId) as UnoCard[];
@@ -42,7 +42,7 @@ export class UnoShuffleAction extends Action<
   }
 
   public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
-    return [this.parameters.deck[entityId]];
+    return [this.parameters.to[entityId]];
   }
 
   public $type: 'shuffle' = 'shuffle';

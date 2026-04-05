@@ -1,3 +1,5 @@
+import { QueryableRuntime } from '../../../src';
+import { UnoCard } from './card';
 import { UnoZone } from './zone';
 
 export class UnoDiscardPile extends UnoZone {
@@ -9,5 +11,11 @@ export class UnoDiscardPile extends UnoZone {
 
   constructor() {
     super('discard-pile');
+  }
+
+  // A top card always has to exist!
+  public top(runtime: QueryableRuntime): UnoCard {
+    const cards = this.cards(runtime);
+    return cards[cards.length - 1]!;
   }
 }

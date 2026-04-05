@@ -3,6 +3,7 @@ import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
 import { EntityID } from './entity.types';
 import { QueryableRuntime } from '../interfaces/queryable-runtime';
 import { PlayerEntity } from '../services/entity/entity-service.types';
+import { Entity } from './entity';
 
 /**
  * Models a single type of @see Action.
@@ -10,10 +11,12 @@ import { PlayerEntity } from '../services/entity/entity-service.types';
  * An Action does not need to have parameters.
  */
 export abstract class Action<
-  TYPE extends string,
+  ACTION_TYPE extends string,
   PARAMETERS extends ActionParameters | undefined = undefined,
+  RETURN_TYPE = void,
 > {
   public readonly parameters: PARAMETERS;
+  private returnInformation: RETURN_TYPE | undefined = undefined;
 
   constructor(
     ...args: PARAMETERS extends undefined ? [] : [parameters: PARAMETERS]
@@ -26,14 +29,26 @@ export abstract class Action<
    * This should consume the @see parameters that are passed in the constructor, and modify the game state accordingly.
    * @param runtime The runtime, that allows access to Entities, which are mutable for the context of this Action.
    */
-  abstract apply(runtime: ModifiableRuntime): void;
+  public apply(runtime: ModifiableRuntime): RETURN_TYPE {
+    const result = this.doApply(runtime);
+
+    this.returnInformation = result;
+    return result;
+  }
+
+  /**
+   * Applies this Action to a game state.
+   * This should consume the @see parameters that are passed in the constructor, and modify the game state accordingly.
+   * @param runtime The runtime, that allows access to Entities, which are mutable for the context of this Action.
+   */
+  protected abstract doApply(runtime: ModifiableRuntime): RETURN_TYPE;
 
   /**
    * The name / type of this Action, e.g. "move", "attack" or "mark".
    * This is needed to identify the type of this Action client-side, since due to minification, generating
    * it from the class name might produce non-sensible results.
    */
-  public abstract readonly $type: TYPE;
+  public abstract readonly $type: ACTION_TYPE;
 
   /**
    * Returns a message describing the effect, after this action is executed.
@@ -57,7 +72,18 @@ export abstract class Action<
    * @param runtime The runtime, that allows access to Entities outside of the internal state of this Choice.
    * @returns A list of all entities that are affected by this action, or alternatively void if none are affected (which should rarely be the case!).
    */
-  public abstract affectedEntities(
-    runtime: QueryableRuntime,
-  ): EntityID[] | void;
+  // TODO: Test that an error is thrown if affectedEntities returns an entity that is not registered!
+  public abstract affectedEntities(runtime: QueryableRuntime): Entity[] | void;
+
+  /**
+   * Returns the information that is returned by this Action after it is executed.
+   * This can be used to access information about the result of this Action, e.g. how much damage was dealt,
+   * which card was drawn, ...
+   * @returns The information that is returned by this Action after it is executed.
+   * Returns undefined if the action was not executed.
+   * Returns null if this Action does not return any information.
+   */
+  public returned(): RETURN_TYPE | undefined {
+    return this.returnInformation;
+  }
 }
