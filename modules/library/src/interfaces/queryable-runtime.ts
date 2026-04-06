@@ -1,5 +1,5 @@
 import { Entity } from '../components/entity';
-import { Class } from '../game.types';
+import { Class, GameEndParameters, GameStatus } from '../game.types';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 
 /**
@@ -18,4 +18,5 @@ export interface QueryableRuntime {
   players(): ReadonlyArray<PlayerEntity>;
 
   // TODO: Maybe needed? history(): ReadonlyArray<EnhancedChoice<Action<string, any>>>;
+  status(): Readonly<GameStatus>;
 }

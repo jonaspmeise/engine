@@ -6,10 +6,9 @@ import {
 } from '../../../src';
 import { UnoCard } from '../entities/card';
 import { UnoDiscardPile } from '../entities/discard-pile';
-import { UnoMeta } from '../entities/meta';
 
 export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
-  doApply(runtime: ModifiableRuntime): void {
+  async doApply(runtime: ModifiableRuntime): Promise<void> {
     const card = this.parameters.card;
 
     const discardPile = runtime.anyEntity(UnoDiscardPile)!;
@@ -17,9 +16,7 @@ export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
     card.position = discardPile.cards(runtime).length;
 
     // Accumulate forced draw cards for the next player.
-    if (card.drawCards) {
-      runtime.anyEntity(UnoMeta)!.drawOverloads += card.drawCards;
-    }
+    await card.onPlay(runtime);
   }
 
   public $type: 'play_card' = 'play_card';

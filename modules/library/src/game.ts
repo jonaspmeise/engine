@@ -29,7 +29,6 @@ import { PlayerEntity } from './services/entity/entity-service.types';
 import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 import { Trigger, TriggerReturnType } from './components/trigger';
 import { StateService } from './services/state/state-service';
-import { EnhancedChoice } from './components/choice';
 import { Action } from './components/action';
 import { ViewFilter } from './components/view-filter';
 import { ViewFilterService } from './services/view-filter/view-filter-service';

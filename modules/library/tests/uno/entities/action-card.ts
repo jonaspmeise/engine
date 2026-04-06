@@ -1,4 +1,6 @@
+import { ModifiableRuntime } from '../../../src';
 import { UnoCard } from './card';
+import { UnoMeta } from './meta';
 import { UnoZone } from './zone';
 
 export class ActionCard extends UnoCard {
@@ -18,5 +20,21 @@ export class ActionCard extends UnoCard {
 
   public playableOn(otherCard: UnoCard): boolean {
     return this.color === otherCard.color || this.value === otherCard.value;
+  }
+
+  public async onPlay(runtime: ModifiableRuntime): Promise<void> {
+    const meta = runtime.anyEntity(UnoMeta)!;
+
+    switch (this.value) {
+      case 'reverse':
+        meta.direction *= -1;
+        break;
+      case 'skip':
+        meta.currentPlayerIndex++;
+        break;
+      case 'draw-two':
+        meta.drawOverloads += 2;
+        break;
+    }
   }
 }

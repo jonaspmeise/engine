@@ -1,6 +1,6 @@
 import {
   Action,
-  EntityID,
+  Entity,
   ModifiableRuntime,
   QueryableRuntime,
 } from '../../../src';
@@ -8,11 +8,11 @@ import { UnoDeck } from '../entities/deck';
 import { UnoDiscardPile } from '../entities/discard-pile';
 
 export class UnoDealTopCardAction extends Action<'deal_top_card'> {
-  public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
+  public affectedEntities(_runtime: QueryableRuntime): Entity[] | void {
     // Not needed, because the player never executes this.
   }
 
-  apply(runtime: ModifiableRuntime): void {
+  public async doApply(runtime: ModifiableRuntime): Promise<void> {
     const deck = runtime.anyEntity(UnoDeck)!;
     const discardPile = runtime.anyEntity(UnoDiscardPile)!;
     const topCard = deck.cards(runtime).at(-1);

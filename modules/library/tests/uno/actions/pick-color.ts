@@ -1,5 +1,6 @@
 import {
   Action,
+  Entity,
   entityId,
   EntityID,
   ModifiableRuntime,
@@ -13,7 +14,7 @@ export class UnoPickColorAction extends Action<
   'pick_color',
   { card: UnoWildCard; color: UnoColor }
 > {
-  apply(_runtime: ModifiableRuntime): void {
+  protected async doApply(): Promise<void> {
     this.parameters.card.color = this.parameters.color;
   }
 
@@ -25,8 +26,8 @@ export class UnoPickColorAction extends Action<
     return `Pick ${this.parameters.color}.`;
   }
 
-  public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
-    return [this.parameters.card[entityId]];
+  public affectedEntities(_runtime: QueryableRuntime): Entity[] | void {
+    return [this.parameters.card];
   }
 
   public $type: 'pick_color' = 'pick_color';

@@ -1,6 +1,5 @@
 import { ActionParameters } from './action.types';
 import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
-import { EntityID } from './entity.types';
 import { QueryableRuntime } from '../interfaces/queryable-runtime';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { Entity } from './entity';
@@ -29,8 +28,8 @@ export abstract class Action<
    * This should consume the @see parameters that are passed in the constructor, and modify the game state accordingly.
    * @param runtime The runtime, that allows access to Entities, which are mutable for the context of this Action.
    */
-  public apply(runtime: ModifiableRuntime): RETURN_TYPE {
-    const result = this.doApply(runtime);
+  public async apply(runtime: ModifiableRuntime): Promise<RETURN_TYPE> {
+    const result = await this.doApply(runtime);
 
     this.returnInformation = result;
     return result;
@@ -41,7 +40,7 @@ export abstract class Action<
    * This should consume the @see parameters that are passed in the constructor, and modify the game state accordingly.
    * @param runtime The runtime, that allows access to Entities, which are mutable for the context of this Action.
    */
-  protected abstract doApply(runtime: ModifiableRuntime): RETURN_TYPE;
+  protected abstract doApply(runtime: ModifiableRuntime): Promise<RETURN_TYPE>;
 
   /**
    * The name / type of this Action, e.g. "move", "attack" or "mark".

@@ -1,15 +1,14 @@
 import {
   Action,
-  entityId,
-  EntityID,
+  Entity,
   ModifiableRuntime,
   PlayerInterface,
   QueryableRuntime,
 } from '../../../src';
 import { UnoMeta } from '../entities/meta';
 
-export class UnoEndTurn extends Action<'end_turn'> {
-  apply(runtime: ModifiableRuntime): void {
+export class UnoEndTurnAction extends Action<'end_turn'> {
+  public async doApply(runtime: ModifiableRuntime): Promise<void> {
     const meta = runtime.anyEntity(UnoMeta)!;
 
     // Transfer current player's turn to the next player.
@@ -22,8 +21,8 @@ export class UnoEndTurn extends Action<'end_turn'> {
   public prompt(): string {
     throw new Error('End your turn.');
   }
-  public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
-    return [runtime.anyEntity(UnoMeta)![entityId]];
+  public affectedEntities(runtime: QueryableRuntime): Entity[] | void {
+    return [runtime.anyEntity(UnoMeta)!.currentPlayer()];
   }
 
   public $type: 'end_turn' = 'end_turn';

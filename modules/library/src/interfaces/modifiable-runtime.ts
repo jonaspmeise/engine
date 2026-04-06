@@ -1,4 +1,3 @@
-import { Action } from '../components/action';
 import { Choice } from '../components/choice';
 import { Entity } from '../components/entity';
 import { GameEndParameters } from '../game.types';
@@ -13,9 +12,9 @@ export interface ModifiableRuntime extends QueryableRuntime {
   spawnEntity(entity: Entity): void;
   end(parameters: Partial<GameEndParameters>): void;
   // TODO: Choices are abstract. There are default choices (a button-dialogue, e.g.) or action choices.
-  prompt<RETURN_TYPE>(
+  prompt<CHOICES extends Choice<any>[]>(
     player: PlayerInterface,
-    choices: Choice<RETURN_TYPE>[],
+    choices: [...CHOICES],
     message?: string,
-  ): Promise<RETURN_TYPE>;
+  ): Promise<CHOICES[number] extends Choice<infer T> ? T : never>;
 }

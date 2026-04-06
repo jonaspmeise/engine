@@ -9,4 +9,4 @@ import { NodeId } from './node.types';
  */
 export type Node = (
   runtime: ModifiableRuntime,
-) => Promise<NodeId> | NodeId | void;
+) => Promise<NodeId> | NodeId | Promise<void> | void;

@@ -17,4 +17,6 @@ export class UnoDefaultCard extends UnoCard {
   public playableOn(otherCard: UnoCard): boolean {
     return this.color === otherCard.color || this.value === otherCard.value;
   }
+
+  public async onPlay(): Promise<void> {}
 }

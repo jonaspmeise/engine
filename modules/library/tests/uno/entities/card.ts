@@ -1,4 +1,4 @@
-import { Entity } from '../../../src';
+import { Entity, ModifiableRuntime } from '../../../src';
 import { UnoZone } from './zone';
 
 export abstract class UnoCard extends Entity {
@@ -23,6 +23,8 @@ export abstract class UnoCard extends Entity {
     | 'wild-draw-four';
 
   public abstract playableOn(otherCard: UnoCard): boolean;
+
+  public abstract onPlay(runtime: ModifiableRuntime): Promise<void>;
 
   public toString(): string {
     return `${this.color} ${this.value}`;

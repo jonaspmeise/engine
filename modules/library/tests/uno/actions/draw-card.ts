@@ -21,7 +21,9 @@ export class UnoDrawCardAction extends Action<
     drawn: UnoCard[];
   }
 > {
-  doApply(runtime: ModifiableRuntime): { drawn: UnoCard[] } {
+  public async doApply(
+    runtime: ModifiableRuntime,
+  ): Promise<{ drawn: UnoCard[] }> {
     const hand = this.parameters.player.hand(runtime);
     const deck = runtime.anyEntity(UnoDeck)!;
 

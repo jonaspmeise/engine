@@ -10,6 +10,7 @@ export class UnoMeta extends Entity {
 
   public drawOverloads: number = 0;
   public currentPlayerIndex: number = 0;
+  public direction: 1 | -1 = 1;
 
   constructor(public players: UnoPlayer[]) {
     super('meta');
