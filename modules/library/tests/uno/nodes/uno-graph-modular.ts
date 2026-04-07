@@ -1,6 +1,6 @@
 import { ModifiableRuntime } from '../../../src';
 import { ActionChoice } from '../../../src/components/choice-action';
-import { Graph } from '../../../src/components/graph';
+import { Graph } from '../../../src/components/graph/graph';
 import { UnoDealTopCardAction } from '../actions/deal-top-card';
 import { UnoDrawCardAction } from '../actions/draw-card';
 import { UnoEndTurnAction } from '../actions/end-turn';

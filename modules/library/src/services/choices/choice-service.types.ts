@@ -1,5 +1,5 @@
-import { NegativeRule } from '../../components/negative-rule';
-import { PositiveRule } from '../../components/positive-rule';
+import { NegativeRule } from '../../components/rules/negative-rule';
+import { PositiveRule } from '../../components/rules/positive-rule';
 import { Trigger } from '../../components/trigger';
 
 export type MinimalSnapshotParameters = {

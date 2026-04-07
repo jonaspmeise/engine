@@ -3,7 +3,7 @@ import { Action } from './components/action';
 import { ModifiableRuntime } from './interfaces/modifiable-runtime';
 import { Entity, entityId } from './components/entity';
 import { ClientSnapshotData, Logger, NO_OP_LOGGER } from './game.types';
-import { PositiveRule } from './components/positive-rule';
+import { PositiveRule } from './components/rules/positive-rule';
 import { timeout } from './utility.spec';
 import { EntityID } from './components/entity.types';
 import { Choice } from './components/choice';

@@ -1,6 +1,6 @@
 import { ModifiableRuntime } from '../../../src';
 import { ActionChoice } from '../../../src/components/choice-action';
-import { Graph } from '../../../src/components/graph';
+import { Graph } from '../../../src/components/graph/graph';
 import { UnoDealTopCardAction } from '../actions/deal-top-card';
 import { UnoDrawCardAction } from '../actions/draw-card';
 import { UnoEndTurnAction } from '../actions/end-turn';
@@ -83,10 +83,7 @@ export const FatUnoGraph: Graph = {
                   new UnoPlayCardAction({ card: drawnCard }),
                   currentPlayer, // TODO: Is redundant!
                 ),
-                new ActionChoice(
-                  new UnoEndTurnAction(),
-                  currentPlayer,
-                ),
+                new ActionChoice(new UnoEndTurnAction(), currentPlayer),
               ])
             ).apply(runtime);
           }
@@ -105,16 +102,13 @@ export const FatUnoGraph: Graph = {
           );
 
         (
-          await runtime.prompt(
-            currentPlayer,
-            [
-              ...playableCardActions,
-              new ActionChoice(
-                new UnoDrawCardAction({ amount: 1, player: currentPlayer }),
-                currentPlayer,
-              ),
-            ],
-          )
+          await runtime.prompt(currentPlayer, [
+            ...playableCardActions,
+            new ActionChoice(
+              new UnoDrawCardAction({ amount: 1, player: currentPlayer }),
+              currentPlayer,
+            ),
+          ])
         ).apply(runtime);
       }
 

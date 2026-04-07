@@ -1,7 +1,7 @@
 import { Action } from './components/action';
 import { Choice } from './components/choice';
 import { Entity } from './components/entity';
-import { PositiveRule } from './components/positive-rule';
+import { PositiveRule } from './components/rules/positive-rule';
 import { Trigger, TriggerReturnType } from './components/trigger';
 import { ViewFilter } from './components/view-filter';
 import { Game } from './game';

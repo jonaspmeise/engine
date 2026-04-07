@@ -2,7 +2,7 @@ import { Action } from './action';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { dereferenceEntityID } from './choice.types';
 import { Entity, entityId } from './entity';
-import { NegativeRule } from './negative-rule';
+import { NegativeRule } from './rules/negative-rule';
 import { Choice } from '..';
 
 /**

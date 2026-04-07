@@ -1,7 +1,7 @@
 import { describe, test, expect, mock, spyOn, jest } from 'bun:test';
 import { ChoiceService } from './choice-service';
 import { Action } from '../../components/action';
-import { PositiveRule } from '../../components/positive-rule';
+import { PositiveRule } from '../../components/rules/positive-rule';
 import {
   PlayerInterface,
   playerInterfaceMarker,

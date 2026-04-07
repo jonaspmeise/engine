@@ -1,6 +1,6 @@
 import { ActionChoice } from '../../../src/components/choice-action';
 import { DefaultChoice } from '../../../src/components/choice-default';
-import { Graph } from '../../../src/components/graph';
+import { Graph } from '../../../src/components/graph/graph';
 import { UnoDrawCardAction } from '../actions/draw-card';
 import { UnoPlayCardAction } from '../actions/play-card';
 import { UnoWinGameAction } from '../actions/win-game';

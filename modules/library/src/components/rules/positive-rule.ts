@@ -1,6 +1,7 @@
-import { QueryableRuntime } from '../interfaces/queryable-runtime';
-import { Action } from './action';
-import { Choice } from './choice';
+import { QueryableRuntime } from '../../interfaces/queryable-runtime';
+import { Action } from '../action';
+import { Choice } from '../choice';
+import { NodeId } from '../graph/node.types';
 import { Rule } from './rule';
 
 /**
@@ -8,7 +9,7 @@ import { Rule } from './rule';
  * Every game needs at least one positive rule, otherwise no choice is ever generated.
  * It can be used to model rules that grant players additional choices, for example by granting them new actions or by triggering additional rules.
  */
-export type PositiveRule = Rule & {
+export type GeneratorRule<NODE extends NodeId = NodeId> = Rule<NODE> & {
   /**
    * Generates choices for all/any players in the given runtime context.
    * Note that some of these choices may later be filtered by @see NegativeRule.

@@ -22,8 +22,8 @@ import {
   isPlayerInterface,
   playerId,
 } from './interfaces/player-interface';
-import { PositiveRule } from './components/positive-rule';
-import { NegativeRule } from './components/negative-rule';
+import { PositiveRule } from './components/rules/positive-rule';
+import { NegativeRule } from './components/rules/negative-rule';
 import { ChoiceService } from './services/choices/choice-service';
 import { PlayerEntity } from './services/entity/entity-service.types';
 import { ModifiableRuntime } from './interfaces/modifiable-runtime';

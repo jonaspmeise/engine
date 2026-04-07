@@ -1,6 +1,6 @@
-import { QueryableRuntime } from '../interfaces/queryable-runtime';
-import { Action } from './action';
-import { Choice } from './choice';
+import { QueryableRuntime } from '../../interfaces/queryable-runtime';
+import { Action } from '../action';
+import { Choice } from '../choice';
 import { Rule } from './rule';
 
 /**
