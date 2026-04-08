@@ -9,7 +9,7 @@ import { Rule } from './rule';
  * Every game needs at least one positive rule, otherwise no choice is ever generated.
  * It can be used to model rules that grant players additional choices, for example by granting them new actions or by triggering additional rules.
  */
-export type GeneratorRule<NODE extends NodeId = NodeId> = Rule<NODE> & {
+export type GeneratorRule<NODE extends NodeId> = Rule<NODE> & {
   /**
    * Generates choices for all/any players in the given runtime context.
    * Note that some of these choices may later be filtered by @see NegativeRule.

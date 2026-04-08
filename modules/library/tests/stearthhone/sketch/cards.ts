@@ -1,38 +1,13 @@
-/**
- * STEARTHHONE — CARD CLASSES
- *
- * Each named card is a class extending StoneCard.
- * Effects live in lifecycle hooks — no triggers, no factory functions.
- *
- * Base StoneCard has all hooks as no-ops. Override only what the card needs.
- *
- * Card effects can use the helpers from helpers.ts:
- *   allEnemyTargets, randomFrom, …
- *
- * Adding a new card:
- *  1. Create a class extending StoneCard
- *  2. Declare `static readonly stats: MinionCard` with its base values
- *  3. Override the relevant lifecycle hooks
- *  4. Register it in REGISTRY below
- *
- * Generic cards (no special effects) need no class — the registry falls
- * through to base StoneCard with data from the card database.
- */
-
 import { ModifiableRuntime } from '../../../src/interfaces/modifiable-runtime';
 import { StoneCard, StoneHero, StoneMinion, StoneGameState } from './entities';
 import { DamageContext, DestroyContext, SummonContext } from './engine-v2';
-import {
-  allEnemyTargets,
-  randomFrom,
-} from './helpers';
+import { allEnemyTargets, randomFrom } from './helpers';
 import { DealDamageAction, SummonMinionAction } from './actions';
 import type { Card, MinionCard } from '../stearthhone.typed';
+import { StearthhoneCard } from './entities/StearthhoneCard';
+import { StearthhoneMinion } from './entities/StearthhoneMinion';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Gurubashi Berserker (5 mana, 2/7 — Epic)
-// "Whenever this minion takes damage, gain +3 Attack."
-// ─────────────────────────────────────────────────────────────────────────────
+export const cards: StearthhoneCard[] = [new StearthhoneMinion('1')];
 
 export class GurubashiBerserker extends StoneCard {
   static readonly stats: MinionCard = {
@@ -148,9 +123,11 @@ export class FireImp extends StoneCard {
     // Guard: only fire the battlecry for this imp's own summon event.
     if (context.summoned !== self) return;
     // Push through DealDamageAction so any 'deal_damage' trigger fires correctly.
-    runtime.anyEntity(StoneGameState)!.triggerStack.push(
-      new DealDamageAction({ source: self, target: self.owner, amount: 1 }),
-    );
+    runtime
+      .anyEntity(StoneGameState)!
+      .triggerStack.push(
+        new DealDamageAction({ source: self, target: self.owner, amount: 1 }),
+      );
   }
 }
 
@@ -182,9 +159,11 @@ export class RagnarosTheFirelord extends StoneCard {
     const target = randomFrom(allEnemyTargets(runtime, self.owner));
     if (!target) return;
     // Push through DealDamageAction so triggers listening for 'deal_damage' fire.
-    runtime.anyEntity(StoneGameState)!.triggerStack.push(
-      new DealDamageAction({ source: self, target, amount: 8 }),
-    );
+    runtime
+      .anyEntity(StoneGameState)!
+      .triggerStack.push(
+        new DealDamageAction({ source: self, target, amount: 8 }),
+      );
   }
 }
 

@@ -1,59 +1,50 @@
-import { Entity } from '@my-engine/library';
-import { StearthhoneEntity } from './StearthhoneEntity';
+import { StearthhoneCard, StearthhoneRarity } from './StearthhoneCard';
+import { StearthhonePlayer } from './StearthhonePlayer';
+import { StearthhonePrototypeMinion } from './StearthhonePrototypeMinion';
+import { StearthhoneZone } from './StearthhoneZone';
 
-export class StearthhoneMinion extends StearthhoneEntity {
+export class StearthhoneMinion extends StearthhoneCard {
   public $type = 'StoneMinion';
 
-  public readonly basePrototypeCard: StearthhoneMinionCard;
-
-  /** Combat stats are different from the base prototype card! */
-  public attack: number;
-
-  /** Board position among this owner's minions (0-indexed). */
-  public boardPosition: number = 0;
-
-  // Combat flags
-  public canAttackThisTurn: boolean = false; // false until start of next turn (summoning sickness)
   public attacksRemainingThisTurn: number = 0;
+  public properties = {
+    taunt: false,
+    divineShield: false,
+    windfury: false,
+    charge: false,
+    lifesteal: false,
+    canAttack: true,
+  };
+  public readonly stats: {
+    health: number;
+    attack: number;
+    cost: number;
+  };
 
-  // Keywords
-  public hasTaunt: boolean = false;
-  public hasDivineShield: boolean = false;
-  public hasWindfury: boolean = false;
-  public hasCharge: boolean = false; // can attack same turn as summoned
-  public hasLifesteal: boolean = false;
-
-  /** True once health drops to 0 or below — processed by death-check trigger. */
   public pendingDeath: boolean = false;
-
-  /** Copied from card.cantAttack at summon. Can be reset by silence. */
-  public cantAttack: boolean = false;
 
   constructor(
     id: string,
-    public readonly owner: StoneHero,
-    /** The card this minion was created from. */
-    public readonly sourceCard: StoneCard,
-    base: MinionCard,
+    owner: StearthhonePlayer,
+    controller: StearthhonePlayer,
+    position: number,
+    location: StearthhoneZone,
+    cost: number,
+    rarity: StearthhoneRarity,
+    // Unlike spells, minions are mutable (atleast in our version).
+    public readonly source: StearthhonePrototypeMinion,
   ) {
-    super(id);
-    this.attack = base.attack;
-    this.health = base.health;
-    this.maxHealth = base.health;
+    super(id, owner, controller, source.name, position, location, cost, rarity);
+    {
+      this.stats = {
+        health: source.health,
+        attack: source.attack,
+        cost: source.cost,
+      };
+    }
   }
 
   public isDead(): boolean {
-    return this.health <= 0;
-  }
-
-  public toString(): string {
-    return `${this.sourceCard.base.name} (${this.attack}/${this.health})`;
-  }
-
-  public static fromCard(
-    card: StoneCard,
-    boardPosition: number,
-  ): StearthhoneMinion {
-    return new StearthhoneMinion({ card, boardPosition });
+    return this.stats.health <= 0;
   }
 }

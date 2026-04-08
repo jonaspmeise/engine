@@ -8,7 +8,7 @@ import { NodeId } from '../graph/node.types';
  * @param name The name of the rule, which should be unique within a game.
  * @param applicableTo The nodes to which this rule is applicable. If empty, the rule is applicable to all nodes.
  */
-export type Rule<NODE extends NodeId = NodeId> = {
+export type Rule<NODE extends NodeId> = {
   name: string;
-  applicableTo: ReadonlyArray<NODE>;
+  applicableTo?: ReadonlyArray<NODE> | undefined;
 };

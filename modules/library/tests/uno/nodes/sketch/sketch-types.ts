@@ -14,8 +14,8 @@
 import { Action } from '../../../../src/components/action';
 import { Choice } from '../../../../src/components/choice';
 import { Entity } from '../../../../src/components/entity';
-import { NegativeRule } from '../../../../src/components/rules/negative-rule';
-import { PositiveRule } from '../../../../src/components/rules/positive-rule';
+import { NegativeRule } from '../../../../src/components/rules/filter-rule';
+import { PositiveRule } from '../../../../src/components/rules/generator-rule';
 import { ModifiableRuntime } from '../../../../src/interfaces/modifiable-runtime';
 import { NodeId } from '../../../../src/components/graph/node.types';
 

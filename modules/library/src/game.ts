@@ -22,8 +22,6 @@ import {
   isPlayerInterface,
   playerId,
 } from './interfaces/player-interface';
-import { PositiveRule } from './components/rules/positive-rule';
-import { NegativeRule } from './components/rules/negative-rule';
 import { ChoiceService } from './services/choices/choice-service';
 import { PlayerEntity } from './services/entity/entity-service.types';
 import { ModifiableRuntime } from './interfaces/modifiable-runtime';
@@ -32,6 +30,9 @@ import { StateService } from './services/state/state-service';
 import { Action } from './components/action';
 import { ViewFilter } from './components/view-filter';
 import { ViewFilterService } from './services/view-filter/view-filter-service';
+import { GeneratorRule } from './components/rules/generator-rule';
+import { FilterRule } from './components/rules/filter-rule';
+import { EnhancedChoice } from './components/choice';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -76,8 +77,8 @@ export abstract class Game<
     );
     this._choiceService = new ChoiceService(
       {
-        positiveRules: this.positiveRules(),
-        negativeRules: this.negativeRules() ?? new Set(),
+        generatorRules: this.generatorRules(),
+        filterRules: this.filterRules() ?? new Set(),
       },
       this._logger,
     );
@@ -115,14 +116,14 @@ export abstract class Game<
    * Needs to be implemented by the game itself.
    */
   // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract positiveRules(): Set<PositiveRule>;
+  abstract generatorRules(): Set<GeneratorRule>;
 
   /**
    * Returns the set of all negative rules that should be applied in this game.
    * Needs to be implemented by the game itself.
    */
   // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract negativeRules(): Set<NegativeRule> | void;
+  abstract filterRules(): Set<FilterRule> | void;
 
   /**
    * Returns the set of all triggers that are registered in this game.
@@ -190,13 +191,13 @@ export abstract class Game<
    * @param parameters The parameters to set up the game with.
    */
   private _setup(parameters: PARAMETERS): void {
-    if (this.positiveRules().size === 0) {
+    if (this.generatorRules().size === 0) {
       throw new Error(
-        `No positive rules provided. A game without positive rules is not possible! Please register some.`,
+        `No generator rules provided. A game without generator rules is not possible! Please register some.`,
       );
     }
     this._logger.info(
-      () => `Registered ${this.positiveRules().size} positive rules.`,
+      () => `Registered ${this.generatorRules().size} generator rules.`,
     );
 
     this._logger.info(() => `Spawning entities...`);

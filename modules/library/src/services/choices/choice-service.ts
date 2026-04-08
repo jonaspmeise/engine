@@ -1,6 +1,7 @@
 import { Action } from '../../components/action';
 import { EnhancedChoice } from '../../components/choice';
 import { entityId } from '../../components/entity';
+import { NodeId } from '../../components/graph/node.types';
 import { DEFAULT_GAME_CONFIG, Logger } from '../../game.types';
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import {
@@ -8,35 +9,35 @@ import {
   ResolvedSnapshotParameters,
 } from './choice-service.types';
 
-export class ChoiceService {
-  private readonly _state: ResolvedSnapshotParameters;
+export class ChoiceService<NODE extends NodeId> {
+  private readonly _state: ResolvedSnapshotParameters<NODE>;
   private _choiceCounter: number = 0;
 
   constructor(
-    state: MinimalSnapshotParameters,
+    state: MinimalSnapshotParameters<NODE>,
     private readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger,
   ) {
     this._state = {
-      positiveRules: state.positiveRules,
-      negativeRules: state.negativeRules ?? new Set(),
+      generatorRules: state.generatorRules,
+      filterRules: state.filterRules ?? new Set(),
       triggers: state.triggers ?? new Set(),
     };
 
-    if (this._state.positiveRules.size === 0) {
+    if (this._state.generatorRules.size === 0) {
       throw new Error(
-        'No positive rules provided. A game without positive rules is not possible! Please register some.',
+        'No generator rules provided. A game without generator rules is not possible! Please register some.',
       );
     }
 
     // Check for duplicate rule names!
     const ruleNames = new Set<string>();
     for (const rule of [
-      ...this._state.positiveRules,
-      ...this._state.negativeRules,
+      ...this._state.generatorRules,
+      ...this._state.filterRules,
     ]) {
       if (ruleNames.has(rule.name)) {
         throw new Error(
-          `Duplicate rule name ${rule.name} found in positive or negative rules! Please ensure all rules have unique names.`,
+          `Duplicate rule name ${rule.name} found in generator or filter rules! Please ensure all rules have unique names.`,
         );
       }
       ruleNames.add(rule.name);
@@ -45,8 +46,8 @@ export class ChoiceService {
 
   /**
    * Calculates the available choice space for all players.
-   * Availbale choices are all choices (that have @see Action as their base) that are generated through @see PositiveRule
-   * and not prevented by any @see NegativeRule.
+   * Availbale choices are all choices (that have @see Action as their base) that are generated through @see GeneratorRule
+   * and not prevented by any @see FilterRule.
    * @param runtime The runtime to calculate the choice space for.
    * Choices should be generated based on the state of entities.
    * @returns The choice space for all players, resulting in all choices that players have during this snapshot.
@@ -58,7 +59,7 @@ export class ChoiceService {
 
     const choices = new Set<EnhancedChoice<Action<string, any>>>();
 
-    for (const rule of this._state.positiveRules) {
+    for (const rule of this._state.generatorRules) {
       const generatedChoices = rule.apply(runtime);
 
       // If the rule does not generate any choices, we can skip it.
@@ -86,7 +87,7 @@ export class ChoiceService {
     // Filter out choices that are prevented by any negative rule.
     const filteredChoices = new Set<EnhancedChoice<Action<string, any>>>();
     outer: for (const choice of choices) {
-      for (const rule of this._state.negativeRules) {
+      for (const rule of this._state.filterRules) {
         if (rule.apply(choice, runtime)) {
           this._logger.debug(
             () =>

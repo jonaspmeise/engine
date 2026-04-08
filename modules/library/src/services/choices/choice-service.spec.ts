@@ -1,7 +1,6 @@
 import { describe, test, expect, mock, spyOn, jest } from 'bun:test';
 import { ChoiceService } from './choice-service';
 import { Action } from '../../components/action';
-import { PositiveRule } from '../../components/rules/positive-rule';
 import {
   PlayerInterface,
   playerInterfaceMarker,
@@ -9,9 +8,9 @@ import {
 import { QueryableRuntime } from '../../interfaces/queryable-runtime';
 import { Choice, EnhancedChoice } from '../../components/choice';
 import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
-import { Entity, entityId } from '../../components/entity';
+import { Entity } from '../../components/entity';
 import { beforeEach } from 'node:test';
-import { EntityID } from '../../components/entity.types';
+import { GeneratorRule } from '../../components/rules/generator-rule';
 
 class TestEntity extends Entity {
   public $type: string = 'TestEntity';
@@ -36,10 +35,10 @@ class TestActionA extends Action<
   public prompt(): string {
     return 'Execute TestActionA';
   }
-  public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
-    return [runtime.anyEntity<TestEntity>(TestEntity)![entityId]];
+  public affectedEntities(runtime: QueryableRuntime): Entity[] | void {
+    return [runtime.anyEntity<TestEntity>(TestEntity)!];
   }
-  apply(runtime: ModifiableRuntime): void {
+  async doApply(runtime: ModifiableRuntime): Promise<void> {
     runtime.anyEntity<TestEntity>(TestEntity)!.value++;
   }
 
@@ -67,6 +66,7 @@ describe('ChoiceService', () => {
     entitySet: mock(() => new Set()),
     history: mock(() => []),
     players: mock(() => []),
+    status: mock(() => 'running'),
   } as QueryableRuntime;
 
   beforeEach(() => {
@@ -74,72 +74,72 @@ describe('ChoiceService', () => {
   });
 
   describe('constructor', () => {
-    test('throws an error if no positive rules are provided. A game without positive rules is not possible.', () => {
+    test('throws an error if no generator rules are provided. A game without generator rules is not possible.', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
           new ChoiceService({
-            positiveRules: new Set() as Set<PositiveRule>,
+            generatorRules: new Set() as Set<GeneratorRule<any>>,
           }),
-      ).toThrowError(/no positive rules/gi);
+      ).toThrowError(/no generator rules/gi);
     });
 
-    test('throws an error if any positive rules have duplicate names.', () => {
+    test('throws an error if any generator rules have duplicate names.', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
           new ChoiceService({
-            positiveRules: new Set([
+            generatorRules: new Set([
               {
-                name: 'TestPositiveRule',
+                name: 'TestgeneratorRule',
                 apply: () => [],
               },
               {
-                name: 'TestPositiveRule',
+                name: 'TestgeneratorRule',
                 apply: () => [],
-              },
-            ]),
-          }),
-      ).toThrowError(/duplicate/gi);
-    });
-
-    test('throws an error if any negative rules have duplicate names.', () => {
-      // GIVEN / WHEN / THEN
-      expect(
-        () =>
-          new ChoiceService({
-            positiveRules: new Set([
-              {
-                name: 'TestPositiveRule',
-                apply: () => [],
-              },
-            ]),
-            negativeRules: new Set([
-              {
-                name: 'TestNegativeRule',
-                apply: () => false,
-              },
-              {
-                name: 'TestNegativeRule',
-                apply: () => false,
               },
             ]),
           }),
       ).toThrowError(/duplicate/gi);
     });
 
-    test('throws an error if any positive or negative rules have duplicate names.', () => {
+    test('throws an error if any filter rules have duplicate names.', () => {
       // GIVEN / WHEN / THEN
       expect(
         () =>
           new ChoiceService({
-            positiveRules: new Set([
+            generatorRules: new Set([
+              {
+                name: 'TestgeneratorRule',
+                apply: () => [],
+              },
+            ]),
+            filterRules: new Set([
+              {
+                name: 'TestfilterRule',
+                apply: () => false,
+              },
+              {
+                name: 'TestfilterRule',
+                apply: () => false,
+              },
+            ]),
+          }),
+      ).toThrowError(/duplicate/gi);
+    });
+
+    test('throws an error if any generator or filter rules have duplicate names.', () => {
+      // GIVEN / WHEN / THEN
+      expect(
+        () =>
+          new ChoiceService({
+            generatorRules: new Set([
               {
                 name: 'TestRule',
                 apply: () => [],
               },
             ]),
-            negativeRules: new Set([
+            filterRules: new Set([
               {
                 name: 'TestRule',
                 apply: () => false,
@@ -151,12 +151,12 @@ describe('ChoiceService', () => {
   });
 
   describe('calculateChoices', () => {
-    test('returns the correct choice space given only positive rules.', () => {
+    test('returns the correct choice space given only generator rules.', () => {
       // GIVEN
       const service = new ChoiceService({
-        positiveRules: new Set([
+        generatorRules: new Set([
           {
-            name: 'TestPositiveRule',
+            name: 'TestgeneratorRule',
             apply: (runtime: QueryableRuntime) => [
               new Choice(
                 new TestActionA({
@@ -196,9 +196,9 @@ describe('ChoiceService', () => {
     test('if choices for a player, which is not registered in the runtime, are generated, an error is thrown.', () => {
       // GIVEN
       const service = new ChoiceService({
-        positiveRules: new Set([
+        generatorRules: new Set([
           {
-            name: 'TestPositiveRule',
+            name: 'TestgeneratorRule',
             apply: (_runtime: QueryableRuntime) => [
               new Choice(
                 new TestActionA({
@@ -217,12 +217,12 @@ describe('ChoiceService', () => {
       );
     });
 
-    test('negative rules prevent choices from being generated.', () => {
+    test('filter rules prevent choices from being generated.', () => {
       // GIVEN
       const service = new ChoiceService({
-        positiveRules: new Set([
+        generatorRules: new Set([
           {
-            name: 'TestPositiveRule',
+            name: 'TestgeneratorRule',
             apply: (runtime: QueryableRuntime) => [
               new Choice(
                 new TestActionA({
@@ -239,9 +239,9 @@ describe('ChoiceService', () => {
             ],
           },
         ]),
-        negativeRules: new Set([
+        filterRules: new Set([
           {
-            name: 'TestNegativeRule',
+            name: 'TestfilterRule',
             apply: (
               choice: Choice<Action<string, any>>,
               _runtime: QueryableRuntime,
@@ -278,9 +278,9 @@ describe('ChoiceService', () => {
     test('throws an error if no player has any choices in a snapshot.', () => {
       // GIVEN
       const service = new ChoiceService({
-        positiveRules: new Set([
+        generatorRules: new Set([
           {
-            name: 'TestPositiveRule',
+            name: 'TestgeneratorRule',
             apply: (_runtime: QueryableRuntime) => [],
           },
         ]),

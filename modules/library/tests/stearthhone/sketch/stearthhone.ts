@@ -11,26 +11,25 @@
 import { Entity } from '../../../src/components/entity';
 import { Game } from '../../../src/game';
 import { TriggerReturnType } from '../../../src/components/trigger';
-import { StoneHero, StoneCard, StoneGameState, StoneMinion } from './entities';
 import { StoneGraph } from './graph';
 import { STEARTHHONE_RULES, STEARTHHONE_NEGATIVE_RULES } from './rules';
 import { createCard } from './cards';
 import type { Card } from '../stearthhone.typed';
-
-// ---------------------------------------------------------------------------
-// Parameters
-// ---------------------------------------------------------------------------
-
-export interface StoneParameters {
-  player1Deck: string[]; // Card names — loaded from cards.json
-  player2Deck: string[];
-}
+import {
+  FilterRule,
+  GeneratorRule,
+  QueryableRuntime,
+  ViewFilter,
+} from '../../../src';
 
 // ---------------------------------------------------------------------------
 // Game class
 // ---------------------------------------------------------------------------
 
-export class Stearthhone extends Game<StoneParameters> {
+export class Stearthhone extends Game {
+  viewFilters(runtime: QueryableRuntime): Set<ViewFilter> | void {
+    throw new Error('Method not implemented.');
+  }
   public name = 'Stearthhone';
 
   // ── In engine-v2, this becomes: extends Game<typeof StoneGraph, StoneParameters>

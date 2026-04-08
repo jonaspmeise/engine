@@ -75,6 +75,16 @@ export abstract class Action<
   public abstract affectedEntities(runtime: QueryableRuntime): Entity[] | void;
 
   /**
+   * Checks if this Action can be applied to a given game state.
+   * @param runtime The runtime to check the game state, that allows access to Entities, which are immutable for the context of this check.
+   * @param parameters The parameters to check, which are passed in the constructor of this Action.
+   * @returns true if this Action can be applied to the given game state, false otherwise.
+   */
+  public canApply(runtime: QueryableRuntime): boolean {
+    return true;
+  }
+
+  /**
    * Returns the information that is returned by this Action after it is executed.
    * This can be used to access information about the result of this Action, e.g. how much damage was dealt,
    * which card was drawn, ...
