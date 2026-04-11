@@ -1,7 +1,7 @@
 import {
   Action,
+  Entity,
   entityId,
-  EntityID,
   ModifiableRuntime,
   PlayerEntity,
   QueryableRuntime,
@@ -14,7 +14,7 @@ export class UnoShuffleAction extends Action<
   'shuffle',
   { from: UnoZone; to: UnoDeck }
 > {
-  doApply(runtime: ModifiableRuntime): void {
+  async doApply(runtime: ModifiableRuntime): Promise<void> {
     this.parameters.from.cards(runtime).forEach((card) => {
       card.location = this.parameters.to;
     });
@@ -41,8 +41,8 @@ export class UnoShuffleAction extends Action<
     return `Shuffle the deck.`;
   }
 
-  public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
-    return [this.parameters.to[entityId]];
+  public affectedEntities(_runtime: QueryableRuntime): Entity[] | void {
+    return [this.parameters.to];
   }
 
   public $type: 'shuffle' = 'shuffle';

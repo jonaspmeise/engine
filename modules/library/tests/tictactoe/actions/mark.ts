@@ -1,9 +1,8 @@
 import { Action } from '../../../src/components/action';
-import { entityId } from '../../../src/components/entity';
-import { EntityID } from '../../../src/components/entity.types';
-import { ModifiableRuntime } from '../../../src/interfaces/modifiable-runtime';
-import { TicTacToePlayer } from './player';
-import { Slot } from './slot';
+import { Entity, entityId } from '../../../src/components/entity';
+import { ModifiableRuntime } from '../../../src/game/modifiable-runtime';
+import { TicTacToePlayer } from '../entities/player';
+import { Slot } from '../entities/slot';
 
 export class MarkAction extends Action<
   'mark',
@@ -20,13 +19,13 @@ export class MarkAction extends Action<
     return `Mark slot ${this.parameters.slot[entityId]} with ${this.parameters.player.mark}`;
   }
 
-  public affectedEntities(): EntityID[] | void {
-    return [this.parameters.slot[entityId]];
+  public affectedEntities(): Entity[] | void {
+    return [this.parameters.slot];
   }
 
   public readonly $type = 'mark' as const;
 
-  apply(_runtime: ModifiableRuntime): void {
+  async doApply(_runtime: ModifiableRuntime): Promise<void> {
     this.parameters.slot.markedBy = this.parameters.player;
   }
 }

@@ -1,11 +1,11 @@
-import { Action } from './components/action';
-import { Choice, EnhancedChoice } from './components/choice';
-import { ChoiceId } from './components/choice.types';
-import { Entity } from './components/entity';
-import { EntityID } from './components/entity.types';
-import { TriggerReturnType } from './components/trigger';
-import { PlayerInterface } from './interfaces/player-interface';
-import { PlayerEntity } from './services/entity/entity-service.types';
+import { Action } from '../components/action';
+import { Choice, EnhancedChoice } from '../components/choice';
+import { ChoiceId } from '../components/choice.types';
+import { Entity } from '../components/entity';
+import { EntityID } from '../components/entity.types';
+import { TriggerReturnType } from '../components/trigger';
+import { PlayerInterface } from '../interfaces/player-interface';
+import { PlayerEntity } from '../services/entity/entity-service.types';
 
 export type GameParameters = Record<string, unknown>;
 

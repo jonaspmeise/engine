@@ -1,6 +1,6 @@
 import { ActionParameters } from './action.types';
-import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
-import { QueryableRuntime } from '../interfaces/queryable-runtime';
+import { ModifiableRuntime } from '../game/modifiable-runtime';
+import { QueryableRuntime } from '../game/queryable-runtime';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { Entity } from './entity';
 

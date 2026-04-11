@@ -1,5 +1,4 @@
-import { Entity, entityId } from './components/entity';
-import { FlushableRuntime } from './interfaces/flushable-runtime';
+import { Entity, entityId } from '../components/entity';
 import {
   Class,
   DEFAULT_GAME_CONFIG,
@@ -14,39 +13,31 @@ import {
   NO_OP_LOGGER,
   PlayerInterfaceCallback,
 } from './game.types';
-import { QueryableRuntime } from './interfaces/queryable-runtime';
-import { EntityService } from './services/entity/entity-service';
+import { QueryableRuntime } from './queryable-runtime';
+import { EntityService } from '../services/entity/entity-service';
 import {
   PlayerInterface,
   handler,
   isPlayerInterface,
   playerId,
-} from './interfaces/player-interface';
-import { ChoiceService } from './services/choices/choice-service';
-import { PlayerEntity } from './services/entity/entity-service.types';
-import { ModifiableRuntime } from './interfaces/modifiable-runtime';
-import { Trigger, TriggerReturnType } from './components/trigger';
-import { StateService } from './services/state/state-service';
-import { Action } from './components/action';
-import { ViewFilter } from './components/view-filter';
-import { ViewFilterService } from './services/view-filter/view-filter-service';
-import { GeneratorRule } from './components/rules/generator-rule';
-import { FilterRule } from './components/rules/filter-rule';
-import { EnhancedChoice } from './components/choice';
+} from '../interfaces/player-interface';
+import { PlayerEntity } from '../services/entity/entity-service.types';
+import { ModifiableRuntime } from './modifiable-runtime';
+import { Action } from '../components/action';
+import { Choice, EnhancedChoice } from '../components/choice';
+import { StateService } from '../services/state/state-service';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
 >
-  implements QueryableRuntime, FlushableRuntime, ModifiableRuntime
+  implements QueryableRuntime, ModifiableRuntime
 {
   private _logger: Logger;
   private _status: GameStatus = 'setup';
   private _endParameters: GameEndParameters | undefined = undefined;
 
   private readonly _entityService: EntityService;
-  private readonly _choiceService: ChoiceService;
   private readonly _stateService: StateService;
-  private readonly _viewFilterService: ViewFilterService;
   private readonly _callbacks: Partial<GameLifecycle> = {};
 
   // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
@@ -75,16 +66,8 @@ export abstract class Game<
       this._logger,
       this.flush.bind(this),
     );
-    this._choiceService = new ChoiceService(
-      {
-        generatorRules: this.generatorRules(),
-        filterRules: this.filterRules() ?? new Set(),
-      },
-      this._logger,
-    );
-    this._stateService = new StateService(this._logger);
 
-    this._viewFilterService = new ViewFilterService(this._logger);
+    this._stateService = new StateService(this._logger);
 
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
     this._setup(parameters as PARAMETERS);
@@ -110,43 +93,6 @@ export abstract class Game<
    * The name of the game.
    */
   public abstract readonly name: string;
-
-  /**
-   * Returns the set of all positive rules that should be applied in this game.
-   * Needs to be implemented by the game itself.
-   */
-  // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract generatorRules(): Set<GeneratorRule>;
-
-  /**
-   * Returns the set of all negative rules that should be applied in this game.
-   * Needs to be implemented by the game itself.
-   */
-  // TODO: Should this be a method or readonly property (ReadonlySet)?
-  abstract filterRules(): Set<FilterRule> | void;
-
-  /**
-   * Returns the set of all triggers that are registered in this game.
-   */
-  abstract triggers(): Set<Trigger> | void;
-
-  /**
-   * Returns a list of actions (or raw executables) that are automatically executed
-   * at the very start of the game, before the first snapshot is sent to any player.
-   * Use this to perform deterministic setup steps that should appear in the game log,
-   * such as dealing cards or placing initial tokens.
-   *
-   * @returns A list of {@link TriggerReturnType} items to execute, or void if there are none.
-   */
-  abstract setupActions(runtime: QueryableRuntime): TriggerReturnType[] | void;
-
-  /**
-   * Returns the set of all view filters that should be applied in this game.
-   * View filters allow games with hidden information (e.g. UNO) to expose only
-   * a player-specific subset of each entity's state.
-   * @param runtime A reference to the runtime, which allows access to the game state and entities for the context of this method.
-   */
-  abstract viewFilters(runtime: QueryableRuntime): Set<ViewFilter> | void;
 
   /**
    * Returns the set of all entity classes that are used in this game.
@@ -191,15 +137,6 @@ export abstract class Game<
    * @param parameters The parameters to set up the game with.
    */
   private _setup(parameters: PARAMETERS): void {
-    if (this.generatorRules().size === 0) {
-      throw new Error(
-        `No generator rules provided. A game without generator rules is not possible! Please register some.`,
-      );
-    }
-    this._logger.info(
-      () => `Registered ${this.generatorRules().size} generator rules.`,
-    );
-
     this._logger.info(() => `Spawning entities...`);
 
     let spawnCount = 0;
@@ -219,11 +156,6 @@ export abstract class Game<
     }
 
     this._logger.info(() => `Spawned a total of ${spawnCount} entities.`);
-
-    // Register view filters so that hidden-information games can provide per-player entity views.
-    for (const filter of this.viewFilters(this) ?? []) {
-      this._viewFilterService.create(filter);
-    }
   }
 
   /**
@@ -277,6 +209,13 @@ export abstract class Game<
    */
   public anyEntity<TYPE extends Entity>(type: Class<TYPE>): TYPE | null {
     return this._entityService.anyEntity(type);
+  }
+
+  public prompt<T extends Choice<Action<string, any, any>>>(
+    _player: PlayerInterface,
+    _choices: T[],
+  ): Promise<T extends Choice<infer A> ? A : never> {
+    throw new Error('Method not implemented.');
   }
 
   /**
@@ -341,44 +280,6 @@ export abstract class Game<
       return;
     }
 
-    // Check for triggers, that go off from this game state.
-    const triggers: TriggerReturnType[] = [];
-
-    for (const trigger of this.triggers() ?? []) {
-      const triggered = trigger.apply(this, this._stateService.lastExecution());
-
-      if (triggered !== undefined) {
-        triggers.push(...triggered);
-      }
-    }
-
-    if (triggers.length > 0) {
-      this._logger.info(
-        () => `Triggers went off! Executing ${triggers.length} triggers...`,
-      );
-
-      this._stateService.pushToStack(...triggers);
-      this._nextSnapshot();
-      return;
-    }
-
-    // Find all choices for players in the current state.
-    const choices = this._choiceService.calculateChoices(this);
-
-    // Split choices by player and inform them.
-    for (const choice of choices) {
-      this._stateService.registerChoice(choice.player, choice);
-    }
-
-    for (const player of this._entityService.players()) {
-      this._stateService.informPlayer(
-        player,
-        this._executePlayerChoice.bind(this),
-        false,
-        this._viewFilterService.createSnapshotFilter(player),
-      );
-    }
-
     // Drain queued executed choices.
     const choice = this._stateService.getQueuedChoice();
     if (choice !== undefined) {
@@ -440,7 +341,6 @@ export abstract class Game<
           player,
           this._executePlayerChoice,
           true,
-          this._viewFilterService.createSnapshotFilter(player),
         );
       }
     }
@@ -454,16 +354,6 @@ export abstract class Game<
       () =>
         `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
     );
-
-    // Push setup actions to the stack so they execute before the first snapshot reaches players.
-    const setupActions = this.setupActions(this);
-    if (setupActions && setupActions.length > 0) {
-      this._logger.info(
-        () =>
-          `Pushing ${setupActions.length} setup action(s) to the stack before game start...`,
-      );
-      this._stateService.pushToStack(...setupActions);
-    }
 
     // Calculate first snapshot.
     this._nextSnapshot();

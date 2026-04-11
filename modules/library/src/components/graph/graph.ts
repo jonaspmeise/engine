@@ -6,6 +6,12 @@ import { NodeId } from './node.types';
  * Each node encapsulates stateless logic and represents the specific step of a game.
  * The graph in its totality describes a game's temporal structure.
  */
-export type Graph<NODES extends NodeId = NodeId> = {
-  readonly [K in NODES]: Node<NODES>;
-} & { INITIAL_NODE: Node<NODES> };
+export type Graph<NODES extends NodeId | undefined = undefined> = [
+  NODES,
+] extends [undefined]
+  ? { INITIAL: Node<void> }
+  : {
+      readonly [K in Exclude<NODES, undefined> | 'INITIAL']: K extends 'INITIAL'
+        ? Node<Exclude<NODES, undefined>>
+        : Node<Exclude<NODES, undefined> | 'INITIAL' | void>;
+    };

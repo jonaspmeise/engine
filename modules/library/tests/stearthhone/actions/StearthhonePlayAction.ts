@@ -1,4 +1,4 @@
-import { Action, Entity, ActionParameters } from '../../../../src';
+import { Action, Entity, ActionParameters } from '../../../src';
 import { StearthhoneCard } from '../entities/StearthhoneCard';
 
 export abstract class StearthhonePlayAction<

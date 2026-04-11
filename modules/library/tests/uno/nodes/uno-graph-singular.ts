@@ -1,5 +1,4 @@
-import { ModifiableRuntime } from '../../../src';
-import { ActionChoice } from '../../../src/components/choice-action';
+import { Choice, ModifiableRuntime } from '../../../src';
 import { Graph } from '../../../src/components/graph/graph';
 import { UnoDealTopCardAction } from '../actions/deal-top-card';
 import { UnoDrawCardAction } from '../actions/draw-card';
@@ -31,7 +30,7 @@ export const checkWin = (runtime: ModifiableRuntime) => {
 };
 
 export const FatUnoGraph: Graph = {
-  LOOP: async (runtime) => {
+  INITIAL: async (runtime) => {
     const meta = runtime.anyEntity(UnoMeta)!;
     const discardPile = runtime.anyEntity(UnoDiscardPile)!;
 
@@ -53,15 +52,12 @@ export const FatUnoGraph: Graph = {
           .filter((c) => c.drawCards ?? 0 > 0)
           .map(
             (c) =>
-              new ActionChoice(
-                new UnoPlayCardAction({ card: c }),
-                currentPlayer,
-              ),
+              new Choice(new UnoPlayCardAction({ card: c }), currentPlayer),
           );
 
         const choice = await runtime.prompt(currentPlayer, [
           ...possiblePassingCards,
-          new ActionChoice(
+          new Choice(
             new UnoDrawCardAction({
               amount: meta.drawOverloads,
               player: currentPlayer,
@@ -79,11 +75,11 @@ export const FatUnoGraph: Graph = {
           if (drawnCard.playableOn(discardPile.top(runtime)!)) {
             (
               await runtime.prompt(currentPlayer, [
-                new ActionChoice(
+                new Choice(
                   new UnoPlayCardAction({ card: drawnCard }),
                   currentPlayer, // TODO: Is redundant!
                 ),
-                new ActionChoice(new UnoEndTurnAction(), currentPlayer),
+                new Choice(new UnoEndTurnAction(), currentPlayer),
               ])
             ).apply(runtime);
           }
@@ -95,16 +91,13 @@ export const FatUnoGraph: Graph = {
           .filter((c) => c.playableOn(discardPile.top(runtime)!))
           .map(
             (c) =>
-              new ActionChoice(
-                new UnoPlayCardAction({ card: c }),
-                currentPlayer,
-              ),
+              new Choice(new UnoPlayCardAction({ card: c }), currentPlayer),
           );
 
         (
           await runtime.prompt(currentPlayer, [
             ...playableCardActions,
-            new ActionChoice(
+            new Choice(
               new UnoDrawCardAction({ amount: 1, player: currentPlayer }),
               currentPlayer,
             ),

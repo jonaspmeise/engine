@@ -1,5 +1,4 @@
-import { ModifiableRuntime } from '../../../src';
-import { ActionChoice } from '../../../src/components/choice-action';
+import { Choice } from '../../../src/components/choice';
 import { Graph } from '../../../src/components/graph/graph';
 import { UnoDealTopCardAction } from '../actions/deal-top-card';
 import { UnoDrawCardAction } from '../actions/draw-card';
@@ -9,19 +8,26 @@ import { UnoDiscardPile } from '../entities/discard-pile';
 import { UnoMeta } from '../entities/meta';
 import { UnoPlayer } from '../entities/player';
 
-export const FatUnoGraph: Graph = {
-  SETUP: async (runtime) => {
+export const FatUnoGraph: Graph<
+  | 'CHECK_FORCE_DRAW'
+  | 'HANDLE_OVERDRAW'
+  | 'TURN'
+  | 'CHECK_WIN'
+  | 'NEXT_PLAYER'
+  | 'GAME_OVER'
+> = {
+  INITIAL: async (runtime) => {
     for (const player of runtime.entities(UnoPlayer)) {
       new UnoDrawCardAction({ amount: 5, player }).apply(runtime);
     }
 
     new UnoDealTopCardAction().apply(runtime);
 
-    return 'TURN';
+    return 'TURN' as const;
   },
   CHECK_FORCE_DRAW: async (runtime) => {
     const meta = runtime.anyEntity(UnoMeta)!;
-    return meta.drawOverloads > 0 ? 'HANDLE_OVERDRAW' : 'LOOP';
+    return meta.drawOverloads > 0 ? 'HANDLE_OVERDRAW' : 'INITIAL';
   },
   HANDLE_OVERDRAW: async (runtime) => {
     const meta = runtime.anyEntity(UnoMeta)!;
@@ -33,13 +39,12 @@ export const FatUnoGraph: Graph = {
       .cards(runtime)
       .filter((c) => c.drawCards ?? 0 > 0)
       .map(
-        (c) =>
-          new ActionChoice(new UnoPlayCardAction({ card: c }), currentPlayer),
+        (c) => new Choice(new UnoPlayCardAction({ card: c }), currentPlayer),
       );
 
     const choice = await runtime.prompt(currentPlayer, [
       ...possiblePassingCards,
-      new ActionChoice(
+      new Choice(
         new UnoDrawCardAction({
           amount: meta.drawOverloads,
           player: currentPlayer,
@@ -56,11 +61,11 @@ export const FatUnoGraph: Graph = {
 
       if (drawnCard.playableOn(discardPile.top(runtime)!)) {
         const choice = await runtime.prompt(currentPlayer, [
-          new ActionChoice(
+          new Choice(
             new UnoPlayCardAction({ card: drawnCard }),
             currentPlayer, // TODO: Is redundant!
           ),
-          new ActionChoice(new UnoEndTurnAction(), currentPlayer),
+          new Choice(new UnoEndTurnAction(), currentPlayer),
         ]);
 
         if (choice instanceof UnoPlayCardAction) {
@@ -83,21 +88,20 @@ export const FatUnoGraph: Graph = {
       .cards(runtime)
       .filter((c) => c.playableOn(discardPile.top(runtime)!))
       .map(
-        (c) =>
-          new ActionChoice(new UnoPlayCardAction({ card: c }), currentPlayer),
+        (c) => new Choice(new UnoPlayCardAction({ card: c }), currentPlayer),
       );
 
     (
       await runtime.prompt(currentPlayer, [
         ...playableCardActions,
-        new ActionChoice(
+        new Choice(
           new UnoDrawCardAction({ amount: 1, player: currentPlayer }),
           currentPlayer,
         ),
       ])
     ).apply(runtime);
 
-    return 'CHECK_WIN';
+    return 'CHECK_WIN' as const;
   },
   CHECK_WIN: async (runtime) => {
     const meta = runtime.anyEntity(UnoMeta)!;

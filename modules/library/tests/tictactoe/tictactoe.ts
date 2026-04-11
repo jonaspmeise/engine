@@ -1,25 +1,17 @@
 import { TicTacToeParameters, Mark } from './tictactoe.typed';
-import { Game } from '../../src/game';
+import { Game } from '../../src/game/game';
 import { Entity } from '../../src/components/entity';
 import { MarkAction } from './actions/mark';
 import { Action } from '../../src/components/action';
 import { DiagonalLane } from './entities/diagonal-lane';
-import { NegativeRule } from '../../src/components/rules/filter-rule';
-import { PositiveRule } from '../../src/components/rules/generator-rule';
-import { Class, EntityClass } from '../../src/game.types';
+import { Class, EntityClass } from '../../src/game/game.types';
 import { Choice } from '../../src/components/choice';
-import { Trigger, TriggerReturnType } from '../../src/components/trigger';
-import { ViewFilter } from '../../src/components/view-filter';
-import { ChangeTurnTrigger } from './triggers/change-turn-trigger';
-import { GameOverTrigger } from './triggers/game-over-trigger';
 import { HorizontalLane } from './entities/horizontal-lane';
 import { TicTacToePlayer } from './entities/player';
 import { Slot } from './entities/slot';
 import { VerticalLane } from './entities/vertical-lane';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
-  setupActions(): TriggerReturnType[] | void {}
-
   entityClasses(): Set<EntityClass<Entity>> {
     return new Set<EntityClass<Entity>>([
       Slot,
@@ -30,46 +22,7 @@ export class TicTacToe extends Game<TicTacToeParameters> {
     ]);
   }
 
-  triggers(): Set<Trigger> | void {
-    return new Set([new ChangeTurnTrigger(), new GameOverTrigger()]);
-  }
-
-  positiveRules(): Set<PositiveRule> {
-    return new Set([
-      {
-        name: 'marking-slot-allowed-during-your-turn',
-        apply: (runtime) => {
-          const currentPlayer = runtime
-            .entities(TicTacToePlayer)
-            .filter((player) => player.isCurrentPlayer)[0]!;
-
-          return runtime
-            .entities(Slot)
-            .filter((slot) => slot.isEmpty())
-            .map(
-              (slot) =>
-                new Choice(
-                  new MarkAction({
-                    slot: slot,
-                    player: currentPlayer,
-                  }),
-                  currentPlayer,
-                ),
-            );
-        },
-      },
-    ]);
-  }
-
-  negativeRules(): void | Set<NegativeRule> {
-    // No negative rules in this game.
-  }
-
-  viewFilters(): void | Set<ViewFilter> {
-    // TicTacToe has no hidden information.
-  }
-
-  actions(): Set<Class<Action<string, any>>> {
+  actions(): Set<Class<Action<string, any, any>>> {
     return new Set([MarkAction]);
   }
 

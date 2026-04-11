@@ -1,4 +1,4 @@
-import { entityId, QueryableRuntime } from '../../../../src';
+import { entityId, QueryableRuntime } from '../../../src';
 import { StearthhoneCard } from './StearthhoneCard';
 import { StearthhonePlayer } from './StearthhonePlayer';
 import { StearthhoneZone } from './StearthhoneZone';

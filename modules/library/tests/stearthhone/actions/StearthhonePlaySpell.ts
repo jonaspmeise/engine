@@ -1,4 +1,4 @@
-import { ModifiableRuntime } from '../../../../src';
+import { ModifiableRuntime } from '../../../src';
 import { StearthhoneSpell } from '../entities/StearthhoneSpell';
 import { StearthhonePlayAction } from './StearthhonePlayAction';
 

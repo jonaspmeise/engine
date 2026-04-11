@@ -1,16 +1,12 @@
-import { Action } from './components/action';
-import { Choice } from './components/choice';
-import { Entity } from './components/entity';
-import { PositiveRule } from './components/rules/generator-rule';
-import { Trigger, TriggerReturnType } from './components/trigger';
-import { ViewFilter } from './components/view-filter';
+import { Action } from '../components/action';
+import { Entity } from '../components/entity';
 import { Game } from './game';
-import { EntityClass } from './game.types';
 import {
   PlayerInterface,
   playerInterfaceMarker,
-} from './interfaces/player-interface';
-import { QueryableRuntime } from './interfaces/queryable-runtime';
+} from '../interfaces/player-interface';
+import { QueryableRuntime } from './queryable-runtime';
+import { EntityClass } from './game.types';
 
 export class TestEntityA extends Entity {
   public $type: string = 'TestEntityA';
@@ -64,7 +60,7 @@ export class TestAction extends Action<'TestAction'> {
   }
   public affectedEntities() {}
   public $type: 'TestAction' = 'TestAction';
-  apply(_runtime: QueryableRuntime): void {
+  async doApply(_runtime: QueryableRuntime): Promise<void> {
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
 }
@@ -92,8 +88,6 @@ export class TestGame extends Game {
     return entities;
   }
 
-  setupActions(_runtime: QueryableRuntime): TriggerReturnType[] | void {}
-
   entityClasses(): Set<EntityClass<Entity>> {
     return new Set<EntityClass<Entity>>([
       TestEntityA,
@@ -102,19 +96,4 @@ export class TestGame extends Game {
       TestPlayerEntity,
     ]);
   }
-
-  positiveRules(): Set<PositiveRule> {
-    return new Set<PositiveRule>([
-      {
-        name: 'test-positive-rule',
-        apply: (runtime) =>
-          runtime
-            .entities(TestPlayerEntity)
-            .map((player) => new Choice(new TestAction(), player)),
-      },
-    ]);
-  }
-  negativeRules(): void {}
-  triggers(): Set<Trigger> | void {}
-  viewFilters(): Set<ViewFilter> | void {}
 }

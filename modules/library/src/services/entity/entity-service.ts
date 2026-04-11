@@ -1,6 +1,6 @@
 import { Entity, entityId } from '../../components/entity';
 import { EntityID } from '../../components/entity.types';
-import { Class, Logger } from '../../game.types';
+import { Class, Logger } from '../../game/game.types';
 import { EntityFlushCallback } from './entity-service.types';
 import {
   isPlayerInterface,

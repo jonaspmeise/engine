@@ -1,4 +1,4 @@
-import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
+import { ModifiableRuntime } from '../../game/modifiable-runtime';
 import { NodeId } from './node.types';
 
 /**
@@ -7,6 +7,6 @@ import { NodeId } from './node.types';
  * // TODO: Test that throws an error if node is terminal but the game is not ended yet!
  * @returns The id of the next node to execute.
  */
-export type Node<NODES extends NodeId = NodeId> = (
+export type Node<NODES extends NodeId | void = void> = (
   runtime: ModifiableRuntime,
-) => Promise<NODES> | NODES | Promise<void> | void;
+) => Promise<NODES> | NODES;

@@ -3,7 +3,7 @@ import {
   ModifiableRuntime,
   Entity,
   QueryableRuntime,
-} from '../../../../src';
+} from '../../../src';
 import { entityId } from '@my-engine/library';
 import { StearthhoneMinion } from '../entities/StearthhoneMinion';
 import { StearthhoneBoard } from '../entities/StearthhoneBoard';

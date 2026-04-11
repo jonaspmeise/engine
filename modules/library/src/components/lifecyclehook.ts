@@ -1,4 +1,4 @@
-import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
+import { ModifiableRuntime } from '../game/modifiable-runtime';
 import { Action } from './action';
 
 type ActionType<T> = T extends Action<infer TYPE, any, any> ? TYPE : never;

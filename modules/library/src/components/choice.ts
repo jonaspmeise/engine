@@ -2,7 +2,6 @@ import { Action } from './action';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { ChoiceId, dereferenceEntityID } from './choice.types';
 import { Entity, entityId } from './entity';
-import { FilterRule } from './rules/filter-rule';
 import { NodeId } from './graph/node.types';
 
 /**
@@ -10,7 +9,7 @@ import { NodeId } from './graph/node.types';
  * This is one of the main objects (besides the raw game state) that is communicated to the player.
  * The player visualizes these choices and can select one of them to execute.
  */
-export class Choice<ACTION extends Action<string, any>> {
+export class Choice<ACTION extends Action<string, any, any>> {
   /**
    * Instantiate a choice.
    * @param execution The action that will be executed when the player selects this choice, including the parameters for that action.
@@ -22,7 +21,6 @@ export class Choice<ACTION extends Action<string, any>> {
   constructor(
     public readonly execution: ACTION,
     public readonly player: PlayerEntity,
-    public readonly preventedBy: FilterRule<NodeId> | undefined = undefined,
   ) {
     // Should not be serialized!
     Object.defineProperty(this, 'player', {
@@ -40,8 +38,6 @@ export class Choice<ACTION extends Action<string, any>> {
         parameters: EnhancedChoice.dereferenceEntity(this.execution.parameters),
       },
       player: dereferenceEntityID(this.player[entityId]), // TODO: Structurally define this somewhere as an utility function!
-      preventedBy:
-        this.preventedBy === undefined ? undefined : this.preventedBy.name,
     };
   }
 
@@ -73,9 +69,8 @@ export class EnhancedChoice<
     public readonly id: ChoiceId,
     execution: ACTION,
     player: PlayerEntity,
-    preventedBy: FilterRule<NodeId> | undefined = undefined,
   ) {
-    super(execution, player, preventedBy);
+    super(execution, player);
   }
 
   toJSON(): Record<any, unknown> {
@@ -89,11 +84,6 @@ export class EnhancedChoice<
     choice: Choice<ACTION>,
     id: ChoiceId,
   ): EnhancedChoice<ACTION> {
-    return new EnhancedChoice(
-      id,
-      choice.execution,
-      choice.player,
-      choice.preventedBy,
-    );
+    return new EnhancedChoice(id, choice.execution, choice.player);
   }
 }

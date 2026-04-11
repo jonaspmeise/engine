@@ -1,4 +1,4 @@
-import { ModifiableRuntime } from '../../../../src';
+import { ModifiableRuntime } from '../../../src';
 import { StearthhoneCard } from './StearthhoneCard';
 
 export abstract class StearthhoneSpell extends StearthhoneCard {

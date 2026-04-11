@@ -1,4 +1,4 @@
-import { QueryableRuntime } from '../../../src/interfaces/queryable-runtime';
+import { QueryableRuntime } from '../../../src/game/queryable-runtime';
 import { Lane } from './lane';
 import { Slot } from './slot';
 

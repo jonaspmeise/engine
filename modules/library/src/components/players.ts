@@ -1,12 +1,12 @@
 import { Action } from './action';
 import { EnhancedChoice } from './choice';
-import { Game } from '../game';
+import { Game } from '../game/game';
 import {
   DEFAULT_LOGGER,
   Logger,
   NO_OP_LOGGER,
   PlayerInterfaceCallback,
-} from '../game.types';
+} from '../game/game.types';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { entityId } from '@my-engine/library';
 

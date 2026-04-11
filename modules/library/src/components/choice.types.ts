@@ -1,4 +1,4 @@
-import { ModifiableRuntime } from '../interfaces/modifiable-runtime';
+import { ModifiableRuntime } from '../game/modifiable-runtime';
 import { EntityID } from './entity.types';
 
 export type ChoiceId = string;

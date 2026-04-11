@@ -1,5 +1,4 @@
-import { ModifiableRuntime } from '../../../src';
-import { ActionChoice } from '../../../src/components/choice-action';
+import { Choice, ModifiableRuntime } from '../../../src';
 import { UnoPickColorAction } from '../actions/pick-color';
 import { UnoDefaultColors } from '../uno';
 import { UnoCard } from './card';
@@ -40,12 +39,11 @@ export class UnoWildCard extends UnoCard {
             currentPlayer,
             UnoDefaultColors.map(
               (color) =>
-                new ActionChoice(
+                new Choice(
                   new UnoPickColorAction({ card: this, color }),
                   currentPlayer,
                 ),
             ),
-            'Pick a color!',
           )
         ).apply(runtime);
     }
