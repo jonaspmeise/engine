@@ -7,6 +7,8 @@ import {
 } from '../interfaces/player-interface';
 import { QueryableRuntime } from './queryable-runtime';
 import { EntityClass } from './game.types';
+import { NodeId } from '../components/graph/node.types';
+import { Graph } from '../components/graph/graph';
 
 export class TestEntityA extends Entity {
   public $type: string = 'TestEntityA';
@@ -86,6 +88,13 @@ export class TestGame extends Game {
     entities.add(new TestPlayerEntity(2));
 
     return entities;
+  }
+
+  graph(): Graph<NodeId> {
+    return {
+      INITIAL: async (_runtime) => 'END',
+      END: async (_runtime) => undefined,
+    };
   }
 
   entityClasses(): Set<EntityClass<Entity>> {

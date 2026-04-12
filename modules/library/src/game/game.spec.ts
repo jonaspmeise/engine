@@ -42,132 +42,94 @@ describe('game', () => {
   });
 
   describe('initialize', () => {
-    test.todo(
-      'throws an error if an entity is registered with an ID that is already taken by another entity.',
-      () => {
-        // GIVEN
-        spyOn(TestGame.prototype, 'initialize').mockReturnValue(
-          new Set([new TestEntityA(1), new TestEntityA(1)]),
-        );
+    test('throws an error if an entity is registered with an ID that is already taken by another entity.', () => {
+      // GIVEN
+      spyOn(TestGame.prototype, 'initialize').mockReturnValue(
+        new Set([new TestEntityA(1), new TestEntityA(1)]),
+      );
 
-        // WHEN / THEN
-        expect(() => new TestGame()).toThrowError(/duplicate/gi);
-      },
-    );
+      // WHEN / THEN
+      expect(() => new TestGame()).toThrowError(/duplicate/gi);
+    });
 
-    test.todo(
-      'throws an error if the game does not initialize any entities.',
-      () => {
-        // GIVEN
-        spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(new Set());
+    test('throws an error if the game does not initialize any entities.', () => {
+      // GIVEN
+      spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(new Set());
 
-        // WHEN / THEN
-        expect(() => new TestGame()).toThrowError(/no entities were spawned/gi);
-      },
-    );
+      // WHEN / THEN
+      expect(() => new TestGame()).toThrowError(/no entities were spawned/gi);
+    });
 
-    test.todo(
-      'throws an error if no PlayerInterface-capable entity is spawned. These interfaces are needed to communicate with a player.',
-      () => {
-        // GIVEN
-        spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(
-          new Set([new TestEntityA(1), new TestEntityA(2)]),
-        );
+    test('throws an error if no PlayerInterface-capable entity is spawned. These interfaces are needed to communicate with a player.', () => {
+      // GIVEN
+      spyOn(TestGame.prototype, 'initialize').mockReturnValueOnce(
+        new Set([new TestEntityA(1), new TestEntityA(2)]),
+      );
 
-        // WHEN / THEN
-        expect(() => new TestGame()).toThrowError(/player/i);
-      },
-    );
+      // WHEN / THEN
+      expect(() => new TestGame()).toThrowError(/player/i);
+    });
 
-    test.todo(
-      'player interfaces are assigned a unique ID upon creation.',
-      () => {
-        // GIVEN / WHEN
-        const game = new TestGame();
+    test('player interfaces are assigned a unique ID upon creation.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
 
-        // THEN
-        const playerInterfaces = game.entities(TestPlayerEntity);
+      // THEN
+      const playerInterfaces = game.entities(TestPlayerEntity);
 
-        expect(playerInterfaces).toHaveLength(2);
-        expect(playerInterfaces[0]![entityId]).not.toBeNull();
-        expect(playerInterfaces[0]![entityId]).not.toBeUndefined();
-        expect(playerInterfaces[1]![entityId]).not.toBeNull();
-        expect(playerInterfaces[1]![entityId]).not.toBeUndefined();
-      },
-    );
+      expect(playerInterfaces).toHaveLength(2);
+      expect(playerInterfaces[0]![entityId]).not.toBeNull();
+      expect(playerInterfaces[0]![entityId]).not.toBeUndefined();
+      expect(playerInterfaces[1]![entityId]).not.toBeNull();
+      expect(playerInterfaces[1]![entityId]).not.toBeUndefined();
+    });
   });
 
-  describe('entitySet', () => {
-    test.todo(
-      'enriches the game with entities returned by the enrichen generator.',
-      () => {
-        // GIVEN / WHEN
-        const game = new TestGame();
+  describe('anyEntity', () => {
+    test('returns any entity of the given type if there are multiple entities of that type.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
 
-        // THEN
-        expect(game.entitySet()).toHaveLength(8);
-        expect(game.entitySet(TestEntityA)).toHaveLength(3);
-        expect(game.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
-        expect(game.entitySet(TestEntityC)).toHaveLength(1);
-        expect(game.entitySet(TestPlayerEntity)).toHaveLength(2);
-      },
-    );
-  });
+      // THEN
+      expect(game.anyEntity(TestEntityA)).toMatchObject({
+        [entityId]: expect.stringMatching(/testentityA-[1-3]/),
+      });
+    });
 
-  describe('entity', () => {
-    test.todo(
-      'returns any entity of the given type if there are multiple entities of that type.',
-      () => {
-        // GIVEN / WHEN
-        const game = new TestGame();
+    test('returns null if there are no entities of the given type.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
 
-        // THEN
-        expect(game.anyEntity(TestEntityA)).toMatchObject({
-          [entityId]: expect.stringMatching(/testentityA-[1-3]/),
-        });
-      },
-    );
-
-    test.todo(
-      'returns null if there are no entities of the given type.',
-      () => {
-        // GIVEN / WHEN
-        const game = new TestGame();
-
-        // THEN
-        expect(
-          game.anyEntity(
-            class NonExistingEntity extends Entity {
-              public $type: string = 'NonExistingEntity';
-              public toString(): string {
-                return `NonExistingEntity`;
-              }
-            },
-          ),
-        ).toBeNull();
-      },
-    );
+      // THEN
+      expect(
+        game.anyEntity(
+          class NonExistingEntity extends Entity {
+            public $type: string = 'NonExistingEntity';
+            public toString(): string {
+              return `NonExistingEntity`;
+            }
+          },
+        ),
+      ).toBeNull();
+    });
   });
 
   describe('entities', () => {
-    test.todo(
-      'enriches the game with entities returned by the enrichen generator.',
-      () => {
-        // GIVEN / WHEN
-        const game = new TestGame();
+    test('enriches the game with entities returned by the initialize method.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
 
-        // THEN
-        expect(game.entities()).toHaveLength(8);
-        expect(game.entities(TestEntityA)).toHaveLength(3);
-        expect(game.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
-        expect(game.entitySet(TestEntityC)).toHaveLength(1);
-        expect(game.entitySet(TestPlayerEntity)).toHaveLength(2);
-      },
-    );
+      // THEN
+      expect(game.entities()).toHaveLength(8);
+      expect(game.entities(TestEntityA)).toHaveLength(3);
+      expect(game.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
+      expect(game.entitySet(TestEntityC)).toHaveLength(1);
+      expect(game.entitySet(TestPlayerEntity)).toHaveLength(2);
+    });
   });
 
   describe('players', () => {
-    test.todo('returns all registered player entities.', () => {
+    test('returns all registered player entities.', () => {
       // GIVEN / WHEN
       const game = new TestGame();
 
@@ -177,90 +139,85 @@ describe('game', () => {
   });
 
   describe('flush', () => {
-    test.todo(
-      'when an entity is spawned, and that entity is modified, it is flushed.',
-      () => {
-        // GIVEN
-        const flush = spyOn(TestGame.prototype, 'flush');
-        const game = new TestGame();
+    test('when an entity is spawned, or that entity is modified, it is flushed.', () => {
+      // GIVEN
+      const flush = spyOn(TestGame.prototype, 'flush');
+      const game = new TestGame();
 
-        // WHEN
-        const entityC = game.anyEntity(TestEntityC)!;
+      // WHEN
+      const entityC = game.anyEntity(TestEntityC)!;
 
-        entityC.volatileNumber = 42;
+      entityC.volatileNumber = 42;
 
-        // THEN
-        expect(flush).toHaveBeenCalledTimes(
-          8 + // 8 Entities spawned.
-            1, // 1 Entity modified.
-        );
-      },
-    );
+      // THEN
+      expect(flush).toHaveBeenCalledTimes(
+        8 + // 8 Entities spawned.
+          1, // 1 Entity modified.
+      );
+    });
   });
 
   describe('registerPlayerCallback', () => {
-    test.todo(
-      'issues a warning if a callback is registered when another callback is already registered.',
-      () => {
-        // GIVEN
-        const game = new TestGame(undefined, { logger });
+    test('issues a warning if a callback is registered when another callback is already registered.', () => {
+      // GIVEN
+      const game = new TestGame(undefined, { logger });
 
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          () => {},
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          () => {},
-        );
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: () => {},
+        prompt: () => {},
+      });
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, {
+        state: () => {},
+        prompt: () => {},
+      });
 
-        // THEN #1
-        expect(logger.warn).toHaveBeenCalledTimes(0);
+      // THEN #1
+      expect(logger.warn).toHaveBeenCalledTimes(0);
 
-        // WHEN
-        // The same player interface is overwritten!
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          () => {},
-        );
+      // WHEN
+      // The same player interface is overwritten!
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: () => {},
+        prompt: () => {},
+      });
 
-        // THEN #2
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringMatching(/overwrit/gi),
-        );
-      },
-    );
+      // THEN #2
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/overwrit/gi),
+      );
+    });
 
-    test.todo(
-      'the game does not start the game until all players interfaces have handlers registered.',
-      () => {
-        // GIVEN
-        const game = new TestGame();
+    test('the game does not start until all player interfaces have handlers registered.', () => {
+      // GIVEN
+      const game = new TestGame();
 
-        const player1Callback = mock(() => {});
-        const player2Callback = mock(() => {});
+      const player1Callback = { state: mock(() => {}), prompt: mock(() => {}) };
+      const player2Callback = { state: mock(() => {}), prompt: mock(() => {}) };
 
-        // WHEN #1
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          player1Callback,
-        );
+      // WHEN #1
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        player1Callback,
+      );
 
-        // THEN #1
-        expect(player1Callback).toHaveBeenCalledTimes(0);
-        expect(player2Callback).toHaveBeenCalledTimes(0);
+      // THEN #1
+      expect(player1Callback.state).toHaveBeenCalledTimes(0);
+      expect(player2Callback.state).toHaveBeenCalledTimes(0);
+      expect(player1Callback.prompt).toHaveBeenCalledTimes(0);
+      expect(player2Callback.prompt).toHaveBeenCalledTimes(0);
 
-        // WHEN #2
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          player2Callback,
-        );
+      // WHEN #2
+      game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        player2Callback,
+      );
 
-        // THEN #2
-        expect(player1Callback).toHaveBeenCalledTimes(1);
-        expect(player2Callback).toHaveBeenCalledTimes(1);
-      },
-    );
+      // THEN #2
+      expect(player1Callback.state).toHaveBeenCalledTimes(1);
+      expect(player2Callback.state).toHaveBeenCalledTimes(1);
+      expect(player1Callback.prompt).toHaveBeenCalledTimes(0);
+      expect(player2Callback.prompt).toHaveBeenCalledTimes(0);
+    });
 
     test.todo(
       'starts the game when all player interfaces have handlers registered.',

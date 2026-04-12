@@ -2,9 +2,8 @@ import { Action } from '../../components/action';
 import { Choice, EnhancedChoice } from '../../components/choice';
 import { ChoiceId } from '../../components/choice.types';
 import { Entity, entityId } from '../../components/entity';
-import { TriggerReturnType } from '../../components/trigger';
-import { DeepReadonly, Logger, Snapshot, SnapshotData } from '../../game.types';
-import { ModifiableRuntime } from '../../interfaces/modifiable-runtime';
+import { SnapshotData, Logger, DeepReadonly } from '../../game/game.types';
+import { ModifiableRuntime } from '../../game/modifiable-runtime';
 import {
   PlayerInterface,
   handler,
@@ -25,10 +24,11 @@ export class StateService {
       },
     ],
     pastSnapshots: [],
+    stack: [] as Choice<Action<string, any, any>>[],
     choices: new Map<PlayerInterface, EnhancedChoice<Action<string, any>>[]>(),
     queuedChoices: [] as EnhancedChoice<Action<string, any>>[],
-    stack: [] as TriggerReturnType[],
     isSettled: true,
+    idCounter: 0,
   };
 
   constructor(private readonly _logger: Logger) {}
@@ -50,57 +50,6 @@ export class StateService {
     this._state.queuedChoices.length = 0;
   }
 
-  /**
-   * Works off the top of the stack.
-   * The stack contains all executions (e.g. choices or triggers) that piled up due to triggers.
-   * @param runtime A reference to the runtime.
-   * @returns The item worked off if it exists, otherwise undefined.
-   */
-  public workOffStack(
-    runtime: ModifiableRuntime,
-  ): TriggerReturnType | undefined {
-    if (this._state.stack.length == 0) {
-      this._logger.debug(() => `Stack is empty.`);
-      return undefined;
-    }
-
-    const target = this._state.stack.pop()!;
-    const isChoice = target instanceof Choice;
-    this._logger.debug(
-      () => `Executing ${isChoice ? 'choice' : 'execution'} from stack...`,
-    );
-
-    // Only add the snapshot if the prior snapshot actually changed something...
-    if (
-      Object.keys(
-        this._state.currentSnapshots[this._state.currentSnapshots.length - 1]!
-          .dirtyEntities,
-      ).length > 0
-    ) {
-      this._logger.debug(
-        () =>
-          `Adding snapshot for this ${isChoice ? 'choice' : 'execution'} to state...`,
-      );
-      this._state.currentSnapshots.push({
-        dirtyEntities: {},
-        executed: isChoice ? target : undefined,
-      });
-    }
-
-    if (isChoice) {
-      target.execution.apply(runtime);
-    } else {
-      target(runtime); // TODO: Reference last trigger here correctly!
-    }
-
-    this._logger.debug(
-      () =>
-        `Finished executing ${isChoice ? 'choice' : 'execution'} from stack, ${this._state.stack.length} stack items remaining.`,
-    );
-
-    return target;
-  }
-
   public lastExecution(): Choice<Action<string, any>> | undefined {
     return this._state.currentSnapshots[
       this._state.currentSnapshots.length - 1
@@ -111,7 +60,7 @@ export class StateService {
    * Pushes a single item to the stack, which is worked off in the next snapshot.
    * @param items The items to add.
    */
-  public pushToStack(...items: TriggerReturnType[]): void {
+  public pushToStack(...items: Choice<Action<string, any, any>>[]): void {
     this._logger.debug(
       () =>
         `Pushing ${items.length} item${items.length !== 1 ? 's' : ''} to stack...`,
@@ -170,25 +119,60 @@ export class StateService {
     this._state.isSettled = isSettled;
   }
 
+  public async promptPlayer<T extends Choice<Action<string, any, any>>>(
+    player: PlayerEntity,
+    choices: T[],
+  ): Promise<T extends Choice<infer A> ? A : never> {
+    this._logger.debug(
+      () =>
+        `Prompting player interface with ID ${player[playerId]} with choices: ${choices
+          .map((c) => c.execution.$type)
+          .join(', ')}...`,
+    );
+    // Clear prior choices.
+    const priorChoices: EnhancedChoice<Action<string, any>>[] = [];
+    this._state.choices.set(player, priorChoices);
+
+    // TODO: Enhance choices with ID and save the choices somewhere!
+    choices.forEach((choice) => {
+      priorChoices.push(
+        EnhancedChoice.fromChoice(choice, this._state.idCounter++),
+      );
+    });
+
+    return new Promise((resolve) => {
+      player[handler]!.prompt(
+        priorChoices,
+        (choice: EnhancedChoice<Action<string, any, any>> | ChoiceId) => {
+          const fetchedChoice = this._fetchChoice(player, choice);
+          if (fetchedChoice === undefined) {
+            this._logger.error(
+              `Player ${player[playerId]} tried to execute an invalid choice with ID ${choice}. Ignoring this...`,
+            );
+            return;
+          }
+
+          this._logger.info(
+            () =>
+              `Player ${player[playerId]} tries to execute choice "${fetchedChoice.id}" (${fetchedChoice.execution.$type})...`,
+          );
+
+          resolve(fetchedChoice.execution.returned());
+        },
+      );
+    });
+  }
+
   /**
-   * Informs a player about their current state.
+   * Sends the current, modified state to a player.
    * @param player The player to inform about their state.
-   * @param executeChoiceCallback A callback that can be called to execute a choice within the engine.
    * @param sendFullState Whether to send the full state to the player, or only a diff.
    * For example, if a player disconnected and reconnected, they should be informed about their full state.
    * Normally, only the diff is sent.
-   * @param snapshotFilter An optional per-player snapshot transformer. When provided, each snapshot
-   * is passed through this function before being delivered to the player, allowing the caller
-   * to apply hidden-information filters (e.g. via {@link ViewFilterService}).
    */
   public informPlayer(
     player: PlayerEntity,
-    executeChoiceCallback: (
-      player: PlayerEntity,
-      choice: EnhancedChoice<Action<string, any>>,
-    ) => void,
     sendFullState: boolean = false,
-    snapshotFilter?: (snapshot: Snapshot) => Snapshot,
   ): void {
     this._logger.debug(
       () =>
@@ -196,34 +180,8 @@ export class StateService {
     );
 
     const rawSnapshots = this._state.currentSnapshots;
-    const snapshots = snapshotFilter
-      ? rawSnapshots.map(snapshotFilter)
-      : rawSnapshots;
 
-    player[handler]!(
-      snapshots,
-      this._state.choices.get(player) ?? [],
-      (rawChoice: EnhancedChoice<Action<string, any>> | ChoiceId) => {
-        const choice = this._fetchChoice(player, rawChoice);
-
-        if (choice === undefined) {
-          return;
-        }
-
-        this._logger.info(
-          () =>
-            `Player ${player[playerId]} tries to execute choice "${choice.id}" (${choice.execution.$type})...`,
-        );
-
-        if (this._state.isSettled) {
-          executeChoiceCallback(player, choice);
-        } else {
-          // Debounce this execution, so that if multiple players are informed or want to execute a choice,
-          // they have a fair chance to do so before first player in the loop simply takes all their actions and forces new snapshots.
-          this._state.queuedChoices.push(choice);
-        }
-      },
-    );
+    player[handler]!.state(rawSnapshots);
   }
 
   /**

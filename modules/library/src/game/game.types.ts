@@ -3,7 +3,6 @@ import { Choice, EnhancedChoice } from '../components/choice';
 import { ChoiceId } from '../components/choice.types';
 import { Entity } from '../components/entity';
 import { EntityID } from '../components/entity.types';
-import { TriggerReturnType } from '../components/trigger';
 import { PlayerInterface } from '../interfaces/player-interface';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 
@@ -87,12 +86,16 @@ export type DeepReadonly<T> = Partial<{
 
 type AnyEntity = Record<string, unknown> & Entity;
 
-export type PlayerInterfaceCallback = (
-  // The snapshots that were modified since the last inform.
-  snapshots: Snapshot[],
-  choices: EnhancedChoice<Action<string, any>>[],
-  execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void, // TODO: We probably also need to pass other callbacks - force complete snapshot data, ....
-) => void;
+export type PlayerInterfaceCallback = {
+  state: (
+    // The snapshots that were modified since the last inform.
+    snapshots: Snapshot[],
+  ) => void;
+  prompt: <T extends EnhancedChoice<Action<string, any, any>>>(
+    choices: T[],
+    execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void, // TODO: We probably also need to pass other callbacks - force complete snapshot data, ....
+  ) => void;
+};
 
 export type Snapshot = {
   dirtyEntities: Record<EntityID, DeepReadonly<AnyEntity>>;
@@ -110,9 +113,11 @@ export type SnapshotData = {
   // Which choices were executed since the last snapshot?
   queuedChoices: EnhancedChoice<Action<string, any>>[];
   // Which executions are currently queued to be executed?
-  stack: TriggerReturnType[];
+  stack: Choice<Action<string, any, any>>[];
   //  Is the current state settled, meaning that all triggers have been worked off and input of player can be accepted?
   isSettled: boolean;
+  // How many choices were created so far?
+  idCounter: 0;
 };
 
 /**

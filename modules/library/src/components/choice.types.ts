@@ -1,7 +1,7 @@
 import { ModifiableRuntime } from '../game/modifiable-runtime';
 import { EntityID } from './entity.types';
 
-export type ChoiceId = string;
+export type ChoiceId = number;
 
 /**
  * In some scenarios, the engine needs to be directly modified without going through the abstraction of an Action.

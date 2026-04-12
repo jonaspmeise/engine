@@ -26,6 +26,9 @@ import { ModifiableRuntime } from './modifiable-runtime';
 import { Action } from '../components/action';
 import { Choice, EnhancedChoice } from '../components/choice';
 import { StateService } from '../services/state/state-service';
+import { GraphService } from '../services/graph/graph-service';
+import { Graph } from '../components/graph/graph';
+import { NodeId } from '../components/graph/node.types';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -33,10 +36,10 @@ export abstract class Game<
   implements QueryableRuntime, ModifiableRuntime
 {
   private _logger: Logger;
-  private _status: GameStatus = 'setup';
   private _endParameters: GameEndParameters | undefined = undefined;
 
   private readonly _entityService: EntityService;
+  private _graphService!: GraphService<NodeId>;
   private readonly _stateService: StateService;
   private readonly _callbacks: Partial<GameLifecycle> = {};
 
@@ -66,7 +69,6 @@ export abstract class Game<
       this._logger,
       this.flush.bind(this),
     );
-
     this._stateService = new StateService(this._logger);
 
     this._logger.info(() => `Starting game ${this.constructor.name}.`);
@@ -93,6 +95,11 @@ export abstract class Game<
    * The name of the game.
    */
   public abstract readonly name: string;
+
+  /**
+   * The graph of the game, which defines the flow of the game.
+   */
+  public abstract graph(): Graph<NodeId>;
 
   /**
    * Returns the set of all entity classes that are used in this game.
@@ -137,6 +144,10 @@ export abstract class Game<
    * @param parameters The parameters to set up the game with.
    */
   private _setup(parameters: PARAMETERS): void {
+    this._logger.debug(() => `Setting up game ${this.constructor.name}...`);
+    this._logger.debug(() => `Creating graph service...`);
+    this._graphService = new GraphService(this.graph(), this._logger);
+
     this._logger.info(() => `Spawning entities...`);
 
     let spawnCount = 0;
@@ -156,6 +167,9 @@ export abstract class Game<
     }
 
     this._logger.info(() => `Spawned a total of ${spawnCount} entities.`);
+    this._logger.debug(
+      () => `Finished setting up game ${this.constructor.name}.`,
+    );
   }
 
   /**
@@ -212,10 +226,10 @@ export abstract class Game<
   }
 
   public prompt<T extends Choice<Action<string, any, any>>>(
-    _player: PlayerInterface,
+    _player: PlayerEntity,
     _choices: T[],
   ): Promise<T extends Choice<infer A> ? A : never> {
-    throw new Error('Method not implemented.');
+    return this._stateService.promptPlayer(_player, _choices);
   }
 
   /**
@@ -232,13 +246,11 @@ export abstract class Game<
 
     // Is the game even still running...?
     // TODO: Write test for this!
-    if (this._status === 'ended') {
+    if (this._graphService.isEnded()) {
       this._logger.warn(
         `Game ${this.constructor.name} has already ended, but _nextSnapshot was called again. This likely means that some trigger or choice execution was not properly cleaned up after ending the game. Please check your triggers and choice executions to ensure that they do not execute after the game has ended.`,
       );
       return;
-    } else {
-      this._status = 'running';
     }
 
     // Did we exceed our maximum depth?
@@ -251,34 +263,8 @@ export abstract class Game<
     // Clean up prior snapshot data.
     this._stateService.clear();
 
-    // Work off stack first...
-    const target = this._stateService.workOffStack(this);
-
-    if (target !== undefined) {
-      this._logger.debug(
-        () => `Finished working off stack item, moving to next snapshot...`,
-      );
-
-      // @ts-ignore TODO: This is a bit hacky, but we need to check whether the game ended during the execution of a stack item (e.g. a trigger-executed action called end()). If so, we should not execute any further triggers or inform players about choices, but directly send the final snapshot to all players.
-      if (this._status !== 'ended') {
-        this._nextSnapshot();
-      } else {
-        // The game ended during a stack item execution (e.g. a trigger-executed action called end()).
-        // Inform all players about the final state so they receive the terminal snapshot.
-        this._logger.info(
-          () =>
-            `Game ${this.constructor.name} has ended. Sending final state to all players...`,
-        );
-        for (const player of this._entityService.players()) {
-          this._stateService.informPlayer(
-            player,
-            this._executePlayerChoice.bind(this),
-            false,
-          );
-        }
-      }
-      return;
-    }
+    // Executing current graph node!
+    this._graphService.execute(this);
 
     // Drain queued executed choices.
     const choice = this._stateService.getQueuedChoice();
@@ -287,6 +273,11 @@ export abstract class Game<
     }
 
     this._stateService.setSettled(true);
+
+    // Prompt players about executed snapshot.
+    for (const player of this.players()) {
+      this._stateService.informPlayer(player, false);
+    }
   }
 
   // TODO: This could also belong to the state service...?
@@ -329,7 +320,7 @@ export abstract class Game<
     const players = this._entityService.players();
 
     if (players.every((p) => p[handler] !== undefined)) {
-      if (this._status === 'setup') {
+      if (this._graphService.isSetup()) {
         this._start();
       } else {
         this._logger.info(
@@ -337,11 +328,7 @@ export abstract class Game<
             `Player interface with ID ${player[playerId]} reconnected. Informing them about their state...`,
         );
 
-        this._stateService.informPlayer(
-          player,
-          this._executePlayerChoice,
-          true,
-        );
+        this._stateService.informPlayer(player, true);
       }
     }
   }
@@ -355,7 +342,7 @@ export abstract class Game<
         `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
     );
 
-    // Calculate first snapshot.
+    // Calculate first node.
     this._nextSnapshot();
   }
 
@@ -386,22 +373,10 @@ export abstract class Game<
     this._entityService.create(entity);
   }
 
-  /**
-   * Returns the current status of the game.
-   * There are three possible statuses:
-   * - 'setup': The game is being set up, but not all players have registered their callbacks yet. During this phase, no game logic is executed.
-   * - 'running': The game is running and players can execute choices.
-   * - 'ended': The game has ended and no more choices can be executed.
-   * @returns The status of the game.
-   */
-  status(): Readonly<GameStatus> {
-    return this._status;
-  }
-
   end(parameters: Partial<GameEndParameters>): void {
     this._logger.info(() => `Ending game...`);
 
-    if (this._status === 'ended') {
+    if (this._graphService.isEnded()) {
       this._logger.error(
         `Game ${this.constructor.name} has already ended, can't end it again!`,
       );
@@ -440,7 +415,6 @@ export abstract class Game<
       );
     }
 
-    this._status = 'ended';
     this._endParameters = {
       winners: parameters.winners ?? [],
       losers: parameters.losers ?? [],
