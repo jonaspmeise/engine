@@ -8,6 +8,7 @@ import {
   GameEndParameters,
   GameLifecycle,
   GameParameters,
+  GameStatus,
   Logger,
   NO_OP_LOGGER,
   PlayerInterfaceCallback,
@@ -27,6 +28,13 @@ import { StateService } from '../services/state/state-service';
 import { GraphService } from '../services/graph/graph-service';
 import { Graph } from '../components/graph/graph';
 import { NodeId } from '../components/graph/node.types';
+import {
+  AfterAction,
+  AfterActionIndex,
+  BeforeAction,
+  BeforeActionIndex,
+  LifecycleType,
+} from '../components/lifecyclehooks';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -34,6 +42,7 @@ export abstract class Game<
   implements QueryableRuntime, ModifiableRuntime
 {
   private _logger: Logger;
+  private _status: GameStatus = 'setup';
   private _endParameters: GameEndParameters | undefined = undefined;
 
   private readonly _entityService: EntityService;
@@ -124,6 +133,25 @@ export abstract class Game<
   }
 
   /**
+   * This method is called, when multiple triggers go off at the same time.
+   * @params type The lifecycle type of the triggers, either "before" or "after".
+   * @params action The action that triggered the lifecycle hooks.
+   * @params entities The entities that have a triggered lifecycle hook.
+   * @returns The order in which the triggers should be executed. This should be a permutation of the input entities.
+   */
+  public resolveTriggerOrder<ACTION extends Action<any, any, any>>(
+    type: LifecycleType,
+    action: ACTION,
+    entities: Entity[],
+  ): Entity[] {
+    this._logger.warn(
+      `Multiple triggers of type "${type}" were triggered at the same time for action "${action.$type}". This can lead to non-deterministic behavior, since the order of execution is not defined. Consider implementing the "resolveTriggerOrder" method in your game to define a deterministic order of execution for these triggers. Returning them in arbitrary order...`,
+    );
+
+    return entities;
+  }
+
+  /**
    * Flushes the current state of an entity to the engine.
    * This should be called, when that entity is changed or a new entity is spawned.
    * @param entity The entity to flush.
@@ -135,6 +163,14 @@ export abstract class Game<
     );
 
     this._stateService.markDirty(entity);
+  }
+
+  /**
+   * Returns the game status.
+   * @returns Either "setup", "running" or "ended", depending on the current status of the game.
+   */
+  public status(): Readonly<GameStatus> {
+    return this._status;
   }
 
   /**
@@ -245,10 +281,75 @@ export abstract class Game<
     this._stateService.setSettled(false);
     this._logger.debug(() => `Executing action ${action.$type}...`);
 
+    // Find all entities that should be called before this action is executed.
+    let beforeEntities: Entity[] = this._entityService
+      .entities()
+      .filter(
+        (entity): entity is Entity & BeforeAction<Action<string, any, any>> =>
+          this._hasActionLifecyclehook(entity, action, 'before'),
+      );
+
+    if (beforeEntities.length > 1) {
+      beforeEntities = this.resolveTriggerOrder(
+        'before',
+        action,
+        beforeEntities,
+      );
+    }
+
+    // Call before hooks.
+    for (const entity of beforeEntities) {
+      this._logger.debug(
+        () =>
+          `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
+      );
+
+      (entity as unknown as BeforeActionIndex)[
+        `before${action.$type.charAt(0).toUpperCase() + action.$type.slice(1)}`
+      ]!(this, action.parameters);
+    }
+
     this._stateService.execute(action, this);
+
+    // Find all entities that should be called after this action is executed.
+    let afterEntities: Entity[] = this._entityService
+      .entities()
+      .filter(
+        (entity): entity is Entity & AfterAction<Action<string, any, any>> =>
+          this._hasActionLifecyclehook(entity, action, 'after'),
+      );
+
+    if (afterEntities.length > 1) {
+      afterEntities = this.resolveTriggerOrder('after', action, afterEntities);
+    }
+
+    // Call after hooks.
+    for (const entity of afterEntities) {
+      this._logger.debug(
+        () =>
+          `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
+      );
+
+      (entity as unknown as AfterActionIndex)[
+        `after${action.$type.charAt(0).toUpperCase() + action.$type.slice(1)}`
+      ]!(this, action.parameters, action.returned());
+    }
+
     for (const player of this._entityService.players()) {
       this._stateService.informPlayer(player, false);
     }
+  }
+
+  private _hasActionLifecyclehook(
+    entity: Entity,
+    action: Action<string, any, any>,
+    actionType: LifecycleType,
+  ): entity is Entity & BeforeAction<Action<string, any, any>> {
+    return (
+      entity instanceof Entity &&
+      `${actionType}${action.$type.charAt(0).toUpperCase() + action.$type.slice(1)}` in
+        entity
+    );
   }
 
   /**
@@ -294,7 +395,12 @@ export abstract class Game<
 
     this._stateService.setSettled(true);
 
-    return !this._graphService.isEnded();
+    if (this._graphService.isEnded()) {
+      this._status = 'ended';
+      return false;
+    } else {
+      return true;
+    }
   }
 
   /**
@@ -345,6 +451,7 @@ export abstract class Game<
       () =>
         `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
     );
+    this._status = 'running';
 
     // Inform players about initial state.
     // Kind of redundant, but does not hurt...
@@ -389,12 +496,22 @@ export abstract class Game<
   end(parameters: Partial<GameEndParameters>): void {
     this._logger.info(() => `Ending game...`);
 
-    if (this._graphService.isEnded()) {
+    if (this._status === 'ended') {
       this._logger.error(
         `Game ${this.constructor.name} has already ended, can't end it again!`,
       );
       return;
     }
+
+    this._logger.debug(
+      `Winners are: ${parameters.winners?.map((p) => p[entityId]).join(', ') ?? 'none'}.`,
+    );
+    this._logger.debug(
+      `Losers are: ${parameters.losers?.map((p) => p[entityId]).join(', ') ?? 'none'}.`,
+    );
+    this._logger.debug(
+      `Draws are: ${parameters.draws?.map((p) => p[entityId]).join(', ') ?? 'none'}.`,
+    );
 
     const players = [
       ...(parameters.winners ?? []),
@@ -406,6 +523,14 @@ export abstract class Game<
       throw new Error(
         `Cannot end game without any winners, losers or draws! Please provide at least one winner, loser or draw.`,
       );
+    }
+
+    const undefinedPlayers = players.filter((p) => p === undefined);
+    if (undefinedPlayers.length > 0) {
+      throw new Error(`Cannot end game with "undefined" players as winners, losers or draws! Please make sure all players in the end parameters are defined.
+        Winners were: ${parameters.winners?.map((p) => p[entityId]).join(', ') ?? 'none'},
+        Losers were: ${parameters.losers?.map((p) => p[entityId]).join(', ') ?? 'none'},
+        Draws were: ${parameters.draws?.map((p) => p[entityId]).join(', ') ?? 'none'}.`);
     }
 
     // Are there players overlapping in each category?
@@ -433,8 +558,7 @@ export abstract class Game<
       losers: parameters.losers ?? [],
       draws: parameters.draws ?? [],
     };
-
-    // TODO: What happens if the same player is both a winner and a loser?
+    this._status = 'ended';
 
     if (this._callbacks.onEnd !== undefined) {
       this._callbacks.onEnd(this._endParameters);

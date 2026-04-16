@@ -5,13 +5,48 @@ import { MarkAction } from './actions/mark';
 import { Action } from '../../src/components/action';
 import { DiagonalLane } from './entities/diagonal-lane';
 import { Class, EntityClass } from '../../src/game/game.types';
-import { Choice } from '../../src/components/choice';
 import { HorizontalLane } from './entities/horizontal-lane';
 import { TicTacToePlayer } from './entities/player';
 import { Slot } from './entities/slot';
 import { VerticalLane } from './entities/vertical-lane';
+import { Graph } from '../../src/components/graph/graph';
+import { ModifiableRuntime } from '../../src';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
+  public graph(): Graph<'INITIAL'> {
+    return {
+      INITIAL: async (runtime: ModifiableRuntime) => {
+        while (true) {
+          const currentPlayer = runtime
+            .entities(TicTacToePlayer)
+            .find((player) => player.isCurrentPlayer)!;
+
+          const freeSlots = runtime
+            .entities(Slot)
+            .filter((slot) => slot.isEmpty());
+
+          if (freeSlots.length === 0) {
+            runtime.end({ draws: runtime.entities(TicTacToePlayer) });
+            return;
+          }
+
+          runtime.execute(
+            await runtime.prompt(
+              currentPlayer,
+              freeSlots.map(
+                (slot) =>
+                  new MarkAction({
+                    slot: slot,
+                    player: currentPlayer,
+                  }),
+              ),
+            ),
+          );
+        }
+      },
+    };
+  }
+
   entityClasses(): Set<EntityClass<Entity>> {
     return new Set<EntityClass<Entity>>([
       Slot,

@@ -74,58 +74,66 @@ async function _runMctsAsync(
       .players()
       .find((p) => p[entityId] === selfPlayer[entityId])!;
 
-    simGame.registerPlayerCallback(ourSimPlayer, (_, simChoices, exec) => {
-      if (simChoices.length === 0) return;
-
-      let selectedIdx: number;
-
-      if (!pastTree) {
-        // Find the first choice index that has never been expanded at this node.
-        let unvisitedIdx: number | undefined;
-        for (let j = 0; j < simChoices.length; j++) {
-          const child = currentNode.children.get(j);
-          if (child === undefined || child.visits === 0) {
-            unvisitedIdx = j;
-            break;
-          }
-        }
-
-        if (unvisitedIdx !== undefined) {
-          // Expansion: create a child node and switch to random play.
-          selectedIdx = unvisitedIdx;
-          if (!currentNode.children.has(selectedIdx)) {
-            currentNode.children.set(selectedIdx, _createNode(currentNode));
-          }
-          currentNode = currentNode.children.get(selectedIdx)!;
-          path.push(currentNode);
-          pastTree = true;
-        } else {
-          // All children visited: selection via UCB1.
-          selectedIdx = _ucb1SelectIndex(currentNode, simChoices.length);
-          currentNode = currentNode.children.get(selectedIdx)!;
-          path.push(currentNode);
-        }
-      } else {
-        // Simulation phase: play uniformly at random.
-        selectedIdx = Math.floor(Math.random() * simChoices.length);
-      }
-
-      exec(simChoices[Math.min(selectedIdx, simChoices.length - 1)]!);
-    });
-
-    // Register all opponents with a simple random-play callback.
+    // Register all opponents first — the game will not start until every player
+    // has a handler, so these registrations are non-starting and need not be awaited.
     for (const opponent of simGame
       .players()
       .filter((p) => p !== ourSimPlayer)) {
-      simGame.registerPlayerCallback(opponent, (_, simChoices, exec) => {
-        if (simChoices.length > 0) {
-          exec(simChoices[Math.floor(Math.random() * simChoices.length)]!);
-        }
+      simGame.registerPlayerCallback(opponent, {
+        state: () => {},
+        prompt: (simChoices, execute) => {
+          if (simChoices.length > 0) {
+            execute(simChoices[Math.floor(Math.random() * simChoices.length)]!);
+          }
+        },
       });
     }
 
-    // The game has now run synchronously to completion (or an end state).
-    // Score the result from our player's perspective.
+    // Register the MCTS player last and await — this triggers _start() and runs
+    // the game to full completion before the next line executes.
+    await simGame.registerPlayerCallback(ourSimPlayer, {
+      state: () => {},
+      prompt: (simChoices, execute) => {
+        if (simChoices.length === 0) return;
+
+        let selectedIdx: number;
+
+        if (!pastTree) {
+          // Find the first choice index that has never been expanded at this node.
+          let unvisitedIdx: number | undefined;
+          for (let j = 0; j < simChoices.length; j++) {
+            const child = currentNode.children.get(j);
+            if (child === undefined || child.visits === 0) {
+              unvisitedIdx = j;
+              break;
+            }
+          }
+
+          if (unvisitedIdx !== undefined) {
+            // Expansion: create a child node and switch to random play.
+            selectedIdx = unvisitedIdx;
+            if (!currentNode.children.has(selectedIdx)) {
+              currentNode.children.set(selectedIdx, _createNode(currentNode));
+            }
+            currentNode = currentNode.children.get(selectedIdx)!;
+            path.push(currentNode);
+            pastTree = true;
+          } else {
+            // All children visited: selection via UCB1.
+            selectedIdx = _ucb1SelectIndex(currentNode, simChoices.length);
+            currentNode = currentNode.children.get(selectedIdx)!;
+            path.push(currentNode);
+          }
+        } else {
+          // Simulation phase: play uniformly at random.
+          selectedIdx = Math.floor(Math.random() * simChoices.length);
+        }
+
+        execute(simChoices[Math.min(selectedIdx, simChoices.length - 1)]!);
+      },
+    });
+
+    // The game has now run to completion — score from our player's perspective.
     const endStatus = simGame.endStatus();
     const won = endStatus?.winners.some((w) => w === ourSimPlayer) ?? false;
     const drew = !won && (endStatus?.draws.length ?? 0) > 0;
@@ -164,13 +172,14 @@ export namespace Players {
     delay?: () => number,
     logger?: Logger,
     name?: string,
-  ) => PlayerInterfaceCallback =
-    (
-      delay: () => number = () => 0,
-      logger: Logger = DEFAULT_LOGGER,
-      name?: string,
-    ) =>
-    (_, choices, execute) => {
+  ) => PlayerInterfaceCallback = (
+    delay: () => number = () => 0,
+    logger: Logger = DEFAULT_LOGGER,
+    name?: string,
+  ) => ({
+    // Chicken no need state!
+    state: () => {},
+    prompt: (choices, execute) => {
       logger.debug(`Chicken player "${name}" has choices:`, choices);
 
       // This player does only take random choices...
@@ -180,7 +189,8 @@ export namespace Players {
           execute(choice);
         }, delay());
       }
-    };
+    },
+  });
 
   /**
    * A player that uses the UCT variant of Monte Carlo Tree Search (MCTS) to pick
@@ -201,9 +211,14 @@ export namespace Players {
     player: PlayerEntity,
     iterations?: number,
     logger?: Logger,
-  ) => PlayerInterfaceCallback =
-    (game, player, iterations = 300, logger: Logger = NO_OP_LOGGER) =>
-    (_, choices, execute) => {
+  ) => PlayerInterfaceCallback = (
+    game,
+    player,
+    iterations = 300,
+    logger: Logger = NO_OP_LOGGER,
+  ) => ({
+    state: () => {},
+    prompt: (choices, execute) => {
       if (choices.length === 0) return;
       if (choices.length === 1) {
         execute(choices[0]!);
@@ -221,5 +236,6 @@ export namespace Players {
         );
         execute(best);
       }, 0);
-    };
+    },
+  });
 }

@@ -1,10 +1,33 @@
-import { Entity, QueryableRuntime, entityId } from '../../../src';
+import {
+  Entity,
+  ModifiableRuntime,
+  QueryableRuntime,
+  entityId,
+} from '../../../src';
+import { AfterAction } from '../../../src/components/lifecyclehooks';
+import { MarkAction } from '../actions/mark';
+import { TicTacToeWin } from '../actions/win';
 import { TicTacToePlayer } from './player';
 import { Slot } from './slot';
 
-export abstract class Lane extends Entity {
+export abstract class Lane extends Entity implements AfterAction<MarkAction> {
   constructor(public readonly index: number) {
     super(`${new.target.name}-${index}`);
+  }
+
+  afterMark(
+    runtime: ModifiableRuntime,
+    _parameters: { slot: Slot; player: TicTacToePlayer },
+  ) {
+    const winner = this.wonBy(runtime);
+    if (winner !== undefined) {
+      runtime.execute(
+        new TicTacToeWin({
+          player: winner,
+          lane: this,
+        }),
+      );
+    }
   }
 
   public abstract slots(runtime: QueryableRuntime): Set<Slot>;

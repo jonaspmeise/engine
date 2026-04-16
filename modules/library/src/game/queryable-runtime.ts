@@ -1,5 +1,5 @@
 import { Entity } from '../components/entity';
-import { Class } from './game.types';
+import { Class, GameStatus } from './game.types';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 
 /**
@@ -11,4 +11,5 @@ export interface QueryableRuntime {
   entities(): ReadonlyArray<Entity>;
   anyEntity<TYPE extends Entity>(type: Class<TYPE>): TYPE | null;
   players(): ReadonlyArray<PlayerEntity>;
+  status(): Readonly<GameStatus>;
 }

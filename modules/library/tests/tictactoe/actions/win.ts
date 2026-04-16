@@ -1,11 +1,7 @@
 import { Action } from '../../../src/components/action';
-import {
-  ModifiableRuntime,
-  QueryableRuntime,
-  EntityID,
-  entityId,
-} from '../../../src';
+import { ModifiableRuntime } from '../../../src';
 import { TicTacToePlayer } from '../entities/player';
+import { Lane } from '../entities/lane';
 
 /**
  * Because this Action should
@@ -14,29 +10,20 @@ import { TicTacToePlayer } from '../entities/player';
  * we explicitly model it as an Action for this game.
  * It doesn't do much, just internally wraps the ending-of-the-game logic.
  */
-export class Win extends Action<
+export class TicTacToeWin extends Action<
   'win',
   {
     player: TicTacToePlayer;
+    lane: Lane;
   }
 > {
-  apply(runtime: ModifiableRuntime): void {
+  async doApply(runtime: ModifiableRuntime): Promise<void> {
     runtime.end({
       winners: [this.parameters.player],
       losers: runtime
         .players()
         .filter((player) => player !== this.parameters.player),
     });
-  }
-
-  public message(): string {
-    return `${this.parameters.player} wins!`;
-  }
-  public prompt(): string {
-    return `Win the game!`;
-  }
-  public affectedEntities(_runtime: QueryableRuntime): EntityID[] | void {
-    return [this.parameters.player[entityId]];
   }
 
   public readonly $type = 'win' as const;

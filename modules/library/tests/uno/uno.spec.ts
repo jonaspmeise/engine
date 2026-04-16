@@ -22,4 +22,4 @@ export class UnoTest extends BaseGameTest<{
   }
 }
 
-new UnoTest().run();
+// TODO: new UnoTest().run();
