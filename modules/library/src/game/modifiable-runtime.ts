@@ -1,5 +1,4 @@
 import { Action } from '../components/action';
-import { Choice } from '../components/choice';
 import { Entity } from '../components/entity';
 import { GameEndParameters } from './game.types';
 import { PlayerInterface } from '../interfaces/player-interface';
@@ -12,8 +11,9 @@ export interface ModifiableRuntime extends QueryableRuntime {
   destroyEntity(entity: Entity): void;
   spawnEntity(entity: Entity): void;
   end(parameters: Partial<GameEndParameters>): void;
-  prompt<T extends Choice<Action<string, any, any>>>(
+  prompt<ACTION extends Action<string, any, any>>(
     player: PlayerInterface,
-    choices: T[],
-  ): Promise<T extends Choice<infer A> ? A : never>;
+    choices: ACTION[],
+  ): Promise<ACTION>;
+  execute(action: Action<string, any, any>): void;
 }

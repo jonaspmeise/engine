@@ -8,7 +8,6 @@ import {
   GameEndParameters,
   GameLifecycle,
   GameParameters,
-  GameStatus,
   Logger,
   NO_OP_LOGGER,
   PlayerInterfaceCallback,
@@ -24,7 +23,6 @@ import {
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { ModifiableRuntime } from './modifiable-runtime';
 import { Action } from '../components/action';
-import { Choice, EnhancedChoice } from '../components/choice';
 import { StateService } from '../services/state/state-service';
 import { GraphService } from '../services/graph/graph-service';
 import { Graph } from '../components/graph/graph';
@@ -225,17 +223,39 @@ export abstract class Game<
     return this._entityService.anyEntity(type);
   }
 
-  public prompt<T extends Choice<Action<string, any, any>>>(
-    _player: PlayerEntity,
-    _choices: T[],
-  ): Promise<T extends Choice<infer A> ? A : never> {
-    return this._stateService.promptPlayer(_player, _choices);
+  /**
+   * Prompts a player with a set of choices, and waits for the player to make a choice.
+   * @param player The player to prompt.
+   * @param choices The set of choices to present to the player.
+   * @returns A promise that resolves to the chosen action.
+   */
+  public prompt<ACTION extends Action<string, any, any>>(
+    player: PlayerEntity,
+    choices: ACTION[],
+  ): Promise<ACTION> {
+    return this._stateService.promptPlayer(player, choices);
+  }
+
+  /**
+   * Executes an action in the game.
+   * This is the only way to modify the game state!
+   * @param action The action to execute.
+   */
+  public execute(action: Action<string, any, any>): void {
+    this._stateService.setSettled(false);
+    this._logger.debug(() => `Executing action ${action.$type}...`);
+
+    this._stateService.execute(action, this);
+    for (const player of this._entityService.players()) {
+      this._stateService.informPlayer(player, false);
+    }
   }
 
   /**
    * Starts the actual game loop.
+   * @returns A promise that resolves to whether there is a next snapshot to calculate.
    */
-  private _nextSnapshot(): void {
+  private async _nextSnapshot(): Promise<boolean> {
     // Kind of redundant, but does not hurt...
     this._stateService.setSettled(false);
 
@@ -250,7 +270,7 @@ export abstract class Game<
       this._logger.warn(
         `Game ${this.constructor.name} has already ended, but _nextSnapshot was called again. This likely means that some trigger or choice execution was not properly cleaned up after ending the game. Please check your triggers and choice executions to ensure that they do not execute after the game has ended.`,
       );
-      return;
+      return false;
     }
 
     // Did we exceed our maximum depth?
@@ -264,35 +284,17 @@ export abstract class Game<
     this._stateService.clear();
 
     // Executing current graph node!
-    this._graphService.execute(this);
+    await this._graphService.execute(this);
 
     // Drain queued executed choices.
     const choice = this._stateService.getQueuedChoice();
     if (choice !== undefined) {
-      this._executePlayerChoice(choice.player, choice);
+      this.execute(choice.execution);
     }
 
     this._stateService.setSettled(true);
 
-    // Prompt players about executed snapshot.
-    for (const player of this.players()) {
-      this._stateService.informPlayer(player, false);
-    }
-  }
-
-  // TODO: This could also belong to the state service...?
-  private _executePlayerChoice(
-    player: PlayerEntity,
-    choice: EnhancedChoice<Action<string, any>>,
-  ): void {
-    this._stateService.setSettled(false);
-    this._logger.info(
-      () =>
-        `Executing choice ${choice.execution.$type} for player interface with ID ${player[playerId]}...`,
-    );
-
-    this._stateService.executePlayerChoice(choice.player, choice, this);
-    this._nextSnapshot();
+    return !this._graphService.isEnded();
   }
 
   /**
@@ -300,11 +302,12 @@ export abstract class Game<
    * The callback is used to handle the player state.
    * @param player The player interface to register the callback for.
    * @param callback The callback function to handle the player state.
+   * @returns a promise that resolved when handling the registration of the player callback is finished.
    */
-  public registerPlayerCallback(
+  public async registerPlayerCallback(
     player: PlayerEntity,
     callback: PlayerInterfaceCallback,
-  ): void {
+  ): Promise<void> {
     this._logger.info(
       `Registering player callback for player interface with ID ${player[playerId]}.`,
     );
@@ -321,7 +324,7 @@ export abstract class Game<
 
     if (players.every((p) => p[handler] !== undefined)) {
       if (this._graphService.isSetup()) {
-        this._start();
+        await this._start();
       } else {
         this._logger.info(
           () =>
@@ -335,15 +338,25 @@ export abstract class Game<
 
   /**
    * Starts the game.
+   * @returns A promise that resolves when the game has finished starting and the first snapshot was calculated.
    */
-  private _start(): void {
+  private async _start(): Promise<void> {
     this._logger.info(
       () =>
         `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
     );
 
+    // Inform players about initial state.
+    // Kind of redundant, but does not hurt...
+    this._stateService.setSettled(false);
+
+    this._logger.debug(() => `Informing players about initial state...`);
+    for (const player of this._entityService.players()) {
+      this._stateService.informPlayer(player, true);
+    }
+
     // Calculate first node.
-    this._nextSnapshot();
+    while (await this._nextSnapshot()) {}
   }
 
   // TODO: Maybe move these to another place...

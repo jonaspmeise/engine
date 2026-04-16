@@ -27,6 +27,22 @@ export class Choice<ACTION extends Action<string, any, any>> {
       enumerable: false,
     });
   }
+}
+
+/**
+ * This enhanced version of the Choice class is issued by the engine and communicated to the player.
+ */
+export class EnhancedChoice<ACTION extends Action<string, any>> {
+  constructor(
+    public readonly id: ChoiceId,
+    public readonly execution: ACTION,
+    public readonly player: PlayerEntity,
+  ) {
+    // Should not be serialized!
+    Object.defineProperty(this, 'player', {
+      enumerable: false,
+    });
+  }
 
   // Choices are serialized using a special serializer:
   // Entity references are replaced with a placeholder object (that has the string value "$ENTITY:{{id}}").
@@ -37,7 +53,8 @@ export class Choice<ACTION extends Action<string, any, any>> {
         type: this.execution.$type,
         parameters: EnhancedChoice.dereferenceEntity(this.execution.parameters),
       },
-      player: dereferenceEntityID(this.player[entityId]), // TODO: Structurally define this somewhere as an utility function!
+      player: dereferenceEntityID(this.player[entityId]),
+      id: this.id,
     };
   }
 
@@ -57,33 +74,12 @@ export class Choice<ACTION extends Action<string, any, any>> {
       ]),
     );
   }
-}
 
-/**
- * This enhanced version of the Choice class is issued by the engine and communicated to the player.
- */
-export class EnhancedChoice<
-  ACTION extends Action<string, any>,
-> extends Choice<ACTION> {
-  constructor(
-    public readonly id: ChoiceId,
-    execution: ACTION,
+  static fromAction<ACTION extends Action<string, any>>(
+    action: ACTION,
     player: PlayerEntity,
-  ) {
-    super(execution, player);
-  }
-
-  toJSON(): Record<any, unknown> {
-    return {
-      ...super.toJSON(),
-      id: this.id,
-    };
-  }
-
-  static fromChoice<ACTION extends Action<string, any>>(
-    choice: Choice<ACTION>,
     id: ChoiceId,
   ): EnhancedChoice<ACTION> {
-    return new EnhancedChoice(id, choice.execution, choice.player);
+    return new EnhancedChoice(id, action, player);
   }
 }

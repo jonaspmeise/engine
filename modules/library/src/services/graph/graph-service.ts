@@ -24,6 +24,10 @@ export class GraphService<NODES extends NodeId> {
         ]),
       ) as ComplexGraph<Graph<NODES>>['nodes'],
     };
+
+    this._logger.debug(
+      `Graph has the following nodes: ${Object.keys(this._graph.nodes).join(', ')}`,
+    );
   }
 
   public graph(): ComplexGraph<Graph<NODES>> {
@@ -43,12 +47,13 @@ export class GraphService<NODES extends NodeId> {
 
   /**
    * Executes the code of the current node and moves internally to the next node.
+   * @returns whether there is a next node, or not.
    */
-  public async execute(runtime: ModifiableRuntime): Promise<void> {
+  public async execute(runtime: ModifiableRuntime): Promise<boolean> {
     this._logger.debug(`Executing node: ${this._graph.current}`);
 
     if (this._graph.current === undefined) {
-      return;
+      return false;
     }
     const current = this._graph.nodes[this._graph.current]!;
     current.calls += 1;
@@ -61,5 +66,7 @@ export class GraphService<NODES extends NodeId> {
     this._logger.debug(
       `Finished executing node. Next node: ${this._graph.current}. Graph ended: ${this._graph.ended}`,
     );
+
+    return !this._graph.ended;
   }
 }

@@ -69,9 +69,10 @@ describe('GraphService', () => {
   describe('execute', () => {
     test('executes the next step of the graph', async () => {
       // GIVEN / WHEN
-      await service.execute(runtime);
+      const hasNext = await service.execute(runtime);
 
       // THEN
+      expect(hasNext).toBe(true);
       expect(service.graph().current).toBe('NodeA');
       expect(service.graph().ended).toBe(false);
       expect(service.graph().nodes.INITIAL.calls).toBe(1);
@@ -92,8 +93,11 @@ describe('GraphService', () => {
       );
 
       // WHEN
-      await service.execute(runtime);
-      await service.execute(runtime);
+      const hasNext1 = await service.execute(runtime);
+      const hasNext2 = await service.execute(runtime);
+
+      expect(hasNext1).toBe(false);
+      expect(hasNext2).toBe(false);
 
       // THEN
       expect(service.graph().current).toBe(undefined);

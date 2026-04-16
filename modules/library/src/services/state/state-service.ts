@@ -50,7 +50,11 @@ export class StateService {
     this._state.queuedChoices.length = 0;
   }
 
-  public lastExecution(): Choice<Action<string, any>> | undefined {
+  /**
+   * Returns the last executed action, if it exists.
+   * @returns the last executed action, if it exists, otherwise undefined.
+   */
+  public lastExecution(): Action<string, any> | undefined {
     return this._state.currentSnapshots[
       this._state.currentSnapshots.length - 1
     ]!.executed;
@@ -119,32 +123,45 @@ export class StateService {
     this._state.isSettled = isSettled;
   }
 
-  public async promptPlayer<T extends Choice<Action<string, any, any>>>(
+  /**
+   * Prompts a player with a list of choices and waits for their responses.
+   * @param player The player to prompt.
+   * @param choices The choices that are available to the player.
+   * @returns a Promise that resolves to the action of the picked choice.
+   */
+  public async promptPlayer<ACTION extends Action<string, any, any>>(
     player: PlayerEntity,
-    choices: T[],
-  ): Promise<T extends Choice<infer A> ? A : never> {
+    choices: ACTION[],
+  ): Promise<ACTION> {
     this._logger.debug(
       () =>
         `Prompting player interface with ID ${player[playerId]} with choices: ${choices
-          .map((c) => c.execution.$type)
+          .map((c) => c.$type)
           .join(', ')}...`,
     );
+
+    if (choices.length === 0) {
+      throw new Error(`No choices provided for player ${player[playerId]}!`);
+    }
+
     // Clear prior choices.
-    const priorChoices: EnhancedChoice<Action<string, any>>[] = [];
+    const priorChoices: EnhancedChoice<ACTION>[] = [];
     this._state.choices.set(player, priorChoices);
 
     // TODO: Enhance choices with ID and save the choices somewhere!
     choices.forEach((choice) => {
       priorChoices.push(
-        EnhancedChoice.fromChoice(choice, this._state.idCounter++),
+        EnhancedChoice.fromAction(choice, player, this._state.idCounter++),
       );
     });
 
     return new Promise((resolve) => {
       player[handler]!.prompt(
         priorChoices,
-        (choice: EnhancedChoice<Action<string, any, any>> | ChoiceId) => {
-          const fetchedChoice = this._fetchChoice(player, choice);
+        (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => {
+          const id = typeof choice === 'object' ? choice.id : choice;
+          const fetchedChoice = priorChoices.find((c) => c.id === id);
+
           if (fetchedChoice === undefined) {
             this._logger.error(
               `Player ${player[playerId]} tried to execute an invalid choice with ID ${choice}. Ignoring this...`,
@@ -157,7 +174,11 @@ export class StateService {
               `Player ${player[playerId]} tries to execute choice "${fetchedChoice.id}" (${fetchedChoice.execution.$type})...`,
           );
 
-          resolve(fetchedChoice.execution.returned());
+          this._logger.debug(
+            `Returning ${fetchedChoice.execution.$type} (class: ${fetchedChoice.execution.constructor.name}) as result of prompt...`,
+          );
+
+          resolve(fetchedChoice.execution);
         },
       );
     });
@@ -185,48 +206,24 @@ export class StateService {
   }
 
   /**
-   * Executes a given choice.
-   * @player The player that executed the choice.
-   * @param choice The choice to execute.
-   * @param runtime The runtime to execute the choice in.
+   * Executes an action and thus modifies the game state.
+   * @param action The action to execute.
+   * @param runtime The runtime to execute the action in.
    */
-  public executePlayerChoice(
-    player: PlayerEntity,
-    choice: EnhancedChoice<Action<string, any>>,
+  public execute(
+    action: Action<string, any, any>,
     runtime: ModifiableRuntime, // TODO: Modifiable vs. Queryable?
   ): void {
-    this._logger.info(
-      () =>
-        `Player ${player[playerId]} executes choice "${choice.id}" (${choice.execution.$type}).`,
-    );
+    this._logger.info(() => `Executing action "${action.$type}"...`);
 
     // Clear prior snapshot state and calculate the next one.
     this._state.pastSnapshots.push(...this._state.currentSnapshots);
     this._state.currentSnapshots = [
       {
         dirtyEntities: {},
-        executed: choice,
+        executed: action,
       },
     ];
-    choice.execution.apply(runtime);
-  }
-
-  private _fetchChoice(
-    player: PlayerEntity,
-    rawChoice: EnhancedChoice<Action<string, any>> | ChoiceId,
-  ): EnhancedChoice<Action<string, any>> | undefined {
-    const choice: EnhancedChoice<Action<string, any>> | undefined =
-      typeof rawChoice === 'object'
-        ? rawChoice
-        : this._state.choices.get(player)?.find((c) => c.id === rawChoice);
-
-    if (choice === undefined) {
-      this._logger.error(
-        `Player ${player[playerId]} tried to execute an invalid choice with ID ${rawChoice}. Ignoring this...`,
-      );
-      return;
-    }
-
-    return choice;
+    action.apply(runtime);
   }
 }

@@ -2,9 +2,8 @@ import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Action } from '../components/action';
 import { ModifiableRuntime } from './modifiable-runtime';
 import { Entity, entityId } from '../components/entity';
-import { ClientSnapshotData, Logger, NO_OP_LOGGER } from './game.types';
-import { timeout } from '../utility.spec';
-import { EntityID } from '../components/entity.types';
+import { Logger, NO_OP_LOGGER } from './game.types';
+import { jsonRoundtrip, timeout } from '../utility.spec';
 import { Choice } from '../components/choice';
 import {
   TestGame,
@@ -14,6 +13,8 @@ import {
   TestEntityC,
   TestAction,
 } from './game.spec.types';
+import { NodeId } from '../components/graph/node.types';
+import { Graph } from '../components/graph/graph';
 
 describe('game', () => {
   afterEach(() => {
@@ -187,7 +188,7 @@ describe('game', () => {
       );
     });
 
-    test('the game does not start until all player interfaces have handlers registered.', () => {
+    test('the game does not start until all player interfaces have handlers registered.', async () => {
       // GIVEN
       const game = new TestGame();
 
@@ -195,7 +196,7 @@ describe('game', () => {
       const player2Callback = { state: mock(() => {}), prompt: mock(() => {}) };
 
       // WHEN #1
-      game.registerPlayerCallback(
+      await game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[0]!,
         player1Callback,
       );
@@ -207,7 +208,7 @@ describe('game', () => {
       expect(player2Callback.prompt).toHaveBeenCalledTimes(0);
 
       // WHEN #2
-      game.registerPlayerCallback(
+      await game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
         player2Callback,
       );
@@ -219,186 +220,156 @@ describe('game', () => {
       expect(player2Callback.prompt).toHaveBeenCalledTimes(0);
     });
 
-    test.todo(
-      'starts the game when all player interfaces have handlers registered.',
-      () => {
-        // GIVEN
-        const game = new TestGame();
+    test('sends an initial state to all players.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
+        }
+      }
+      const game = new DummyGame();
 
-        const playerCallback1 = mock(() => {});
-        const playerCallback2 = mock(() => {});
+      // WHEN #1
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: (snapshots) => {
+          expect(snapshots).toHaveLength(1);
+          expect(snapshots[0]?.executed).toBeUndefined(); // We did not enter this snapshot due to an action, but the setup!
+          expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
+            'testPlayerEntity-1': {
+              $type: 'TestPlayerEntity',
+            },
+            'testentityC-1': {
+              $type: 'TestEntityC',
+              volatileNumber: 0,
+            },
+          });
 
-        // WHEN
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          playerCallback1,
-        );
+          done();
+        },
+        // Not relevant for this test.
+        prompt: () => {},
+      });
 
-        expect(playerCallback1).toHaveBeenCalledTimes(0);
-        expect(playerCallback2).toHaveBeenCalledTimes(0);
+      timeout(done);
+    });
 
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          playerCallback2,
-        );
+    test('if a player interface registers a callback while the game is already running, only the callback is replaced.', async () => {
+      // GIVEN
+      const player1Callback = { state: mock(() => {}), prompt: mock(() => {}) };
+      const player2Callback = { state: mock(() => {}), prompt: mock(() => {}) };
 
-        // THEN
-        expect(playerCallback1).toHaveBeenCalledTimes(1);
-        expect(playerCallback2).toHaveBeenCalledTimes(1);
-      },
-    );
+      const game = new TestGame();
+      await game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        player1Callback,
+      );
+      await game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[1]!,
+        player2Callback,
+      );
 
-    test.todo(
-      'if a player interface registers a callback while the game is already running, only the callback is replaced.',
-      () => {
-        // GIVEN
-        const player1Callback = mock(() => {});
-        const player2Callback = mock(() => {});
+      // THEN #1
+      expect(player1Callback.state).toHaveBeenCalledTimes(1);
+      expect(player2Callback.state).toHaveBeenCalledTimes(1);
 
-        const game = new TestGame();
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          player1Callback,
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          player2Callback,
-        );
+      // WHEN
+      // A single player callback is overwritten, maybe because the client disconnected and reconnected.
+      // In this case, the second player should not be informed about this, and only the reconnected
+      // player should be informed about their state again.
+      await game.registerPlayerCallback(
+        game.entities(TestPlayerEntity)[0]!,
+        player1Callback,
+      );
 
-        // THEN #1
-        expect(player1Callback).toHaveBeenCalledTimes(1);
-        expect(player2Callback).toHaveBeenCalledTimes(1);
-
-        // WHEN
-        // A single player callback is overwritten, maybe because the client disconnected and reconnected.
-        // In this case, the second player should not be informed about this, and only the reconnected
-        // player should be informed about their state again.
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          player1Callback,
-        );
-
-        // THEN
-        expect(player1Callback).toHaveBeenCalledTimes(2);
-        expect(player2Callback).toHaveBeenCalledTimes(1);
-      },
-    );
+      // THEN
+      expect(player1Callback.state).toHaveBeenCalledTimes(2);
+      expect(player2Callback.state).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('lifecycle', () => {
-    test.todo('no empty deltas are transmitted.', (done) => {
+    test('delayed choice executions are handled correctly.', (done) => {
       // GIVEN
-      let triggered = 0;
       class DummyGame extends TestGame {
-        triggers(): Set<Trigger> | void {
-          return new Set<Trigger>([
-            {
-              name: 'Test Trigger',
-              apply: (runtime) => {
-                triggered++;
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1), new TestEntityC(1)]);
+        }
 
-                if (triggered < 10) {
-                  return [
-                    // TODO: We have to modify state here, otherwise our trigger creates an empty snapshot after all.
-                    // TODO: This should be fixed by just checking the dirty entities before and after each trigger execution to check,
-                    // whether this trigger actually modified any state.
-                    () => {
-                      runtime.anyEntity<TestEntityC>(TestEntityC)!
-                        .volatileNumber++;
-                    },
-                  ];
-                }
-              },
+        graph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              runtime.execute(
+                await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+                  new TestAction(),
+                ]),
+              );
             },
-          ]);
+          };
         }
       }
       const game = new DummyGame();
 
       // WHEN
-      game.registerPlayerCallback(
-        game.players()[0]!,
-        (snapshots, choices, execute) => {
-          expect(snapshots).toBeDefined();
-          expect(snapshots.length).toBeGreaterThan(0);
-          expect(
-            snapshots.every(
-              (snapshot) => Object.keys(snapshot.dirtyEntities).length > 0,
-            ),
-          ).toBe(true);
-
-          if (choices.length > 0 && triggered < 10) {
-            execute(choices[0]!);
-          }
-
-          done();
-        },
-      );
-
-      game.registerPlayerCallback(game.players()[1]!, () => {});
-
-      timeout(done);
-    });
-
-    test.todo('delayed choice executions are handled correctly.', (done) => {
-      // GIVEN
-      const game = new TestGame();
-
-      // WHEN
-      let triggered = 0;
-      game.registerPlayerCallback(
-        game.players()[0]!,
-        (_snapshots, choices, execute) => {
-          if (choices.length > 0 && triggered == 0) {
-            setTimeout(() => {
-              triggered++;
-              execute(choices[0]!);
-            }, 50);
-          }
-
-          if (triggered === 1) {
+      let triggered = false;
+      game.registerPlayerCallback(game.players()[0]!, {
+        // Not relevant for this test.
+        state: () => {
+          if (triggered) {
             done();
           }
         },
-      );
-      game.registerPlayerCallback(
-        game.players()[1]!,
-        // Player 2 is not relevant for this test.
-        () => {},
-      );
+        prompt: (choices, execute) => {
+          if (choices.length > 0 && !triggered) {
+            setTimeout(() => {
+              triggered = true;
+              execute(choices[0]!);
+            }, 50);
+          }
+        },
+      });
 
       timeout(done, 100);
     });
 
-    test.todo(
-      'throws an error after a state depth of 10000 (or given depth) has reached.',
-      () => {
-        // GIVEN
-        class DummyGame extends TestGame {
-          public maxDepth = 3;
+    test('throws an error after a given max. state depth has reached.', async () => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        public maxDepth = 3;
+
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1), new TestEntityC(1)]);
         }
 
-        const game = new DummyGame();
+        // This graph never ends, which should be caught by the engine checks!
+        graph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              runtime.execute(
+                await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+                  new TestAction(),
+                ]),
+              );
+              return 'INITIAL' as const;
+            },
+          };
+        }
+      }
 
-        // WHEN
-        let choiceExecutionCount = 0;
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          (_snapshots, choices, executor) => {
+      const game = new DummyGame();
+
+      // WHEN
+      let choiceExecutionCount = 0;
+      expect(
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test.
+          state: () => {},
+          prompt: (choices, executor) => {
             choiceExecutionCount++;
             executor(choices[0]!);
           },
-        );
-        expect(() =>
-          game.registerPlayerCallback(
-            game.entities(TestPlayerEntity)[1]!,
-            // Player 2 is not relevant for this test.
-            () => {},
-          ),
-        ).toThrowError(/maximum.+depth/gi);
-        expect(choiceExecutionCount).toEqual(4);
-      },
-    );
+        }),
+      ).rejects.toThrowError(/maximum depth/gi);
+    });
 
     test.todo(
       'logs an error if two players have a choice at the same time.',
@@ -440,406 +411,467 @@ describe('game', () => {
       },
     );
 
-    test.todo(
-      'the game starts when all player interfaces have registered a callback. players are informed about the initial state.',
-      (done) => {
-        // GIVEN
-        const game = new TestGame();
-
-        // WHEN
-        let player1Informed = false;
-        let player2Informed = false;
-
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          (snapshots, choices) => {
-            // Only a single state is issued to the player!
-            expect(snapshots).toHaveLength(1);
-            expect(snapshots[0]?.executed).toBeUndefined();
-
-            const snapshot = snapshots[0]!.dirtyEntities;
-            expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
-              'testentityA-1': {
-                $type: 'TestEntityA',
-              },
-              'testentityA-2': {
-                $type: 'TestEntityA',
-              },
-              'testentityA-3': {
-                $type: 'TestEntityA',
-              },
-              'testentityB-1': {
-                $type: 'TestEntityB',
-              },
-              'testentityB-2': {
-                $type: 'TestEntityB',
-              },
-              'testentityC-1': {
-                volatileNumber: 0,
-                $type: 'TestEntityC',
-              },
-              'testPlayerEntity-1': {
-                $type: 'TestPlayerEntity',
-              },
-              'testPlayerEntity-2': {
-                $type: 'TestPlayerEntity',
-              },
-            });
-
-            expect(choices).toBeDefined();
-            expect(choices).toHaveLength(1);
-
-            player1Informed = true;
-            if (player2Informed) {
-              done();
-            }
-          },
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          (snapshots, choices) => {
-            // Only a single state is issued to the player!
-            expect(snapshots).toHaveLength(1);
-            expect(snapshots[0]?.executed).toBeUndefined();
-
-            const snapshot = snapshots[0]!.dirtyEntities;
-            expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
-              'testentityA-1': {
-                $type: 'TestEntityA',
-              },
-              'testentityA-2': {
-                $type: 'TestEntityA',
-              },
-              'testentityA-3': {
-                $type: 'TestEntityA',
-              },
-              'testentityB-1': {
-                $type: 'TestEntityB',
-              },
-              'testentityB-2': {
-                $type: 'TestEntityB',
-              },
-              'testentityC-1': {
-                volatileNumber: 0,
-                $type: 'TestEntityC',
-              },
-              'testPlayerEntity-1': {
-                $type: 'TestPlayerEntity',
-              },
-              'testPlayerEntity-2': {
-                $type: 'TestPlayerEntity',
-              },
-            });
-
-            expect(choices).toBeDefined();
-            expect(choices).toHaveLength(1);
-
-            player2Informed = true;
-            if (player1Informed) {
-              done();
-            }
-          },
-        );
-
-        timeout(done);
-      },
-    );
-
-    test.todo(
-      'sends only modified entities of the state to the player after a choice is picked. choices reset.',
-      (done) => {
-        // GIVEN
-        const game = new TestGame();
-
-        // WHEN
-        let snapshotCount = 0;
-
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          (snapshots, choices, executor) => {
-            snapshotCount++;
-
-            if (snapshotCount === 1) {
-              // Initial state - pick a choice!
-              executor(Array.from(choices)[0]!);
-            } else {
-              // THEN
-              // Only the modified entity should be sent to the player, not the whole state!
-              expect(choices).toHaveLength(1);
-              expect(snapshots).toHaveLength(1);
-              expect(snapshots[0]?.dirtyEntities).toEqual({
-                'testentityC-1': {
-                  [entityId]: 'testentityC-1',
-                  // The action modified this property!
-                  volatileNumber: 1,
-                  $type: 'TestEntityC',
-                },
-              });
-
-              done();
-            }
-          },
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          // Player 2 is not relevant for this test.
-          (_snapshots, _choices) => {},
-        );
-
-        timeout(done);
-      },
-    );
-
-    test.todo(
-      'if a choice is executed that does not exist, an error is logged and nothing happens.',
-      (done) => {
-        // GIVEN
-        const game = new TestGame(undefined, { logger });
-
-        // WHEN
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          (_snapshots, _choices, executor) => {
-            // THEN
-            executor('non-existing-choice-id');
-
-            expect(logger.error).toHaveBeenCalledWith(
-              expect.stringMatching(/non-existing-choice-id/gi),
-            );
-            done();
-          },
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          // Player 2 is not relevant for this test.
-          (_snapshots, _choices) => {},
-        );
-
-        timeout(done);
-      },
-    );
-
-    test.todo(
-      'if a player executes a choice of another player, an error is logged and nothing happens.',
-      (done) => {
-        // GIVEN
-        const game = new TestGame(undefined, { logger });
-
-        // WHEN
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          (_snapshots, _choices, executor) => {
-            // THEN
-            executor('choice-1');
-            expect(logger.error).toHaveBeenCalledWith(
-              expect.stringMatching(/invalid.+choice/gi),
-            );
-            done();
-          },
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          // Player 2 is not relevant for this test.
-          (_snapshots, _choices) => {},
-        );
-
-        timeout(done);
-      },
-    );
-
-    test.todo(
-      'if a player instantly executes a choice in-memory, the other player is atleast notified about the state change.',
-      (done) => {
-        // GIVEN
-        const game = new TestGame();
-
-        let playerAtriggered = 0;
-        let playerBtriggered = 0;
-
-        // WHEN
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-
-          (_snapshots, choices, executor) => {
-            // This implicitly also tests, that the choice execution here using "executor(...)" does not instantly loop back
-            // to the player callback again. The rest of the function should be executed too, otherwise we run into a stack overflow error.
-            if (playerAtriggered < 5) {
-              executor(Array.from(choices)[0]!);
-            } else {
-              // THEN
-              expect(playerAtriggered).toEqual(5);
-              expect(playerBtriggered).toEqual(5);
-              done();
-            }
-
-            playerAtriggered++;
-          },
-        );
-        game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, () => {
-          playerBtriggered++;
-        });
-
-        timeout(done);
-      },
-    );
-
-    test.todo('the serialized state sent to the player is correct.', (done) => {
+    test('the game starts when all player interfaces have registered a callback. players are informed about the initial state.', (done) => {
       // GIVEN
       const game = new TestGame();
 
       // WHEN
-      game.registerPlayerCallback(
-        game.entities(TestPlayerEntity)[0]!,
-        (snapshots, choices) => {
-          // THEN
-          const data: ClientSnapshotData = {
-            snapshots: snapshots,
-            choices: choices,
-          };
+      let player1SnapshotsInformed = false;
+      let player2SnapshotsInformed = false;
 
-          expect(JSON.parse(JSON.stringify(data))).toEqual({
-            snapshots: [
-              {
-                dirtyEntities: {
-                  'testentityA-1': {
-                    // We send the entity type too, so that the client knows how to construct the object of this type again.
-                    $type: 'TestEntityA',
-                  },
-                  'testentityA-2': {
-                    $type: 'TestEntityA',
-                  },
-                  'testentityA-3': {
-                    $type: 'TestEntityA',
-                  },
-                  'testentityB-1': {
-                    $type: 'TestEntityB',
-                  },
-                  'testentityB-2': {
-                    $type: 'TestEntityB',
-                  },
-                  'testentityC-1': {
-                    $type: 'TestEntityC',
-                    volatileNumber: 0,
-                  },
-                  'testPlayerEntity-1': {
-                    $type: 'TestPlayerEntity',
-                  },
-                  'testPlayerEntity-2': {
-                    $type: 'TestPlayerEntity',
-                  },
-                },
-              },
-            ],
-            choices: [
-              {
-                id: 'choice-0',
-                execution: {
-                  type: 'TestAction',
-                  // TODO: Player does not need to be serialized, because the client knows that this choice only belongs to them.
-                  // But for choices in the snapshots, the player is relevant...
-                },
-                player: '$ENGINE:testPlayerEntity-1',
-              },
-            ],
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: (snapshots) => {
+          // Only a single state is issued to the player!
+          expect(snapshots).toHaveLength(1);
+          expect(snapshots[0]?.executed).toBeUndefined();
+
+          const snapshot = snapshots[0]!.dirtyEntities;
+          expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
+            'testentityA-1': {
+              $type: 'TestEntityA',
+            },
+            'testentityA-2': {
+              $type: 'TestEntityA',
+            },
+            'testentityA-3': {
+              $type: 'TestEntityA',
+            },
+            'testentityB-1': {
+              $type: 'TestEntityB',
+            },
+            'testentityB-2': {
+              $type: 'TestEntityB',
+            },
+            'testentityC-1': {
+              volatileNumber: 0,
+              $type: 'TestEntityC',
+            },
+            'testPlayerEntity-1': {
+              $type: 'TestPlayerEntity',
+            },
+            'testPlayerEntity-2': {
+              $type: 'TestPlayerEntity',
+            },
           });
+
+          player1SnapshotsInformed = true;
+          if (player2SnapshotsInformed) {
+            done();
+          }
+        },
+        // Not relevant for this test.
+        prompt: () => {},
+      });
+
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, {
+        state: (snapshots) => {
+          // Only a single state is issued to the player!
+          expect(snapshots).toHaveLength(1);
+          expect(snapshots[0]?.executed).toBeUndefined();
+
+          const snapshot = snapshots[0]!.dirtyEntities;
+          expect(JSON.parse(JSON.stringify(snapshot))).toEqual({
+            'testentityA-1': {
+              $type: 'TestEntityA',
+            },
+            'testentityA-2': {
+              $type: 'TestEntityA',
+            },
+            'testentityA-3': {
+              $type: 'TestEntityA',
+            },
+            'testentityB-1': {
+              $type: 'TestEntityB',
+            },
+            'testentityB-2': {
+              $type: 'TestEntityB',
+            },
+            'testentityC-1': {
+              volatileNumber: 0,
+              $type: 'TestEntityC',
+            },
+            'testPlayerEntity-1': {
+              $type: 'TestPlayerEntity',
+            },
+            'testPlayerEntity-2': {
+              $type: 'TestPlayerEntity',
+            },
+          });
+
+          player2SnapshotsInformed = true;
+          if (player1SnapshotsInformed) {
+            done();
+          }
+        },
+        // Not relevant for this test.
+        prompt: () => {},
+      });
+
+      timeout(done);
+    });
+
+    test('Choices are sent to the player and on execute, return to the script.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1)]);
+        }
+
+        graph(): Graph<NodeId> {
+          return {
+            INITIAL: async (runtime) => {
+              const player =
+                runtime.anyEntity<TestPlayerEntity>(TestPlayerEntity)!;
+
+              const result = await runtime.prompt(player, [new TestAction()]);
+
+              expect(result).toBeDefined();
+              expect(result).toBeInstanceOf(TestAction);
+              done();
+            },
+          };
+        }
+      }
+
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(game.anyEntity(TestPlayerEntity)!, {
+        // Not relevant for this test.
+        state: () => {},
+        prompt: (choices, execute) => {
+          // THEN
+          expect(choices).toHaveLength(1);
+          expect(choices[0]?.execution).toBeInstanceOf(TestAction);
+
+          execute(choices[0]!);
+        },
+      });
+
+      timeout(done);
+    });
+
+    test('executing an action inside a node script sends an update to each player.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
+        }
+
+        graph(): Graph<'NEXT'> {
+          return {
+            INITIAL: async () => {
+              return 'NEXT' as const;
+            },
+            NEXT: async (runtime) => {
+              runtime.execute(new TestAction());
+            },
+          };
+        }
+      }
+
+      const game = new DummyGame();
+
+      let player1Updated = 0;
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: (snapshots) => {
+          // THEN
+          player1Updated++;
+
+          expect(snapshots).toHaveLength(1);
+
+          if (player1Updated === 1) {
+            // Initial state - do nothing!
+            expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
+              'testentityC-1': {
+                volatileNumber: 0,
+                $type: 'TestEntityC',
+              },
+              'testPlayerEntity-1': {
+                $type: 'TestPlayerEntity',
+              },
+            });
+
+            return;
+          }
+
+          if (player1Updated === 2) {
+            expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
+              'testentityC-1': {
+                volatileNumber: 1,
+                $type: 'TestEntityC',
+              },
+            });
+          }
 
           done();
         },
-      );
+        // Not relevant for this test.
+        prompt: () => {},
+      });
+
+      timeout(done);
+    });
+
+    test('sends only modified entities of the state to the player after a choice is picked. choices reset.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([
+            new TestEntityC(1),
+            new TestEntityC(2),
+            new TestPlayerEntity(1),
+          ]);
+        }
+
+        graph(): Graph {
+          return {
+            INITIAL: async (runtime) => {
+              runtime.execute(new TestAction());
+            },
+          };
+        }
+      }
+      const game = new DummyGame();
+
+      // WHEN
+      let snapshotCount = 0;
+
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: (snapshots) => {
+          snapshotCount++;
+
+          if (snapshotCount > 1) {
+            // THEN
+            expect(snapshots).toHaveLength(1);
+            expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
+              'testentityC-1': {
+                // The action modified this property!
+                volatileNumber: 1,
+                $type: 'TestEntityC',
+              },
+            });
+
+            done();
+          }
+        },
+        prompt: (choices, executor) => {
+          if (choices.length > 0) {
+            executor(choices[0]!);
+          }
+        },
+      });
+
+      timeout(done);
+    });
+
+    test('if a choice is executed that does not exist, an error is logged and nothing happens.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1)]);
+        }
+
+        graph() {
+          return {
+            INITIAL: async (runtime: ModifiableRuntime) => {
+              await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+                new TestAction(),
+              ]);
+            },
+          };
+        }
+      }
+      const game = new DummyGame(undefined, { logger });
+
+      // WHEN
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        // Not relevant for this test.
+        state: () => {},
+        prompt: (_choices, executor) => {
+          executor(12345);
+
+          expect(logger.error).toHaveBeenCalledWith(
+            expect.stringMatching(/12345/gi),
+          );
+          done();
+        },
+      });
+
+      timeout(done);
+    });
+
+    test('if a player instantly executes a choice in-memory, the other player is atleast notified about the state change.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        graph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              const player =
+                runtime.anyEntity<TestPlayerEntity>(TestPlayerEntity)!;
+              runtime.execute(await runtime.prompt(player, [new TestAction()]));
+
+              return 'INITIAL' as const;
+            },
+          };
+        }
+      }
+      const game = new DummyGame();
+
+      let playerAtriggered = 0;
+      let playerBtriggered = 0;
+
+      // WHEN
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        // Not relevant for this test.
+        state: () => {
+          playerAtriggered++;
+        },
+        prompt: (choices, executor) => {
+          if (playerAtriggered < 5) {
+            executor(Array.from(choices)[0]!);
+          } else {
+            // THEN
+            expect(playerAtriggered).toEqual(5);
+            expect(playerBtriggered).toEqual(5);
+            done();
+          }
+        },
+      });
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, {
+        state: () => {
+          playerBtriggered++;
+        },
+        // Not relevant for this test.
+        prompt: () => {},
+      });
+
+      timeout(done);
+    });
+
+    test('the serialized state sent to the player is correct.', (done) => {
+      // GIVEN
+      const game = new TestGame();
+
+      // WHEN
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: (snapshots) => {
+          // THEN
+          expect(JSON.parse(JSON.stringify(snapshots))).toEqual([
+            {
+              dirtyEntities: {
+                'testentityA-1': {
+                  // We send the entity type too, so that the client knows how to construct the object of this type again.
+                  $type: 'TestEntityA',
+                },
+                'testentityA-2': {
+                  $type: 'TestEntityA',
+                },
+                'testentityA-3': {
+                  $type: 'TestEntityA',
+                },
+                'testentityB-1': {
+                  $type: 'TestEntityB',
+                },
+                'testentityB-2': {
+                  $type: 'TestEntityB',
+                },
+                'testentityC-1': {
+                  $type: 'TestEntityC',
+                  volatileNumber: 0,
+                },
+                'testPlayerEntity-1': {
+                  $type: 'TestPlayerEntity',
+                },
+                'testPlayerEntity-2': {
+                  $type: 'TestPlayerEntity',
+                },
+              },
+            },
+          ]);
+
+          done();
+        },
+        // Not relevant for this test.
+        prompt: () => {},
+      });
       game.registerPlayerCallback(
         game.entities(TestPlayerEntity)[1]!,
         // Player 2 is not relevant for this test.
-        () => {},
+        {
+          prompt: () => {},
+          state: () => {},
+        },
       );
 
       timeout(done);
     });
 
-    test.todo(
-      'referenced entities in choices are serialized using a placeholder.',
-      (done) => {
-        // GIVEN
-        class TargetedAction extends Action<
-          'TargetedAction',
-          {
-            target: Entity;
-            nested: { target: Entity };
-          }
-        > {
-          apply(): void {
-            // Not relevant for this test.
-          }
-          public $type: 'TargetedAction' = 'TargetedAction';
-          public prompt(): string {
-            return 'Execute TargetedAction';
-          }
-          public affectedEntities(): EntityID[] | void {
-            throw new Error('Method not implemented.');
-          }
-          public message(): string {
-            return 'TargetedAction executed!';
-          }
+    test('referenced entities in choices are serialized using a placeholder.', (done) => {
+      // GIVEN
+      class TargetedAction extends Action<
+        'TargetedAction',
+        {
+          target: Entity;
+          nested: { target: Entity };
         }
+      > {
+        async doApply(): Promise<void> {
+          // Not relevant for this test.
+        }
+        public $type: 'TargetedAction' = 'TargetedAction';
+      }
 
-        class DummyGame extends TestGame {
-          positiveRules() {
-            return new Set<PositiveRule>([
-              {
-                name: 'test-positive-rule',
-                apply: (runtime) => {
-                  const entityC = runtime.anyEntity(TestEntityC)!;
+      class DummyGame extends TestGame {
+        initialize(): Set<Entity> {
+          return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
+        }
+        graph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              const entity = runtime.anyEntity<TestEntityC>(TestEntityC)!;
 
-                  return [
-                    new Choice(
-                      new TargetedAction({
-                        target: entityC,
-                        nested: { target: entityC },
-                      }),
-                      runtime.entities(TestPlayerEntity)[0]!,
-                    ),
-                  ];
+              runtime.execute(
+                await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+                  new TargetedAction({
+                    target: entity,
+                    nested: { target: entity },
+                  }),
+                ]),
+              );
+            },
+          };
+        }
+      }
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        // Not relevant for this test.
+        state: () => {},
+        prompt: (choices) => {
+          expect(jsonRoundtrip(choices[0]!)).toEqual({
+            id: 0,
+            execution: {
+              type: 'TargetedAction',
+              parameters: {
+                // The referenced entity should be replaced with a reference string, so that the client can resolve it again.
+                target: '$ENGINE:testentityC-1',
+                nested: {
+                  // Nested values are also supported!
+                  target: '$ENGINE:testentityC-1',
                 },
               },
-            ]);
-          }
-        }
-        const game = new DummyGame();
+            },
+            player: '$ENGINE:testPlayerEntity-1',
+          });
 
-        // WHEN
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[0]!,
-          (_snapshots, _choices) => {
-            // THEN
-            expect(JSON.parse(JSON.stringify(_choices))).toEqual([
-              {
-                id: 'choice-0',
-                execution: {
-                  type: 'TargetedAction',
-                  parameters: {
-                    // The referenced entity should be replaced with a reference string, so that the client can resolve it again.
-                    target: '$ENGINE:testentityC-1',
-                    nested: {
-                      // Nested values are also supported!
-                      target: '$ENGINE:testentityC-1',
-                    },
-                  },
-                },
-                player: '$ENGINE:testPlayerEntity-1',
-              },
-            ]);
+          done();
+        },
+      });
 
-            done();
-          },
-        );
-        game.registerPlayerCallback(
-          game.entities(TestPlayerEntity)[1]!,
-          // Player 2 is not relevant for this test.
-          () => {},
-        );
-
-        timeout(done);
-      },
-    );
+      timeout(done);
+    });
 
     test.todo(
       'triggers are passed the correct prior executed action.',

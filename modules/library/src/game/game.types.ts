@@ -99,7 +99,7 @@ export type PlayerInterfaceCallback = {
 
 export type Snapshot = {
   dirtyEntities: Record<EntityID, DeepReadonly<AnyEntity>>;
-  executed?: Choice<Action<string, any>> | undefined;
+  executed?: Action<string, any, any> | undefined;
 };
 
 /**

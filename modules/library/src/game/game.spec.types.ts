@@ -54,13 +54,6 @@ export class TestPlayerEntity extends Entity implements PlayerInterface {
 }
 
 export class TestAction extends Action<'TestAction'> {
-  public message(): string {
-    return 'TestAction executed!';
-  }
-  public prompt(): string {
-    return 'Execute TestAction';
-  }
-  public affectedEntities() {}
   public $type: 'TestAction' = 'TestAction';
   async doApply(_runtime: QueryableRuntime): Promise<void> {
     _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;

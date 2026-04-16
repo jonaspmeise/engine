@@ -50,31 +50,6 @@ export abstract class Action<
   public abstract readonly $type: ACTION_TYPE;
 
   /**
-   * Returns a message describing the effect, after this action is executed.
-   * This can be used in the client to show a message to the player after they executed this action.
-   * An example would be "You attacked the goblin and dealt 5 damage!".
-   * @param player The player for which the message should be generated. This can be used to generate different messages for different players, e.g. the active player gets "You attacked the goblin and dealt 5 damage!", while the opponent gets "The opponent attacked the goblin and dealt 5 damage!".
-   */
-  public abstract message(player: PlayerEntity): string;
-
-  /**
-   * Returns a prompt describing this action, which can be used to present this action as a choice to the player.
-   * This can be used in the client to show a message to the player when presenting this action as a choice.
-   * An example would be "Attack the goblin with your sword.".
-   */
-  public abstract prompt(): string;
-
-  /**
-   * Returns a list of all entities that are affected by this action.
-   * This can be used by the client to highlight these entities accordingly.
-   * All entities should exist.
-   * @param runtime The runtime, that allows access to Entities outside of the internal state of this Choice.
-   * @returns A list of all entities that are affected by this action, or alternatively void if none are affected (which should rarely be the case!).
-   */
-  // TODO: Test that an error is thrown if affectedEntities returns an entity that is not registered!
-  public abstract affectedEntities(runtime: QueryableRuntime): Entity[] | void;
-
-  /**
    * Checks if this Action can be applied to a given game state.
    * @param runtime The runtime to check the game state, that allows access to Entities, which are immutable for the context of this check.
    * @param parameters The parameters to check, which are passed in the constructor of this Action.
