@@ -11,6 +11,8 @@ import {
 import { Clearable } from '../../interfaces/clearable';
 import { Creator } from '../../interfaces/creator';
 import { Destroyer } from '../../interfaces/destroyer';
+import { Action } from '../../components/action';
+import { LifecycleType } from '../../components/lifecyclehooks';
 
 /**
  * This class manages only the aspects that are related to entities.
@@ -31,6 +33,9 @@ export class EntityService
       players: [],
       nonProxies: new WeakMap<Entity, Entity>(),
     };
+    this._hooksBefore = new Map();
+    this._hooksAfter = new Map();
+    this._hooksCheck = new Map();
   }
 
   private _entities = {
@@ -39,6 +44,150 @@ export class EntityService
     players: [] as Array<Entity & PlayerInterface>,
     nonProxies: new WeakMap<Entity, Entity>(),
   };
+
+  // Three maps keyed by action $type, one per lifecycle hook kind.
+  // Populated eagerly on create() by scanning the entity prototype chain for
+  // hook-named methods (e.g. afterMark → 'after' / 'mark').  Updated in the
+  // proxy set handler when a function-valued property that matches a hook name
+  // is assigned at runtime.
+  private _hooksBefore = new Map<string, Entity[]>();
+  private _hooksAfter = new Map<string, Entity[]>();
+  private _hooksCheck = new Map<string, Entity[]>();
+
+  private static readonly _HOOK_PREFIXES: readonly LifecycleType[] = [
+    'before',
+    'after',
+    'check',
+  ];
+
+  private _hooksForType(hookType: LifecycleType): Map<string, Entity[]> {
+    if (hookType === 'before') return this._hooksBefore;
+    if (hookType === 'after') return this._hooksAfter;
+    return this._hooksCheck;
+  }
+
+  /**
+   * Walks the prototype chain of an entity and collects all hook method names.
+   * Stops at Entity.prototype and Object.prototype (they have no hook methods).
+   * Returns pairs of { hookType, actionType } — e.g. afterMark → { 'after', 'Mark' }.
+   */
+  private static _scanHookMethods(
+    raw: Entity,
+  ): Array<{ hookType: LifecycleType; actionType: string }> {
+    const found: Array<{ hookType: LifecycleType; actionType: string }> = [];
+    const seen = new Set<string>();
+
+    let proto: object | null = Object.getPrototypeOf(raw);
+    while (
+      proto !== null &&
+      proto !== Entity.prototype &&
+      proto !== Object.prototype
+    ) {
+      for (const key of Object.getOwnPropertyNames(proto)) {
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        if (
+          typeof (raw as unknown as Record<string, unknown>)[key] !== 'function'
+        )
+          continue;
+
+        for (const prefix of EntityService._HOOK_PREFIXES) {
+          if (key.length > prefix.length && key.startsWith(prefix)) {
+            const ch = key[prefix.length]!;
+            if (ch >= 'A' && ch <= 'Z') {
+              found.push({
+                hookType: prefix,
+                // Store the key in Capitalize<$type> form (first char uppercase,
+                // rest as-is) so it matches the lookup in getHook().
+                actionType: key.slice(prefix.length),
+              });
+            }
+          }
+        }
+      }
+      proto = Object.getPrototypeOf(proto);
+    }
+
+    return found;
+  }
+
+  /**
+   * Registers a newly created proxy in all applicable hook maps by scanning
+   * the raw entity's prototype chain.
+   */
+  private _indexEntityHooks(proxy: Entity, raw: Entity): void {
+    for (const { hookType, actionType } of EntityService._scanHookMethods(
+      raw,
+    )) {
+      const map = this._hooksForType(hookType);
+      let list = map.get(actionType);
+      if (list === undefined) {
+        list = [];
+        map.set(actionType, list);
+      }
+      list.push(proxy);
+    }
+  }
+
+  /**
+   * Removes an entity proxy from every hook map entry it appears in.
+   * Called on destroy().
+   */
+  private _removeEntityFromHooks(proxy: Entity): void {
+    for (const map of [this._hooksBefore, this._hooksAfter, this._hooksCheck]) {
+      for (const list of map.values()) {
+        const idx = list.indexOf(proxy);
+        if (idx !== -1) list.splice(idx, 1);
+      }
+    }
+  }
+
+  /**
+   * Checks a single property name / value and, when it matches a hook method
+   * pattern and the value is a function, registers the entity in the relevant
+   * hook map.  Invoked from the proxy set handler for dynamic hook assignment.
+   */
+  private _maybeIndexHookProperty(
+    prop: string,
+    value: unknown,
+    proxy: Entity,
+  ): void {
+    if (typeof value !== 'function') return;
+    for (const prefix of EntityService._HOOK_PREFIXES) {
+      if (prop.length > prefix.length && prop.startsWith(prefix)) {
+        const ch = prop[prefix.length]!;
+        if (ch >= 'A' && ch <= 'Z') {
+          // Keep Capitalize<$type> form (same key as stored in _scanHookMethods).
+          const actionType = prop.slice(prefix.length);
+          const map = this._hooksForType(prefix);
+          let list = map.get(actionType);
+          if (list === undefined) {
+            list = [];
+            map.set(actionType, list);
+          }
+          if (!list.includes(proxy)) list.push(proxy);
+          return;
+        }
+      }
+    }
+  }
+
+  /**
+   * Returns all entity proxies that have a lifecycle hook of the given type for
+   * the given action.  O(1) map lookup — no entity scan needed at call time.
+   * @param hookType  'before', 'after', or 'check'
+   * @param action    The action whose hook registrations should be looked up.
+   */
+  public getHook(
+    hookType: LifecycleType,
+    action: Action<string, any, any>,
+  ): Entity[] {
+    // Hook methods are named ${hookType}${Capitalize<$type>}, so the map key
+    // is the capitalized form of the action's $type.
+    const key = action.$type.charAt(0).toUpperCase() + action.$type.slice(1);
+    return this._hooksForType(hookType).get(key) ?? [];
+  }
 
   /**
    * Spawns a new entity and registers it inside the engine.
@@ -58,6 +207,7 @@ export class EntityService
       this._flushCallback,
       undefined,
       this._entities.ids,
+      (prop, value, root) => this._maybeIndexHookProperty(prop, value, root),
     );
 
     if (this._entities.ids.has(id)) {
@@ -96,6 +246,9 @@ export class EntityService
       this._entities.types.get(prototype as Class<Entity>)?.add(proxy);
     }
 
+    // Register the entity in the hook maps by scanning its prototype chain.
+    this._indexEntityHooks(proxy, entity);
+
     // Notify the engine that state has changed.
     this._flushCallback(proxy);
 
@@ -120,6 +273,7 @@ export class EntityService
       // FIXME: Only access the types that this entity is actually part of, instead of looping through all types.
       type.delete(component);
     }
+    this._removeEntityFromHooks(component);
   }
 
   public entities<TYPE extends Entity>(type: Class<TYPE>): ReadonlyArray<TYPE>;
@@ -172,6 +326,7 @@ export class EntityService
     callback: (root: any) => void,
     rootProxy?: any,
     ids?: Map<EntityID, Entity>,
+    onHookSet?: (prop: string, value: unknown, root: Entity) => void,
   ): any => {
     const handler: ProxyHandler<any> = {
       get: (target, prop, receiver) => {
@@ -196,6 +351,7 @@ export class EntityService
             callback,
             rootProxy || receiver,
             ids,
+            onHookSet,
           );
         }
 
@@ -208,6 +364,7 @@ export class EntityService
         // Symbols should not be communicated to the client anyhow and are only for internal state.
         if (typeof prop !== 'symbol') {
           callback(rootProxy || receiver);
+          onHookSet?.(prop as string, value, rootProxy || receiver);
         }
 
         return result;

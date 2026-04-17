@@ -169,6 +169,19 @@ async function _runMctsAsync(
     `MCTS completed ${iterations} iterations in ${(end - start).toFixed(2)} ms (${iterationsPerSecond} iterations per second).`,
   );
 
+  // Debug log: show visit count and win-rate for every root child.
+  const ratings = new Map<string, string>();
+  for (const [idx, child] of root.children) {
+    const choice = choices[idx];
+    if (choice !== undefined) {
+      ratings.set(
+        `${choice.execution.$type} @ ${JSON.stringify(choice.execution.parameters)}`,
+        `Win rate: ${(child.wins / child.visits).toFixed(5)} #${child.visits}`,
+      );
+    }
+  }
+  logger.debug(`MCTS ratings:`, ratings);
+
   return choices[Math.min(bestIdx, choices.length - 1)]!;
 }
 

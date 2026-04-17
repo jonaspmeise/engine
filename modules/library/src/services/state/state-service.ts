@@ -2,7 +2,13 @@ import { Action } from '../../components/action';
 import { Choice, EnhancedChoice } from '../../components/choice';
 import { ChoiceId } from '../../components/choice.types';
 import { Entity, entityId } from '../../components/entity';
-import { SnapshotData, Logger, DeepReadonly, GameStatus, GameEndParameters } from '../../game/game.types';
+import {
+  SnapshotData,
+  Logger,
+  DeepReadonly,
+  GameStatus,
+  GameEndParameters,
+} from '../../game/game.types';
 import { ModifiableRuntime } from '../../game/modifiable-runtime';
 import {
   PlayerInterface,
@@ -68,8 +74,8 @@ export class StateService {
    * Transient runtime state (pending choices, stack) is not carried over.
    * @returns A new StateService with the same status, end parameters, and snapshot history.
    */
-  public clone(): StateService {
-    const cloned = new StateService(this._logger);
+  public clone(logger?: Logger): StateService {
+    const cloned = new StateService(logger ?? this._logger);
     // Reset to 'setup' so that when player callbacks are registered on the clone,
     // _start() is always invoked and the game loop runs from the current board state.
     cloned._status = 'setup';

@@ -27,14 +27,7 @@ import { StateService } from '../services/state/state-service';
 import { GraphService } from '../services/graph/graph-service';
 import { ComplexGraph, Graph } from '../components/graph/graph';
 import { NodeId } from '../components/graph/node.types';
-import {
-  AfterAction,
-  BeforeAction,
-  CheckAction,
-  getHook,
-  hasActionLifecyclehook,
-  LifecycleType,
-} from '../components/lifecyclehooks';
+import { getHook, LifecycleType } from '../components/lifecyclehooks';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -188,10 +181,14 @@ export abstract class Game<
    * Sets up the game and validates the initial state.
    * @param parameters The parameters to set up the game with.
    */
-  private _setup(parameters: PARAMETERS, graphService?: GraphService<NodeId>): void {
+  private _setup(
+    parameters: PARAMETERS,
+    graphService?: GraphService<NodeId>,
+  ): void {
     this._logger.debug(`Setting up game ${this.constructor.name}...`);
     this._logger.debug(`Creating graph service...`);
-    this._graphService = graphService ?? new GraphService(this.rawGraph(), this._logger);
+    this._graphService =
+      graphService ?? new GraphService(this.rawGraph(), this._logger);
 
     this._logger.info(`Spawning entities...`);
 
@@ -300,12 +297,7 @@ export abstract class Game<
   private _actionPreventedBy(
     action: Action<string, any, any>,
   ): Entity | undefined {
-    for (const entity of this._entityService
-      .entities()
-      .filter(
-        (entity): entity is Entity & CheckAction<Action<string, any, any>> =>
-          hasActionLifecyclehook(entity, action, 'check'),
-      )) {
+    for (const entity of this._entityService.getHook('check', action)) {
       this._logger.debug(
         `Calling check hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
       );
@@ -364,12 +356,10 @@ export abstract class Game<
     }
 
     // Find all entities that should be called before this action is executed.
-    let beforeEntities: Entity[] = this._entityService
-      .entities()
-      .filter(
-        (entity): entity is Entity & BeforeAction<Action<string, any, any>> =>
-          hasActionLifecyclehook(entity, action, 'before'),
-      );
+    let beforeEntities: Entity[] = this._entityService.getHook(
+      'before',
+      action,
+    );
 
     if (beforeEntities.length > 1) {
       beforeEntities = this.resolveTriggerOrder(
@@ -412,12 +402,10 @@ export abstract class Game<
     Object.freeze(immutableAction.parameters);
 
     // Find all entities that should be called after this action is executed.
-    let afterEntities: Entity[] = this._entityService
-      .entities()
-      .filter(
-        (entity): entity is Entity & AfterAction<Action<string, any, any>> =>
-          hasActionLifecyclehook(entity, immutableAction, 'after'),
-      );
+    let afterEntities: Entity[] = this._entityService.getHook(
+      'after',
+      immutableAction,
+    );
 
     if (afterEntities.length > 1) {
       afterEntities = this.resolveTriggerOrder(
@@ -677,10 +665,14 @@ export abstract class Game<
    * @returns A new game instance of the same concrete type with an identical entity state.
    */
   public clone(config: GameConfig = { logger: NO_OP_LOGGER }): this {
+    const cloneLogger: Logger = {
+      ...DEFAULT_GAME_CONFIG.logger,
+      ...config.logger,
+    };
     const GameClass = this.constructor;
     const clonedRawEntities = this._entityService.cloneRawEntities();
-    const clonedGraphService = this._graphService.clone();
-    const clonedStateService = this._stateService.clone();
+    const clonedGraphService = this._graphService.clone(cloneLogger);
+    const clonedStateService = this._stateService.clone(cloneLogger);
 
     class ClonedGame extends (GameClass as any) {
       initialize(_params: unknown): Set<Entity> {

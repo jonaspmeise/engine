@@ -50,7 +50,7 @@ export class GraphService<NODES extends NodeId> {
    * The cloned service shares the same node execute functions (they are stateless).
    * @returns A new GraphService with identical runtime state.
    */
-  public clone(): GraphService<NODES> {
+  public clone(logger?: Logger): GraphService<NODES> {
     const rawGraph = Object.fromEntries(
       Object.entries(this.rawGraph.nodes).map(([key, node]) => [
         key,
@@ -58,7 +58,7 @@ export class GraphService<NODES extends NodeId> {
       ]),
     ) as unknown as Graph<NODES>;
 
-    const cloned = new GraphService<NODES>(rawGraph, this._logger);
+    const cloned = new GraphService<NODES>(rawGraph, logger ?? this._logger);
 
     cloned.rawGraph.current = this.rawGraph.current;
     cloned.rawGraph.ended = this.rawGraph.ended;

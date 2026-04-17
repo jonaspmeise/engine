@@ -17,6 +17,13 @@ import {
   playerInterfaceMarker,
   handler,
 } from '../../interfaces/player-interface';
+import {
+  AfterAction,
+  BeforeAction,
+  CheckAction,
+} from '../../components/lifecyclehooks';
+import { ModifiableRuntime } from '../../game/modifiable-runtime';
+import { Action } from '../../components/action';
 
 class TestEntityA extends Entity {
   public $type: string = 'TestEntityA';
@@ -374,6 +381,207 @@ describe('entityService', () => {
       // THEN
       expect(cloneCallback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
       expect(callback).toHaveBeenCalledTimes(1); // original flush not called again
+    });
+  });
+
+  // A minimal fake action object — only $type matters for hook lookup.
+  const markAction = { $type: 'mark' } as unknown as Action<'mark', any, any>;
+  const drawAction = { $type: 'draw' } as unknown as Action<'draw', any, any>;
+
+  class AfterMarkEntity
+    extends Entity
+    implements AfterAction<typeof markAction>
+  {
+    public $type = 'AfterMarkEntity';
+    afterMark(_runtime: ModifiableRuntime, _params: any): void {}
+    toString() {
+      return 'AfterMarkEntity';
+    }
+  }
+
+  class BeforeMarkEntity
+    extends Entity
+    implements BeforeAction<typeof markAction>
+  {
+    public $type = 'BeforeMarkEntity';
+    beforeMark(_runtime: ModifiableRuntime, _params: any): boolean | void {
+      return;
+    }
+    toString() {
+      return 'BeforeMarkEntity';
+    }
+  }
+
+  class CheckMarkEntity
+    extends Entity
+    implements CheckAction<typeof markAction>
+  {
+    public $type = 'CheckMarkEntity';
+    checkMark(_runtime: ModifiableRuntime, _params: any): boolean {
+      return true;
+    }
+    toString() {
+      return 'CheckMarkEntity';
+    }
+  }
+
+  class AfterDrawEntity
+    extends Entity
+    implements AfterAction<typeof drawAction>
+  {
+    public $type = 'AfterDrawEntity';
+    afterDraw(_runtime: ModifiableRuntime, _params: any): void {}
+    toString() {
+      return 'AfterDrawEntity';
+    }
+  }
+
+  class MultiHookEntity
+    extends Entity
+    implements AfterAction<typeof markAction>, BeforeAction<typeof markAction>
+  {
+    public $type = 'MultiHookEntity';
+    afterMark(_runtime: ModifiableRuntime, _params: any): void {}
+    beforeMark(_runtime: ModifiableRuntime, _params: any): boolean | void {
+      return;
+    }
+    toString() {
+      return 'MultiHookEntity';
+    }
+  }
+
+  describe('getHook', () => {
+    test('returns an entity that has an after-hook for the given action.', () => {
+      // GIVEN
+      const entity = service.create(new AfterMarkEntity('after-mark-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toContain(entity);
+      expect(service.getHook('after', markAction)).toHaveLength(1);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('returns an entity that has a before-hook for the given action.', () => {
+      // GIVEN
+      const entity = service.create(new BeforeMarkEntity('before-mark-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('before', markAction)).toContain(entity);
+      expect(service.getHook('before', markAction)).toHaveLength(1);
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('returns an entity that has a check-hook for the given action.', () => {
+      // GIVEN
+      const entity = service.create(new CheckMarkEntity('check-mark-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('check', markAction)).toContain(entity);
+      expect(service.getHook('check', markAction)).toHaveLength(1);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+    });
+
+    test('does not return an entity that has no hook for the given action.', () => {
+      // GIVEN
+      service.create(new TestEntityA(1));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('does not cross-pollinate action types — an afterDraw entity is not returned for afterMark.', () => {
+      // GIVEN
+      const afterMark = service.create(new AfterMarkEntity('after-mark-3'));
+      const afterDraw = service.create(new AfterDrawEntity('after-draw-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toContain(afterMark);
+      expect(service.getHook('after', markAction)).toHaveLength(1);
+      expect(service.getHook('after', drawAction)).toContain(afterDraw);
+      expect(service.getHook('after', drawAction)).toHaveLength(1);
+    });
+
+    test('returns multiple entities when several have the same hook.', () => {
+      // GIVEN
+      const e1 = service.create(new AfterMarkEntity('after-mark-4'));
+      const e2 = service.create(new AfterMarkEntity('after-mark-5'));
+
+      // WHEN
+      const result = service.getHook('after', markAction);
+
+      // THEN
+      expect(result).toContain(e1);
+      expect(result).toContain(e2);
+      expect(result).toHaveLength(2);
+    });
+
+    test('an entity with both after and before hooks for the same action appears in both maps.', () => {
+      // GIVEN
+      const entity = service.create(new MultiHookEntity('multi-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toContain(entity);
+      expect(service.getHook('before', markAction)).toContain(entity);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('a destroyed entity is no longer returned by getHook.', () => {
+      // GIVEN
+      const entity = service.create(new AfterMarkEntity('after-mark-6'));
+      expect(service.getHook('after', markAction)).toContain(entity);
+
+      // WHEN
+      service.destroy(entity);
+
+      // THEN
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+    });
+
+    test('returns an empty array for an action with no registered hooks.', () => {
+      // GIVEN — no entity with afterMark registered
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+    });
+
+    test('dynamically assigning a hook method on an entity registers it in the map.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(99));
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+
+      // WHEN — simulate dynamic hook assignment via the proxy
+      (entity as any).afterMark = (
+        _runtime: ModifiableRuntime,
+        _params: any,
+      ): void => {};
+
+      // THEN
+      expect(service.getHook('after', markAction)).toContain(entity);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('the cloned service has the same hook registrations as the original.', () => {
+      // GIVEN
+      const entity = service.create(new AfterMarkEntity('after-mark-7'));
+
+      // WHEN
+      const clone = service.clone(() => {});
+
+      // THEN
+      expect(clone.getHook('after', markAction)).toHaveLength(1);
+      expect(clone.getHook('after', markAction)[0]![entityId]).toBe(
+        entity[entityId],
+      );
+      expect(service.getHook('after', markAction)).toHaveLength(1);
+      expect(service.getHook('after', markAction)[0]![entityId]).toBe(
+        entity[entityId],
+      );
     });
   });
 });
