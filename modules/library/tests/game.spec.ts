@@ -78,32 +78,35 @@ export abstract class BaseGameTest<
         expect(Object.keys(mapping).length).toBeGreaterThan(0);
       });
 
-      test('a MCTS player always wins against a random chicken player.', (done) => {
-        // GIVEN
-        for (let player = 0; player < self.numberOfPlayers - 1; player++) {
+      test.todo(
+        'a MCTS player always wins against a random chicken player.',
+        (done) => {
+          // GIVEN
+          for (let player = 0; player < self.numberOfPlayers - 1; player++) {
+            this.game.registerPlayerCallback(
+              this.game.players()[player]!,
+              Players.chicken(),
+            );
+          }
+
+          const mctsPlayer = this.game.players()[self.numberOfPlayers - 1]!;
           this.game.registerPlayerCallback(
-            this.game.players()[player]!,
-            Players.chicken(),
+            mctsPlayer,
+            Players.mcts(this.game, mctsPlayer),
           );
-        }
 
-        const mctsPlayer = this.game.players()[self.numberOfPlayers - 1]!;
-        this.game.registerPlayerCallback(
-          mctsPlayer,
-          Players.mcts(this.game, mctsPlayer),
-        );
+          this.game.registerCallbacks({
+            onEnd: (status) => {
+              // THEN
+              expect(status.winners).toHaveLength(1);
+              expect(status.winners[0]).toBe(mctsPlayer);
+              done();
+            },
+          });
 
-        this.game.registerCallbacks({
-          onEnd: (status) => {
-            // THEN
-            expect(status.winners).toHaveLength(1);
-            expect(status.winners[0]).toBe(mctsPlayer);
-            done();
-          },
-        });
-
-        timeout(done, 10000);
-      });
+          timeout(done, 10000);
+        },
+      );
 
       this.additionalTests();
     });

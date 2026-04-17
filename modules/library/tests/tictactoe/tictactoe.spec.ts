@@ -175,7 +175,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
           expect(choices).toBeDefined();
           expect(choices).toHaveLength(9); // 9 possible slots to mark.
 
-          expect(choices).toEqual([
+          expect(jsonRoundtrip(choices)).toEqual([
             {
               execution: {
                 parameters: {
@@ -186,7 +186,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-0',
+              id: 0,
               player: '$ENGINE:player-X', // TODO: Redundant information! We know that only we are this player!
             },
             {
@@ -197,7 +197,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-1',
+              id: 1,
               player: '$ENGINE:player-X',
             },
             {
@@ -208,7 +208,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-2',
+              id: 2,
               player: '$ENGINE:player-X',
             },
             {
@@ -219,7 +219,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-3',
+              id: 3,
               player: '$ENGINE:player-X',
             },
             {
@@ -230,7 +230,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-4',
+              id: 4,
               player: '$ENGINE:player-X',
             },
             {
@@ -241,7 +241,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-5',
+              id: 5,
               player: '$ENGINE:player-X',
             },
             {
@@ -252,7 +252,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-6',
+              id: 6,
               player: '$ENGINE:player-X',
             },
             {
@@ -263,7 +263,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-7',
+              id: 7,
               player: '$ENGINE:player-X',
             },
             {
@@ -274,7 +274,7 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
                 },
                 type: 'mark',
               },
-              id: 'choice-8',
+              id: 8,
               player: '$ENGINE:player-X',
             },
           ]);

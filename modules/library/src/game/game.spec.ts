@@ -11,6 +11,7 @@ import {
   TestEntityB,
   TestEntityC,
   TestAction,
+  ParameterizedTestAction,
 } from './game.spec.types';
 import { NodeId } from '../components/graph/node.types';
 import { Graph } from '../components/graph/graph';
@@ -19,6 +20,7 @@ import {
   BeforeAction,
   LifecycleType,
 } from '../components/lifecyclehooks';
+import { time } from 'node:console';
 
 describe('game', () => {
   afterEach(() => {
@@ -117,6 +119,43 @@ describe('game', () => {
       expect(game.entitySet(TestEntityB)).toHaveLength(3); // 2x TestEntityB + 1x TestEntityC
       expect(game.entitySet(TestEntityC)).toHaveLength(1);
       expect(game.entitySet(TestPlayerEntity)).toHaveLength(2);
+    });
+  });
+
+  describe('clone', () => {
+    test.todo('works', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
+        }
+
+        _graph(): Graph<'NEXT'> {
+          return {
+            INITIAL: async () => {
+              return 'NEXT' as const;
+            },
+            NEXT: async () => {
+              const clone = this.clone();
+
+              expect(clone).toBeInstanceOf(TestGame);
+              expect(clone.graph().current).toEqual(this.graph().current);
+              // TODO: Check that executed actions inside this graph node recorded here, too!
+              // TODO: Copying this engine should literally copy the entire state, including the graph to where we currently are (with identical state)!
+            },
+          };
+        }
+      }
+
+      // WHEN
+      const game = new DummyGame();
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        // Not relevant for this test.
+        state: () => {},
+        prompt: () => {},
+      });
+
+      timeout(done);
     });
   });
 
@@ -286,7 +325,7 @@ describe('game', () => {
           return new Set<Entity>([new TestPlayerEntity(1), new TestEntityC(1)]);
         }
 
-        graph(): Graph<'INITIAL'> {
+        _graph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(
@@ -332,7 +371,7 @@ describe('game', () => {
         }
 
         // This graph never ends, which should be caught by the engine checks!
-        graph(): Graph<'INITIAL'> {
+        _graph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(
@@ -468,7 +507,7 @@ describe('game', () => {
           return new Set<Entity>([new TestPlayerEntity(1)]);
         }
 
-        graph(): Graph<NodeId> {
+        _graph(): Graph<NodeId> {
           return {
             INITIAL: async (runtime) => {
               const player =
@@ -502,68 +541,6 @@ describe('game', () => {
       timeout(done);
     });
 
-    test('executing an action inside a node script sends an update to each player.', (done) => {
-      // GIVEN
-      class DummyGame extends TestGame {
-        initialize() {
-          return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
-        }
-
-        graph(): Graph<'NEXT'> {
-          return {
-            INITIAL: async () => {
-              return 'NEXT' as const;
-            },
-            NEXT: async (runtime) => {
-              runtime.execute(new TestAction());
-            },
-          };
-        }
-      }
-
-      const game = new DummyGame();
-
-      let player1Updated = 0;
-      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
-        state: (snapshots) => {
-          // THEN
-          player1Updated++;
-
-          expect(snapshots).toHaveLength(1);
-
-          if (player1Updated === 1) {
-            // Initial state - do nothing!
-            expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
-              'testentityC-1': {
-                volatileNumber: 0,
-                $type: 'TestEntityC',
-              },
-              'testPlayerEntity-1': {
-                $type: 'TestPlayerEntity',
-              },
-            });
-
-            return;
-          }
-
-          if (player1Updated === 2) {
-            expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
-              'testentityC-1': {
-                volatileNumber: 1,
-                $type: 'TestEntityC',
-              },
-            });
-          }
-
-          done();
-        },
-        // Not relevant for this test.
-        prompt: () => {},
-      });
-
-      timeout(done);
-    });
-
     test('sends only modified entities of the state to the player after a choice is picked. choices reset.', (done) => {
       // GIVEN
       class DummyGame extends TestGame {
@@ -575,7 +552,7 @@ describe('game', () => {
           ]);
         }
 
-        graph(): Graph {
+        _graph(): Graph {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(new TestAction());
@@ -623,7 +600,7 @@ describe('game', () => {
           return new Set<Entity>([new TestPlayerEntity(1)]);
         }
 
-        graph() {
+        _graph() {
           return {
             INITIAL: async (runtime: ModifiableRuntime) => {
               await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
@@ -655,7 +632,7 @@ describe('game', () => {
     test('if a player instantly executes a choice in-memory, the other player is atleast notified about the state change.', (done) => {
       // GIVEN
       class DummyGame extends TestGame {
-        graph(): Graph<'INITIAL'> {
+        _graph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               const player =
@@ -777,7 +754,7 @@ describe('game', () => {
         initialize(): Set<Entity> {
           return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
         }
-        graph(): Graph<'INITIAL'> {
+        _graph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               const entity = runtime.anyEntity<TestEntityC>(TestEntityC)!;
@@ -866,7 +843,7 @@ describe('game', () => {
           ]);
         }
 
-        graph(): Graph<'INITIAL'> {
+        _graph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(new TestAction());
@@ -922,7 +899,7 @@ describe('game', () => {
           ]);
         }
 
-        graph(): Graph<'INITIAL'> {
+        _graph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(new TestAction());
@@ -959,11 +936,283 @@ describe('game', () => {
       expect(afterCalledEntities).toEqual(['c', 'b', 'a']);
     });
 
+    describe('execute', () => {
+      test('if a choice is prevented in a beforeTrigger, the action does not get executed and the player is not informed about any changes.', (done) => {
+        // GIVEN
+        class PreventingEntity
+          extends Entity
+          implements BeforeAction<TestAction>
+        {
+          public $type: string = 'PreventingEntity';
+          public toString(): string {
+            return `PreventingEntity`;
+          }
+
+          // This prevents _all_ TestActions from being executed!
+          beforeTestAction(_runtime: ModifiableRuntime): false {
+            return false;
+          }
+        }
+
+        class DummyGame extends TestGame {
+          initialize() {
+            return new Set<Entity>([
+              new PreventingEntity('preventing-entity'),
+              new TestEntityC(1),
+              new TestPlayerEntity(1),
+            ]);
+          }
+
+          _graph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                // This action should be cancelled!
+                expect(runtime.execute(new TestAction())).toBeUndefined();
+                done();
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+
+        // WHEN
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test, game just needs to start.
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
+      test('executing an action returns executed action and sends an update to each player.', (done) => {
+        // GIVEN
+        class DummyGame extends TestGame {
+          initialize() {
+            return new Set<Entity>([
+              new TestEntityC(1),
+              new TestPlayerEntity(1),
+            ]);
+          }
+
+          _graph(): Graph<'NEXT'> {
+            return {
+              INITIAL: async () => {
+                return 'NEXT' as const;
+              },
+              NEXT: async (runtime) => {
+                const action = new TestAction();
+                const returned = runtime.execute(action);
+
+                // THEN
+                expect(returned).toBe(action);
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+
+        let player1Updated = 0;
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          state: (snapshots) => {
+            // THEN
+            player1Updated++;
+
+            expect(snapshots).toHaveLength(1);
+
+            if (player1Updated === 1) {
+              // Initial state - do nothing!
+              expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
+                'testentityC-1': {
+                  volatileNumber: 0,
+                  $type: 'TestEntityC',
+                },
+                'testPlayerEntity-1': {
+                  $type: 'TestPlayerEntity',
+                },
+              });
+
+              return;
+            }
+
+            if (player1Updated === 2) {
+              expect(jsonRoundtrip(snapshots[0]?.dirtyEntities)).toEqual({
+                'testentityC-1': {
+                  volatileNumber: 1,
+                  $type: 'TestEntityC',
+                },
+              });
+            }
+
+            done();
+          },
+          // Not relevant for this test.
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
+
+      test('executing an action that is not recorded in the game logs an error, because clients might not know about its existence.', (done) => {
+        // GIVEN
+        class UnloggedAction extends Action<'UnloggedAction', undefined, void> {
+          public $type: 'UnloggedAction' = 'UnloggedAction';
+          async doApply(): Promise<void> {
+            // Not relevant for this test.
+          }
+        }
+
+        class DummyGame extends TestGame {
+          initialize(): Set<Entity> {
+            return new Set<Entity>([new TestPlayerEntity(1)]);
+          }
+          _graph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                // WHEN
+                runtime.execute(new UnloggedAction());
+
+                // THEN
+                expect(logger.error).toHaveBeenCalledWith(
+                  expect.stringMatching(/UnloggedAction/gi),
+                );
+                done();
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame(undefined, { logger });
+
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test.
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
+
+      test('modifying triggered actions using the beforeTrigger works correctly.', (done) => {
+        // GIVEN
+        class LifecycleHookEntity
+          extends Entity
+          implements BeforeAction<ParameterizedTestAction>
+        {
+          public $type: string = 'LifecycleHookEntity';
+          public toString(): string {
+            return `LifecycleHookEntity`;
+          }
+
+          beforeParameterizedTestAction(
+            _runtime: ModifiableRuntime,
+            parameters: { value: number },
+          ) {
+            parameters.value -= 1;
+          }
+        }
+
+        class DummyGame extends TestGame {
+          initialize() {
+            return new Set<Entity>([
+              new LifecycleHookEntity('my-trigger-entity'),
+              new TestEntityC(1),
+              new TestPlayerEntity(1),
+            ]);
+          }
+
+          _graph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                runtime.execute(
+                  new ParameterizedTestAction({
+                    value: 10,
+                  }),
+                );
+
+                expect(
+                  runtime.anyEntity<TestEntityC>(TestEntityC)?.volatileNumber,
+                ).toEqual(9);
+
+                done();
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+
+        // WHEN
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test, game just needs to start.
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
+
+      test('modifying triggered actions using the afterTrigger does not work.', (done) => {
+        // GIVEN
+        class LifecycleHookEntity
+          extends Entity
+          implements AfterAction<ParameterizedTestAction>
+        {
+          public $type: string = 'LifecycleHookEntity';
+          public toString(): string {
+            return `LifecycleHookEntity`;
+          }
+
+          afterParameterizedTestAction(
+            _runtime: ModifiableRuntime,
+            parameters: { value: number },
+          ) {
+            expect(() => (parameters.value -= 1)).toThrowError(/readonly/);
+            done();
+          }
+        }
+
+        class DummyGame extends TestGame {
+          initialize() {
+            return new Set<Entity>([
+              new LifecycleHookEntity('my-trigger-entity'),
+              new TestEntityC(1),
+              new TestPlayerEntity(1),
+            ]);
+          }
+
+          _graph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                runtime.execute(
+                  new ParameterizedTestAction({
+                    value: 10,
+                  }),
+                );
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+
+        // WHEN
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test, game just needs to start.
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
+    });
+
     describe('status', () => {
       test('a game goes through "setup" into "running" status.', async () => {
         // GIVEN
         class DummyGame extends TestGame {
-          graph(): Graph<'INITIAL'> {
+          _graph(): Graph<'INITIAL'> {
             return {
               // Not relevant for this test.
               INITIAL: async () => {},
@@ -997,7 +1246,7 @@ describe('game', () => {
       test('when a game ends, an end of game callback is triggered.', (done) => {
         // GIVEN
         class DummyGame extends TestGame {
-          graph(): Graph<'INITIAL'> {
+          _graph(): Graph<'INITIAL'> {
             return {
               // Not relevant for this test.
               INITIAL: async (runtime) => {

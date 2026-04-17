@@ -6,7 +6,7 @@ import {
   playerInterfaceMarker,
 } from '../interfaces/player-interface';
 import { QueryableRuntime } from './queryable-runtime';
-import { EntityClass } from './game.types';
+import { Class, EntityClass } from './game.types';
 import { NodeId } from '../components/graph/node.types';
 import { Graph } from '../components/graph/graph';
 
@@ -53,10 +53,24 @@ export class TestPlayerEntity extends Entity implements PlayerInterface {
   }
 }
 
+export class ParameterizedTestAction extends Action<
+  'ParameterizedTestAction',
+  { value: number }
+> {
+  public $type: 'ParameterizedTestAction' = 'ParameterizedTestAction';
+  constructor(parameters: { value: number }) {
+    super(parameters);
+  }
+  async doApply(runtime: QueryableRuntime): Promise<void> {
+    runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber =
+      this.parameters.value;
+  }
+}
+
 export class TestAction extends Action<'TestAction'> {
   public $type: 'TestAction' = 'TestAction';
-  async doApply(_runtime: QueryableRuntime): Promise<void> {
-    _runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
+  async doApply(runtime: QueryableRuntime): Promise<void> {
+    runtime.anyEntity<TestEntityC>(TestEntityC)!.volatileNumber++;
   }
 }
 
@@ -83,7 +97,7 @@ export class TestGame extends Game {
     return entities;
   }
 
-  graph(): Graph<NodeId> {
+  _graph(): Graph<NodeId> {
     return {
       INITIAL: async (_runtime) => 'END',
       END: async (_runtime) => undefined,
@@ -96,6 +110,13 @@ export class TestGame extends Game {
       TestEntityB,
       TestEntityC,
       TestPlayerEntity,
+    ]);
+  }
+
+  actionClasses(): Set<Class<Action<string, any, any>>> {
+    return new Set<Class<Action<string, any, any>>>([
+      TestAction,
+      ParameterizedTestAction,
     ]);
   }
 }

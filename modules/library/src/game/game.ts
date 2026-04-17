@@ -26,7 +26,7 @@ import { ModifiableRuntime } from './modifiable-runtime';
 import { Action } from '../components/action';
 import { StateService } from '../services/state/state-service';
 import { GraphService } from '../services/graph/graph-service';
-import { Graph } from '../components/graph/graph';
+import { ComplexGraph, Graph } from '../components/graph/graph';
 import { NodeId } from '../components/graph/node.types';
 import {
   AfterAction,
@@ -105,8 +105,15 @@ export abstract class Game<
 
   /**
    * The graph of the game, which defines the flow of the game.
+   * This is only necessary for setting up the initial graph.
    */
-  public abstract graph(): Graph<NodeId>;
+  protected abstract _graph(): Graph<NodeId>;
+
+  /**
+   * Returns the set of all action classes that are used in this game.
+   * This is needed so that clients know how to reconstruct actions sent in snapshots.
+   */
+  public abstract actionClasses(): Set<Class<Action<string, any, any>>>;
 
   /**
    * Returns the set of all entity classes that are used in this game.
@@ -130,6 +137,14 @@ export abstract class Game<
       mapping[dummy.$type] = entity;
     }
     return mapping;
+  }
+
+  /**
+   * Returns the complex graph of the game, with its current state embedded.
+   * @returns The complex graph of the game.
+   */
+  public graph(): ComplexGraph<Graph<NodeId>> {
+    return this._graphService.graph();
   }
 
   /**
@@ -180,7 +195,7 @@ export abstract class Game<
   private _setup(parameters: PARAMETERS): void {
     this._logger.debug(() => `Setting up game ${this.constructor.name}...`);
     this._logger.debug(() => `Creating graph service...`);
-    this._graphService = new GraphService(this.graph(), this._logger);
+    this._graphService = new GraphService(this._graph(), this._logger);
 
     this._logger.info(() => `Spawning entities...`);
 
@@ -276,10 +291,27 @@ export abstract class Game<
    * Executes an action in the game.
    * This is the only way to modify the game state!
    * @param action The action to execute.
+   * @returns The executed action, if an action was executed. This may not be the same object as the passed in action,
+   * since some properties (or even its complete type!) may be modified during execution due to triggers.
+   * Undefined is returned, if the action was prevented.
    */
-  public execute(action: Action<string, any, any>): void {
+  public execute(
+    action: Action<string, any, any>,
+  ): Action<string, any, any> | undefined {
     this._stateService.setSettled(false);
     this._logger.debug(() => `Executing action ${action.$type}...`);
+
+    // The action should be registered within the engine, so that clients know abouts its potential existence.
+    // If it were not registered, clients might not know how to render it.
+    if (
+      !this.actionClasses().has(
+        action.constructor as Class<Action<string, any, any>>,
+      )
+    ) {
+      this._logger.error(
+        `The action type "${action.$type}" is not registered in the game ${this.constructor.name}. Please make sure to include it in the "actionClasses" method of your game, so that clients know how to reconstruct and render this action. Executing it anyway...`,
+      );
+    }
 
     // Find all entities that should be called before this action is executed.
     let beforeEntities: Entity[] = this._entityService
@@ -298,46 +330,69 @@ export abstract class Game<
     }
 
     // Call before hooks.
+    let cancelled = false;
     for (const entity of beforeEntities) {
       this._logger.debug(
         () =>
           `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
       );
 
-      (entity as unknown as BeforeActionIndex)[
+      const triggerResult = (entity as unknown as BeforeActionIndex)[
         `before${action.$type.charAt(0).toUpperCase() + action.$type.slice(1)}`
       ]!(this, action.parameters);
+
+      if (triggerResult !== undefined && !triggerResult) {
+        this._logger.debug(
+          `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+        );
+        cancelled = true;
+        break;
+      }
+    }
+
+    if (cancelled) {
+      return undefined;
     }
 
     this._stateService.execute(action, this);
+    // Action from this point on is immutable!
+    const immutableAction: typeof action = Object.assign({}, action);
+    Object.setPrototypeOf(immutableAction, Object.getPrototypeOf(action));
+    Object.freeze(immutableAction.parameters);
 
     // Find all entities that should be called after this action is executed.
     let afterEntities: Entity[] = this._entityService
       .entities()
       .filter(
         (entity): entity is Entity & AfterAction<Action<string, any, any>> =>
-          this._hasActionLifecyclehook(entity, action, 'after'),
+          this._hasActionLifecyclehook(entity, immutableAction, 'after'),
       );
 
     if (afterEntities.length > 1) {
-      afterEntities = this.resolveTriggerOrder('after', action, afterEntities);
+      afterEntities = this.resolveTriggerOrder(
+        'after',
+        immutableAction,
+        afterEntities,
+      );
     }
 
     // Call after hooks.
     for (const entity of afterEntities) {
       this._logger.debug(
         () =>
-          `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
+          `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
       );
 
       (entity as unknown as AfterActionIndex)[
-        `after${action.$type.charAt(0).toUpperCase() + action.$type.slice(1)}`
-      ]!(this, action.parameters, action.returned());
+        `after${immutableAction.$type.charAt(0).toUpperCase() + immutableAction.$type.slice(1)}`
+      ]!(this, immutableAction.parameters, immutableAction.returned());
     }
 
     for (const player of this._entityService.players()) {
       this._stateService.informPlayer(player, false);
     }
+
+    return action;
   }
 
   private _hasActionLifecyclehook(

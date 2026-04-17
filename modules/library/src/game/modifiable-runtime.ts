@@ -6,6 +6,7 @@ import { QueryableRuntime } from './queryable-runtime';
 
 /**
  * @see ModifiableRuntime models the capabilities of the runtime, which allows querying of entities in addition to modifying them.
+ * // TODO: Put comments from implementation here instead!
  */
 export interface ModifiableRuntime extends QueryableRuntime {
   destroyEntity(entity: Entity): void;
@@ -15,5 +16,7 @@ export interface ModifiableRuntime extends QueryableRuntime {
     player: PlayerInterface,
     choices: ACTION[],
   ): Promise<ACTION>;
-  execute(action: Action<string, any, any>): void;
+  execute(
+    action: Action<string, any, any>,
+  ): Action<string, any, any> | undefined;
 }

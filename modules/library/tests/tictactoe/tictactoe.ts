@@ -13,7 +13,7 @@ import { Graph } from '../../src/components/graph/graph';
 import { ModifiableRuntime } from '../../src';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
-  public graph(): Graph<'INITIAL'> {
+  public _graph(): Graph<'INITIAL'> {
     return {
       INITIAL: async (runtime: ModifiableRuntime) => {
         while (true) {
@@ -57,7 +57,7 @@ export class TicTacToe extends Game<TicTacToeParameters> {
     ]);
   }
 
-  actions(): Set<Class<Action<string, any, any>>> {
+  actionClasses(): Set<Class<Action<string, any, any>>> {
     return new Set([MarkAction]);
   }
 
