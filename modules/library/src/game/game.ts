@@ -18,7 +18,6 @@ import { EntityService } from '../services/entity/entity-service';
 import {
   PlayerInterface,
   handler,
-  isPlayerInterface,
   playerId,
 } from '../interfaces/player-interface';
 import { PlayerEntity } from '../services/entity/entity-service.types';
@@ -43,15 +42,12 @@ export abstract class Game<
   implements QueryableRuntime, ModifiableRuntime
 {
   private _logger: Logger;
-  private _status: GameStatus = 'setup';
-  private _endParameters: GameEndParameters | undefined = undefined;
 
   private readonly _entityService: EntityService;
   private _graphService!: GraphService<NodeId>;
   private readonly _stateService: StateService;
   private readonly _callbacks: Partial<GameLifecycle> = {};
 
-  // TODO: Allow cloneable functionality, to mirror a complete game state in preparation for MCTS.
   // TODO: ... handle drivers (for MTCS / replays).
   // TODO: Should parameters be serialized within the game, or be discarded after initializing?
 
@@ -73,14 +69,14 @@ export abstract class Game<
       ...config.logger,
     };
 
-    this._entityService = new EntityService(
-      this._logger,
-      this.flush.bind(this),
-    );
-    this._stateService = new StateService(this._logger);
+    this._entityService =
+      config.services?.entityService ??
+      new EntityService(this._logger, this.flush.bind(this));
+    this._stateService =
+      config.services?.stateService ?? new StateService(this._logger);
 
     this._logger.info(`Starting game ${this.constructor.name}.`);
-    this._setup(parameters as PARAMETERS);
+    this._setup(parameters as PARAMETERS, config.services?.graphService);
   }
 
   /**
@@ -185,17 +181,17 @@ export abstract class Game<
    * @returns Either "setup", "running" or "ended", depending on the current status of the game.
    */
   public status(): Readonly<GameStatus> {
-    return this._status;
+    return this._stateService.status();
   }
 
   /**
    * Sets up the game and validates the initial state.
    * @param parameters The parameters to set up the game with.
    */
-  private _setup(parameters: PARAMETERS): void {
+  private _setup(parameters: PARAMETERS, graphService?: GraphService<NodeId>): void {
     this._logger.debug(`Setting up game ${this.constructor.name}...`);
     this._logger.debug(`Creating graph service...`);
-    this._graphService = new GraphService(this.rawGraph(), this._logger);
+    this._graphService = graphService ?? new GraphService(this.rawGraph(), this._logger);
 
     this._logger.info(`Spawning entities...`);
 
@@ -336,7 +332,7 @@ export abstract class Game<
   public execute(
     action: Action<string, any, any>,
   ): Action<string, any, any> | undefined {
-    if (this._status === 'ended') {
+    if (this._stateService.status() === 'ended') {
       this._logger.warn(
         `Trying to execute action "${action.$type}" after the game has already ended. This likely means that some trigger or choice execution was executed after ending the game. Please make sure that this can't happen. Ignoring this action...`,
       );
@@ -490,11 +486,11 @@ export abstract class Game<
     this._stateService.setSettled(true);
 
     if (this._graphService.isEnded()) {
-      this._status = 'ended';
+      this._stateService.setStatus('ended');
     }
 
     // The graph execution should also stop, if the game was ended during an execution using the "end()" method.
-    return this._status !== 'ended';
+    return this._stateService.status() !== 'ended';
   }
 
   /**
@@ -523,7 +519,7 @@ export abstract class Game<
     const players = this._entityService.players();
 
     if (players.every((p) => p[handler] !== undefined)) {
-      if (this._graphService.isSetup()) {
+      if (this._stateService.status() === 'setup') {
         await this._start();
       } else {
         this._logger.info(
@@ -544,7 +540,7 @@ export abstract class Game<
     this._logger.info(
       `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
     );
-    this._status = 'running';
+    this._stateService.setStatus('running');
 
     // Inform players about initial state.
     // Kind of redundant, but does not hurt...
@@ -587,7 +583,7 @@ export abstract class Game<
   end(parameters: Partial<GameEndParameters>): void {
     this._logger.info(`Ending game...`);
 
-    if (this._status === 'ended') {
+    if (this._stateService.status() === 'ended') {
       this._logger.error(
         `Game ${this.constructor.name} has already ended, can't end it again!`,
       );
@@ -644,15 +640,15 @@ export abstract class Game<
       );
     }
 
-    this._endParameters = {
+    this._stateService.setEndParameters({
       winners: parameters.winners ?? [],
       losers: parameters.losers ?? [],
       draws: parameters.draws ?? [],
-    };
-    this._status = 'ended';
+    });
+    this._stateService.setStatus('ended');
 
     if (this._callbacks.onEnd !== undefined) {
-      this._callbacks.onEnd(this._endParameters);
+      this._callbacks.onEnd(this._stateService.endStatus()!);
     }
   }
 
@@ -662,7 +658,7 @@ export abstract class Game<
       `Checking end status for game ${this.constructor.name}...`,
     );
 
-    return this._endParameters;
+    return this._stateService.endStatus();
   }
 
   registerCallbacks(callbacks: GameLifecycle): void {
@@ -681,39 +677,23 @@ export abstract class Game<
    * @returns A new game instance of the same concrete type with an identical entity state.
    */
   public clone(config: GameConfig = { logger: NO_OP_LOGGER }): this {
-    // Step 1: clone every entity, preserving class prototype and all own properties (including symbols).
-    const allEntities = Array.from(this.entities());
-    const originalToClone = new Map<Entity, Entity>();
-
-    for (const entity of allEntities) {
-      const raw = this._entityService.getNonProxy(entity)!;
-      const clone = Object.create(Object.getPrototypeOf(raw)) as Entity;
-      Object.defineProperties(clone, Object.getOwnPropertyDescriptors(raw));
-      originalToClone.set(entity, clone);
-
-      // Remove callbacks on the clone; they will be registered explicitly.
-      if (isPlayerInterface(clone)) {
-        // @ts-ignore TODO: Fix type
-        clone[handler] = undefined as unknown as PlayerInterfaceCallback;
-      }
-    }
-
-    // Cross-references (e.g. slot.markedBy) are left pointing to live proxies here.
-    // They are resolved transparently to the correct cloned proxy at access-time by
-    // the entity-service proxy get trap, which canonicalises any entity value through
-    // the cloned game's own ids map.
-
-    const clonedEntities = new Set(originalToClone.values());
-
-    // We create a cloned game that simply instantiates the state that we want to have.
     const GameClass = this.constructor;
+    const clonedRawEntities = this._entityService.cloneRawEntities();
+    const clonedGraphService = this._graphService.clone();
+    const clonedStateService = this._stateService.clone();
 
     class ClonedGame extends (GameClass as any) {
       initialize(_params: unknown): Set<Entity> {
-        return clonedEntities;
+        return clonedRawEntities;
       }
     }
 
-    return new (ClonedGame as any)(undefined, config) as this;
+    return new (ClonedGame as any)(undefined, {
+      ...config,
+      services: {
+        graphService: clonedGraphService,
+        stateService: clonedStateService,
+      },
+    }) as this;
   }
 }

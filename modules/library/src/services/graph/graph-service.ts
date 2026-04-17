@@ -46,6 +46,31 @@ export class GraphService<NODES extends NodeId> {
   }
 
   /**
+   * Creates a deep clone of this graph service, preserving the current node, ended flag, and call counts.
+   * The cloned service shares the same node execute functions (they are stateless).
+   * @returns A new GraphService with identical runtime state.
+   */
+  public clone(): GraphService<NODES> {
+    const rawGraph = Object.fromEntries(
+      Object.entries(this.rawGraph.nodes).map(([key, node]) => [
+        key,
+        node.execute,
+      ]),
+    ) as unknown as Graph<NODES>;
+
+    const cloned = new GraphService<NODES>(rawGraph, this._logger);
+
+    cloned.rawGraph.current = this.rawGraph.current;
+    cloned.rawGraph.ended = this.rawGraph.ended;
+    for (const key of Object.keys(this.rawGraph.nodes)) {
+      (cloned.rawGraph.nodes as Record<string, { calls: number }>)[key]!.calls =
+        (this.rawGraph.nodes as Record<string, { calls: number }>)[key]!.calls;
+    }
+
+    return cloned;
+  }
+
+  /**
    * Executes the code of the current node and moves internally to the next node.
    * @returns whether there is a next node, or not.
    */

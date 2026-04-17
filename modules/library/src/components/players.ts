@@ -43,7 +43,9 @@ function _ucb1SelectIndex(node: _MctsNode, numChoices: number): number {
   return bestIdx;
 }
 
-const _MCTS_CHUNK_SIZE = 25;
+// Yield to the browser at most once per frame (~16ms) so paint/input events can run
+// without imposing a fixed per-iteration overhead.
+const _MCTS_YIELD_INTERVAL_MS = 16;
 
 async function _runMctsAsync(
   game: Game<any>,
@@ -54,15 +56,19 @@ async function _runMctsAsync(
 ): Promise<EnhancedChoice<Action<string, any>>> {
   const root = _createNode(null);
 
-  // Track time for all executions.
   const start = performance.now();
+  let lastYield = start;
 
   for (let i = 0; i < iterations; i++) {
-    // Yield to the browser every chunk so paint/animation frames can run.
-    if (i > 0 && i % _MCTS_CHUNK_SIZE === 0) {
+    // Yield to the browser periodically (time-based) so paint/animation frames can run.
+    // Using time-based rather than iteration-based prevents unnecessary yields for fast
+    // simulations and avoids the ~4ms minimum setTimeout penalty on every chunk boundary.
+    const now = performance.now();
+    if (now - lastYield >= _MCTS_YIELD_INTERVAL_MS) {
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      lastYield = performance.now();
     }
-    logger.debug(`MCTS iteration ${i + 1}/${iterations}...`);
+
     const simGame = game.clone({ logger: NO_OP_LOGGER });
 
     // Per-iteration mutable state captured by the callback closures.
@@ -180,8 +186,6 @@ export namespace Players {
     // Chicken no need state!
     state: () => {},
     prompt: (choices, execute) => {
-      logger.debug(`Chicken player "${name}" has choices:`, choices);
-
       // This player does only take random choices...
       if (choices.length > 0) {
         setTimeout(() => {

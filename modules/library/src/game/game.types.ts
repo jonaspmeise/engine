@@ -5,6 +5,9 @@ import { Entity } from '../components/entity';
 import { EntityID } from '../components/entity.types';
 import { PlayerInterface } from '../interfaces/player-interface';
 import { PlayerEntity } from '../services/entity/entity-service.types';
+import type { EntityService } from '../services/entity/entity-service';
+import type { GraphService } from '../services/graph/graph-service';
+import type { StateService } from '../services/state/state-service';
 
 export type GameParameters = Record<string, unknown>;
 
@@ -19,6 +22,16 @@ export type LoggerMethod = (...message: unknown[]) => void;
 
 export type GameConfig = {
   logger?: Partial<Logger>;
+  /**
+   * Pre-built services to inject. When provided, these replace the services that the Game constructor
+   * would normally create. Intended for use by Game.clone() to transfer cloned service state without
+   * relying on private field access.
+   */
+  services?: {
+    entityService?: EntityService;
+    graphService?: GraphService<string>;
+    stateService?: StateService;
+  };
 };
 
 export type Logger = {

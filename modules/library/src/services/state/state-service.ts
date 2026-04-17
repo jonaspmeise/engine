@@ -2,7 +2,7 @@ import { Action } from '../../components/action';
 import { Choice, EnhancedChoice } from '../../components/choice';
 import { ChoiceId } from '../../components/choice.types';
 import { Entity, entityId } from '../../components/entity';
-import { SnapshotData, Logger, DeepReadonly } from '../../game/game.types';
+import { SnapshotData, Logger, DeepReadonly, GameStatus, GameEndParameters } from '../../game/game.types';
 import { ModifiableRuntime } from '../../game/modifiable-runtime';
 import {
   PlayerInterface,
@@ -31,6 +31,9 @@ export class StateService {
     idCounter: 0,
   };
 
+  private _status: GameStatus = 'setup';
+  private _endParameters: GameEndParameters | undefined = undefined;
+
   constructor(private readonly _logger: Logger) {}
 
   public markDirty(entity: Entity): void {
@@ -42,6 +45,39 @@ export class StateService {
       this._state.currentSnapshots.length - 1
       // TODO: "as" needed here?
     ]!.dirtyEntities[entity[entityId]] = entity as DeepReadonly<typeof entity>;
+  }
+
+  public status(): GameStatus {
+    return this._status;
+  }
+
+  public setStatus(status: GameStatus): void {
+    this._status = status;
+  }
+
+  public endStatus(): GameEndParameters | undefined {
+    return this._endParameters;
+  }
+
+  public setEndParameters(params: GameEndParameters | undefined): void {
+    this._endParameters = params;
+  }
+
+  /**
+   * Creates a clone of this StateService, copying the game lifecycle state and snapshot depth.
+   * Transient runtime state (pending choices, stack) is not carried over.
+   * @returns A new StateService with the same status, end parameters, and snapshot history.
+   */
+  public clone(): StateService {
+    const cloned = new StateService(this._logger);
+    // Reset to 'setup' so that when player callbacks are registered on the clone,
+    // _start() is always invoked and the game loop runs from the current board state.
+    cloned._status = 'setup';
+    cloned._endParameters = this._endParameters;
+    cloned._state.idCounter = this._state.idCounter;
+    cloned._state.pastSnapshots = [...this._state.pastSnapshots];
+    cloned._state.currentSnapshots = [...this._state.currentSnapshots];
+    return cloned;
   }
 
   public clear(): void {

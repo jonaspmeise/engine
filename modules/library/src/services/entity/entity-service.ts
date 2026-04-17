@@ -3,6 +3,7 @@ import { EntityID } from '../../components/entity.types';
 import { Class, Logger } from '../../game/game.types';
 import { EntityFlushCallback } from './entity-service.types';
 import {
+  handler,
   isPlayerInterface,
   playerId,
   PlayerInterface,
@@ -32,7 +33,6 @@ export class EntityService
     };
   }
 
-  // TODO: Make this entire class cloneable for MCTS?
   private _entities = {
     types: new Map<Class<Entity>, Set<Entity>>(),
     ids: new Map<EntityID, Entity>(),
@@ -237,5 +237,38 @@ export class EntityService
 
   public getNonProxy<T extends Entity>(entity: T): T | undefined {
     return this._entities.nonProxies.get(entity) as T | undefined;
+  }
+
+  /**
+   * Extracts raw (non-proxy) clones of all currently registered entities.
+   * Player handler callbacks are cleared on the clones.
+   * @returns A Set of cloned raw entities.
+   */
+  public cloneRawEntities(): Set<Entity> {
+    const result = new Set<Entity>();
+    for (const entity of this.entities()) {
+      const raw = this.getNonProxy(entity)!;
+      const cloned = Object.create(Object.getPrototypeOf(raw)) as Entity;
+      Object.defineProperties(cloned, Object.getOwnPropertyDescriptors(raw));
+      if (isPlayerInterface(cloned)) {
+        // @ts-ignore handler needs to be set at a later endpoint.
+        cloned[handler] = undefined;
+      }
+      result.add(cloned);
+    }
+    return result;
+  }
+
+  /**
+   * Creates a full clone of this EntityService with all entities re-proxied against the new flush callback.
+   * @param flushCallback The flush callback for the new service instance.
+   * @returns A new EntityService with identical entity state.
+   */
+  public clone(flushCallback: EntityFlushCallback): EntityService {
+    const cloned = new EntityService(this._logger, flushCallback);
+    for (const raw of this.cloneRawEntities()) {
+      cloned.create(raw);
+    }
+    return cloned;
   }
 }

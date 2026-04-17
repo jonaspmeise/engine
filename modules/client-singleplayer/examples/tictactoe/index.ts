@@ -10,8 +10,8 @@ function startGame(): void {
   const mctsPlayer = game.players()![0]!;
   game.registerPlayerCallback(
     mctsPlayer,
-    // TODO: Players.mcts(game, mctsPlayer, 1000, console),
-    Players.chicken(() => Math.random() * 500 + 500),
+    Players.mcts(game, mctsPlayer, 1000, console),
+    // Players.chicken(() => Math.random() * 500 + 500),
   );
 
   const humanPlayer = game.players()![1]!;

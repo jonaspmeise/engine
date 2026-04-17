@@ -124,7 +124,7 @@ describe('game', () => {
   });
 
   describe('clone', () => {
-    test.todo('works', (done) => {
+    test('works', (done) => {
       // GIVEN
       class DummyGame extends TestGame {
         initialize() {
@@ -143,6 +143,8 @@ describe('game', () => {
               expect(clone.graph().current).toEqual(this.graph().current);
               // TODO: Check that executed actions inside this graph node recorded here, too!
               // TODO: Copying this engine should literally copy the entire state, including the graph to where we currently are (with identical state)!
+
+              done();
             },
           };
         }

@@ -6,11 +6,12 @@ import { jsonRoundtrip, timeout } from '../../src/utility.spec';
 import { Lane } from './entities/lane';
 import { TicTacToePlayer } from './entities/player';
 import { Slot } from './entities/slot';
+import { NO_OP_LOGGER } from '../../src';
 
 class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
   readonly numberOfPlayers = 2;
   readonly initializer = (parameters: TicTacToeParameters) =>
-    new TicTacToe(parameters);
+    new TicTacToe(parameters, { logger: NO_OP_LOGGER });
   readonly name = 'TicTacToe';
   readonly randomPlayDepth = 100;
   readonly parameters = {

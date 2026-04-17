@@ -15,6 +15,7 @@ import {
   playerId,
   PlayerInterface,
   playerInterfaceMarker,
+  handler,
 } from '../../interfaces/player-interface';
 
 class TestEntityA extends Entity {
@@ -297,6 +298,82 @@ describe('entityService', () => {
 
       // THEN
       expect(service.getNonProxy(entity)).toBeUndefined();
+    });
+  });
+
+  describe('clone', () => {
+    test('the cloned service contains the same entities as the original.', () => {
+      // GIVEN
+      service.create(new TestEntityA(1));
+      service.create(new TestEntityA(2));
+      service.create(new TestEntityB(1));
+
+      // WHEN
+      const cloneCallback = () => {};
+      const clone = service.clone(cloneCallback);
+
+      // THEN
+      expect(clone.entities(TestEntityA)).toHaveLength(2);
+      expect(clone.entities(TestEntityB)).toHaveLength(1);
+      expect(clone.entities()).toHaveLength(3);
+      expect(service.entities(TestEntityA)).toHaveLength(2);
+      expect(service.entities(TestEntityB)).toHaveLength(1);
+      expect(service.entities()).toHaveLength(3);
+    });
+
+    test('the cloned entities are independent copies — modifying one does not affect the other.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+
+      // WHEN
+      const clone = service.clone(() => {});
+      entity.volatileNumber = 42;
+
+      // THEN
+      expect(clone.entities(TestEntityA)[0]!.volatileNumber).toBe(0);
+      expect(service.entities(TestEntityA)[0]!.volatileNumber).toBe(42);
+    });
+
+    test('the cloned service preserves player entities.', () => {
+      // GIVEN
+      service.create(new TestPlayerEntity(1));
+      service.create(new TestPlayerEntity(2));
+
+      // WHEN
+      const clone = service.clone(() => {});
+
+      // THEN
+      expect(clone.players()).toHaveLength(2);
+      expect(service.players()).toHaveLength(2);
+    });
+
+    test('player handler callbacks are cleared on cloned entities.', () => {
+      // GIVEN
+      const player = service.create(new TestPlayerEntity(1)) as PlayerEntity;
+      const fakeCallback = { state: () => {}, prompt: () => {} };
+      player[handler] = fakeCallback;
+
+      // WHEN
+      const clone = service.clone(() => {});
+      const clonedPlayer = clone.players()[0]!;
+
+      // THEN
+      expect(clonedPlayer[handler]).toBeUndefined();
+      expect(player[handler]).toBeDefined();
+    });
+
+    test('the flush callback of the clone is called when a cloned entity is modified.', () => {
+      // GIVEN
+      service.create(new TestEntityA(1));
+      const cloneCallback = mock(() => {});
+      const clone = service.clone(cloneCallback);
+
+      // WHEN
+      clone.entities(TestEntityA)[0]!.volatileNumber = 99;
+
+      // THEN
+      expect(cloneCallback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
+      expect(callback).toHaveBeenCalledTimes(1); // original flush not called again
     });
   });
 });

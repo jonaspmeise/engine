@@ -10,7 +10,6 @@ import { TicTacToePlayer } from './entities/player';
 import { Slot } from './entities/slot';
 import { VerticalLane } from './entities/vertical-lane';
 import { Graph } from '../../src/components/graph/graph';
-import { ModifiableRuntime } from '../../src';
 import { TicTacToeDraw } from './actions/draw';
 import { TicTacToeWin } from './actions/win';
 import { GraphRuntime } from '../../src/game/graph-runtime';

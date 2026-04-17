@@ -107,4 +107,87 @@ describe('GraphService', () => {
       expect(service.isSetup()).toBe(false);
     });
   });
+
+  describe('clone', () => {
+    test('the cloned service has the same initial state as the original.', () => {
+      // GIVEN / WHEN
+      const clone = service.clone();
+
+      // THEN
+      expect(clone.graph().current).toBe('INITIAL');
+      expect(clone.graph().ended).toBe(false);
+      expect(clone.isSetup()).toBe(true);
+      expect(clone.isEnded()).toBe(false);
+      expect(clone.graph().nodes.INITIAL.calls).toBe(0);
+      expect(clone.graph().nodes.NodeA.calls).toBe(0);
+    });
+
+    test('the cloned service reflects the current node after some executions.', async () => {
+      // GIVEN
+      await service.execute(runtime); // INITIAL -> NodeA
+      await service.execute(runtime); // NodeA -> NodeB
+
+      // WHEN
+      const clone = service.clone();
+
+      // THEN
+      expect(clone.graph().current).toBe('NodeB');
+      expect(clone.graph().ended).toBe(false);
+      expect(clone.isSetup()).toBe(false);
+      expect(clone.graph().nodes.INITIAL.calls).toBe(1);
+      expect(clone.graph().nodes.NodeA.calls).toBe(1);
+      expect(clone.graph().nodes.NodeB.calls).toBe(0);
+      expect(service.graph().current).toBe('NodeB');
+      expect(service.graph().ended).toBe(false);
+      expect(service.isSetup()).toBe(false);
+      expect(service.graph().nodes.INITIAL.calls).toBe(1);
+      expect(service.graph().nodes.NodeA.calls).toBe(1);
+      expect(service.graph().nodes.NodeB.calls).toBe(0);
+    });
+
+    test('the cloned service reflects the ended state when the original has ended.', async () => {
+      // GIVEN
+      const service = new GraphService({ INITIAL: () => {} }, NO_OP_LOGGER);
+      await service.execute(runtime);
+
+      // WHEN
+      const clone = service.clone();
+
+      // THEN
+      expect(clone.isEnded()).toBe(true);
+      expect(clone.graph().ended).toBe(true);
+      expect(clone.graph().current).toBe(undefined);
+      expect(clone.graph().nodes.INITIAL.calls).toBe(1);
+      expect(service.isEnded()).toBe(true);
+      expect(service.graph().ended).toBe(true);
+      expect(service.graph().current).toBe(undefined);
+      expect(service.graph().nodes.INITIAL.calls).toBe(1);
+    });
+
+    test('executing the clone does not affect the original.', async () => {
+      // GIVEN
+      await service.execute(runtime); // INITIAL -> NodeA
+      const clone = service.clone();
+
+      // WHEN
+      await clone.execute(runtime); // NodeA -> NodeB
+
+      // THEN
+      expect(service.graph().current).toBe('NodeA');
+      expect(clone.graph().current).toBe('NodeB');
+    });
+
+    test('executing the original does not affect the clone.', async () => {
+      // GIVEN
+      await service.execute(runtime); // INITIAL -> NodeA
+      const clone = service.clone();
+
+      // WHEN
+      await service.execute(runtime); // NodeA -> NodeB
+
+      // THEN
+      expect(clone.graph().current).toBe('NodeA');
+      expect(service.graph().current).toBe('NodeB');
+    });
+  });
 });
