@@ -18,9 +18,10 @@ import { Graph } from '../components/graph/graph';
 import {
   AfterAction,
   BeforeAction,
+  CheckAction,
   LifecycleType,
 } from '../components/lifecyclehooks';
-import { time } from 'node:console';
+import { GraphRuntime } from './graph-runtime';
 
 describe('game', () => {
   afterEach(() => {
@@ -130,7 +131,7 @@ describe('game', () => {
           return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
         }
 
-        _graph(): Graph<'NEXT'> {
+        rawGraph(): Graph<'NEXT'> {
           return {
             INITIAL: async () => {
               return 'NEXT' as const;
@@ -318,6 +319,111 @@ describe('game', () => {
   });
 
   describe('lifecycle', () => {
+    test('the node graph execution stops if the game is already over.', (done) => {
+      // GIVEN
+      let initialNodeExecuted = 0;
+
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1)]);
+        }
+
+        rawGraph(): Graph<'INITIAL' | 'IMPOSSIBLE'> {
+          return {
+            INITIAL: async (runtime) => {
+              initialNodeExecuted++;
+
+              // WHEN
+              // We hack a little and access ".end()" here directly, but ideally, this should always be accessed through an action, so that the client sees it!
+              this.end({ winners: runtime.entities(TestPlayerEntity) });
+
+              // Graph execution should stop here, so in total, this node should only be executed once and no other nodes.
+              return 'IMPOSSIBLE' as const;
+            },
+            IMPOSSIBLE: async () => {
+              throw new Error(
+                `Graph looped back to CHECK node after game ended, which should not happen!`,
+              );
+            },
+          };
+        }
+      }
+
+      // WHEN
+      const game = new DummyGame();
+
+      game.registerCallbacks({
+        onEnd: () => {
+          // THEN
+          // Making sure that the graph _does not_ endlessly loop is tough from the outside world, so we simply check whether it came back.
+          setTimeout(() => {
+            expect(initialNodeExecuted).toBe(1);
+            done();
+          }, 100);
+        },
+      });
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        prompt: () => {},
+        state: () => {},
+      });
+
+      timeout(done, 200);
+    });
+
+    test('choices cant be picked after the state has already moved on.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([
+            new TestPlayerEntity(1),
+            new TestPlayerEntity(2),
+            new TestEntityC(1),
+          ]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              runtime.execute(
+                await runtime.prompt(runtime.entities(TestPlayerEntity)[0]!, [
+                  new ParameterizedTestAction({ value: 1 }),
+                ]),
+              );
+              runtime.execute(
+                await runtime.prompt(runtime.entities(TestPlayerEntity)[1]!, [
+                  new ParameterizedTestAction({ value: 2 }),
+                ]),
+              );
+
+              // After some delay, check!
+              setTimeout(() => {
+                expect(runtime.anyEntity(TestEntityC)!.volatileNumber).toBe(2); // The second choice was the last one, so this should be the new value.
+                done();
+              }, 50);
+            },
+          };
+        }
+      }
+
+      // WHEN
+      const game = new DummyGame();
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        state: () => {},
+        prompt: (choices, execute) => {
+          execute(choices[0]!);
+          setTimeout(() => execute(choices[0]!), 10); // Try to execute the same choice again after some time, which should not be possible!
+        },
+      });
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, {
+        state: () => {},
+        prompt: (choices, execute) => {
+          execute(choices[0]!);
+        },
+      });
+
+      timeout(done, 100);
+    });
+
     test('delayed choice executions are handled correctly.', (done) => {
       // GIVEN
       class DummyGame extends TestGame {
@@ -325,7 +431,7 @@ describe('game', () => {
           return new Set<Entity>([new TestPlayerEntity(1), new TestEntityC(1)]);
         }
 
-        _graph(): Graph<'INITIAL'> {
+        rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(
@@ -371,7 +477,7 @@ describe('game', () => {
         }
 
         // This graph never ends, which should be caught by the engine checks!
-        _graph(): Graph<'INITIAL'> {
+        rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(
@@ -507,7 +613,7 @@ describe('game', () => {
           return new Set<Entity>([new TestPlayerEntity(1)]);
         }
 
-        _graph(): Graph<NodeId> {
+        rawGraph(): Graph<NodeId> {
           return {
             INITIAL: async (runtime) => {
               const player =
@@ -552,7 +658,7 @@ describe('game', () => {
           ]);
         }
 
-        _graph(): Graph {
+        rawGraph(): Graph {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(new TestAction());
@@ -600,9 +706,9 @@ describe('game', () => {
           return new Set<Entity>([new TestPlayerEntity(1)]);
         }
 
-        _graph() {
+        rawGraph() {
           return {
-            INITIAL: async (runtime: ModifiableRuntime) => {
+            INITIAL: async (runtime: GraphRuntime) => {
               await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
                 new TestAction(),
               ]);
@@ -632,7 +738,7 @@ describe('game', () => {
     test('if a player instantly executes a choice in-memory, the other player is atleast notified about the state change.', (done) => {
       // GIVEN
       class DummyGame extends TestGame {
-        _graph(): Graph<'INITIAL'> {
+        rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               const player =
@@ -754,7 +860,7 @@ describe('game', () => {
         initialize(): Set<Entity> {
           return new Set<Entity>([new TestEntityC(1), new TestPlayerEntity(1)]);
         }
-        _graph(): Graph<'INITIAL'> {
+        rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               const entity = runtime.anyEntity<TestEntityC>(TestEntityC)!;
@@ -843,7 +949,7 @@ describe('game', () => {
           ]);
         }
 
-        _graph(): Graph<'INITIAL'> {
+        rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(new TestAction());
@@ -899,7 +1005,7 @@ describe('game', () => {
           ]);
         }
 
-        _graph(): Graph<'INITIAL'> {
+        rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
               runtime.execute(new TestAction());
@@ -937,6 +1043,45 @@ describe('game', () => {
     });
 
     describe('execute', () => {
+      test('a choice cant be executed if the game is already over.', (done) => {
+        // GIVEN
+        class DummyGame extends TestGame {
+          initialize() {
+            return new Set<Entity>([
+              new TestPlayerEntity(1),
+              new TestEntityC(1),
+            ]);
+          }
+
+          rawGraph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                // WHEN
+                // We hack a little and access ".end()" here directly, but ideally, this should always be accessed through an action, so that the client sees it!
+                this.end({
+                  draws: [runtime.anyEntity(TestPlayerEntity)!],
+                });
+                runtime.execute(new TestAction());
+
+                // THEN
+                expect(runtime.anyEntity(TestEntityC)!.volatileNumber).toBe(0); // The action should not have been executed, so the state should be unchanged.
+
+                done();
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test, game just needs to start.
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
+
       test('if a choice is prevented in a beforeTrigger, the action does not get executed and the player is not informed about any changes.', (done) => {
         // GIVEN
         class PreventingEntity
@@ -963,7 +1108,7 @@ describe('game', () => {
             ]);
           }
 
-          _graph(): Graph<'INITIAL'> {
+          rawGraph(): Graph<'INITIAL'> {
             return {
               INITIAL: async (runtime) => {
                 // This action should be cancelled!
@@ -985,6 +1130,7 @@ describe('game', () => {
 
         timeout(done);
       });
+
       test('executing an action returns executed action and sends an update to each player.', (done) => {
         // GIVEN
         class DummyGame extends TestGame {
@@ -995,7 +1141,7 @@ describe('game', () => {
             ]);
           }
 
-          _graph(): Graph<'NEXT'> {
+          rawGraph(): Graph<'NEXT'> {
             return {
               INITIAL: async () => {
                 return 'NEXT' as const;
@@ -1067,7 +1213,7 @@ describe('game', () => {
           initialize(): Set<Entity> {
             return new Set<Entity>([new TestPlayerEntity(1)]);
           }
-          _graph(): Graph<'INITIAL'> {
+          rawGraph(): Graph<'INITIAL'> {
             return {
               INITIAL: async (runtime) => {
                 // WHEN
@@ -1093,7 +1239,9 @@ describe('game', () => {
 
         timeout(done);
       });
+    });
 
+    describe('lifecycle hooks', () => {
       test('modifying triggered actions using the beforeTrigger works correctly.', (done) => {
         // GIVEN
         class LifecycleHookEntity
@@ -1122,7 +1270,7 @@ describe('game', () => {
             ]);
           }
 
-          _graph(): Graph<'INITIAL'> {
+          rawGraph(): Graph<'INITIAL'> {
             return {
               INITIAL: async (runtime) => {
                 runtime.execute(
@@ -1182,7 +1330,7 @@ describe('game', () => {
             ]);
           }
 
-          _graph(): Graph<'INITIAL'> {
+          rawGraph(): Graph<'INITIAL'> {
             return {
               INITIAL: async (runtime) => {
                 runtime.execute(
@@ -1206,13 +1354,130 @@ describe('game', () => {
 
         timeout(done);
       });
+
+      test('check-hooks are called when an action is directly executed and may prevent the action.', (done) => {
+        // GIVEN
+        class CheckHookEntity
+          extends Entity
+          implements CheckAction<ParameterizedTestAction>
+        {
+          public toString(): string {
+            return `CheckHookEntity`;
+          }
+          checkParameterizedTestAction(
+            _runtime: ModifiableRuntime,
+            parameters: { value: number },
+          ) {
+            return parameters.value % 2 == 0;
+          }
+          public $type: string = 'CheckHookEntity';
+        }
+
+        class DummyGame extends TestGame {
+          initialize(): Set<Entity> {
+            return new Set<Entity>([
+              new CheckHookEntity('my-check-entity'),
+              new TestEntityC(1),
+              new TestPlayerEntity(1),
+            ]);
+          }
+
+          rawGraph(): Graph<NodeId> {
+            return {
+              INITIAL: async (runtime) => {
+                // WHEN
+                // This action should be executed, since its check hook returns true.
+                expect(
+                  runtime.execute(new ParameterizedTestAction({ value: 10 })),
+                ).toBeDefined();
+                // Action should be prevented, so undefined is returned.
+                expect(
+                  runtime.execute(
+                    new ParameterizedTestAction({
+                      value: 5,
+                    }),
+                  ),
+                ).toBeUndefined();
+
+                // THEN
+                expect(
+                  runtime.anyEntity<TestEntityC>(TestEntityC)?.volatileNumber,
+                ).toEqual(10); // Only the valid changes are applied!
+
+                done();
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+
+        // WHEN
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test, game just needs to start.
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
+
+      test('check hooks are automatically applied to prompted choices.', (done) => {
+        // GIVEN
+        class CheckHookEntity
+          extends Entity
+          implements CheckAction<ParameterizedTestAction>
+        {
+          public $type: string = 'CheckHookEntity';
+          checkParameterizedTestAction(
+            _runtime: ModifiableRuntime,
+            parameters: { value: number },
+          ) {
+            return parameters.value % 2 === 0;
+          }
+          public toString(): string {
+            return `CheckHookEntity`;
+          }
+        }
+
+        class DummyGame extends TestGame {
+          initialize(): Set<Entity> {
+            return new Set<Entity>([
+              new CheckHookEntity('my-check-entity'),
+              new TestEntityC(1),
+              new TestPlayerEntity(1),
+            ]);
+          }
+
+          rawGraph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+                  new ParameterizedTestAction({ value: 10 }),
+                  new ParameterizedTestAction({ value: 5 }),
+                ]);
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          // Not relevant for this test, game just needs to start.
+          state: () => {},
+          prompt: (choices) => {
+            expect(choices).toHaveLength(1);
+            done();
+          },
+        });
+      });
     });
 
     describe('status', () => {
       test('a game goes through "setup" into "running" status.', async () => {
         // GIVEN
         class DummyGame extends TestGame {
-          _graph(): Graph<'INITIAL'> {
+          rawGraph(): Graph<'INITIAL'> {
             return {
               // Not relevant for this test.
               INITIAL: async () => {},
@@ -1246,11 +1511,12 @@ describe('game', () => {
       test('when a game ends, an end of game callback is triggered.', (done) => {
         // GIVEN
         class DummyGame extends TestGame {
-          _graph(): Graph<'INITIAL'> {
+          rawGraph(): Graph<'INITIAL'> {
             return {
               // Not relevant for this test.
               INITIAL: async (runtime) => {
-                runtime.end({
+                // We hack a little and access ".end()" here directly, but ideally, this should always be accessed through an action, so that the client sees it!
+                this.end({
                   winners: [runtime.anyEntity(TestPlayerEntity)!],
                 });
               },

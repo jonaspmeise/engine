@@ -4,17 +4,17 @@ import { DEFAULT_LOGGER, Logger } from '../../game/game.types';
 import { ModifiableRuntime } from '../../game/modifiable-runtime';
 
 export class GraphService<NODES extends NodeId> {
-  private readonly _graph: ComplexGraph<Graph<NODES>>;
+  private readonly rawGraph: ComplexGraph<Graph<NODES>>;
 
   constructor(
-    _graph: Graph<NODES>,
+    rawGraph: Graph<NODES>,
     private readonly _logger: Logger = DEFAULT_LOGGER,
   ) {
-    this._graph = {
+    this.rawGraph = {
       current: 'INITIAL',
       ended: false,
       nodes: Object.fromEntries(
-        Object.entries(_graph).map(([key, node]) => [
+        Object.entries(rawGraph).map(([key, node]) => [
           key,
           {
             name: key,
@@ -26,22 +26,22 @@ export class GraphService<NODES extends NodeId> {
     };
 
     this._logger.debug(
-      `Graph has the following nodes: ${Object.keys(this._graph.nodes).join(', ')}`,
+      `Graph has the following nodes: ${Object.keys(this.rawGraph.nodes).join(', ')}`,
     );
   }
 
   public graph(): ComplexGraph<Graph<NODES>> {
-    return this._graph;
+    return this.rawGraph;
   }
 
   public isEnded(): boolean {
-    return this._graph.ended;
+    return this.rawGraph.ended;
   }
 
   public isSetup(): boolean {
     return (
-      this._graph.current === 'INITIAL' &&
-      this._graph.nodes['INITIAL'].calls === 0
+      this.rawGraph.current === 'INITIAL' &&
+      this.rawGraph.nodes['INITIAL'].calls === 0
     );
   }
 
@@ -50,23 +50,23 @@ export class GraphService<NODES extends NodeId> {
    * @returns whether there is a next node, or not.
    */
   public async execute(runtime: ModifiableRuntime): Promise<boolean> {
-    this._logger.debug(`Executing node: ${this._graph.current}`);
+    this._logger.debug(`Executing node: ${this.rawGraph.current}`);
 
-    if (this._graph.current === undefined) {
+    if (this.rawGraph.current === undefined) {
       return false;
     }
-    const current = this._graph.nodes[this._graph.current]!;
+    const current = this.rawGraph.nodes[this.rawGraph.current]!;
     current.calls += 1;
 
     const next = await current.execute(runtime);
 
-    this._graph.current = next ?? undefined;
-    this._graph.ended = this._graph.current === undefined;
+    this.rawGraph.current = next ?? undefined;
+    this.rawGraph.ended = this.rawGraph.current === undefined;
 
     this._logger.debug(
-      `Finished executing node. Next node: ${this._graph.current}. Graph ended: ${this._graph.ended}`,
+      `Finished executing node. Next node: ${this.rawGraph.current}. Graph ended: ${this.rawGraph.ended}`,
     );
 
-    return !this._graph.ended;
+    return !this.rawGraph.ended;
   }
 }

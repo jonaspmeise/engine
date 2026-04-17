@@ -3,7 +3,7 @@ import { ModifiableRuntime } from '../../../src/game/modifiable-runtime';
 import { TicTacToePlayer } from '../entities/player';
 import { Slot } from '../entities/slot';
 
-export class MarkAction extends Action<
+export class TicTacToeMark extends Action<
   'mark',
   {
     slot: Slot;

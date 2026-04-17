@@ -30,9 +30,10 @@ import { ComplexGraph, Graph } from '../components/graph/graph';
 import { NodeId } from '../components/graph/node.types';
 import {
   AfterAction,
-  AfterActionIndex,
   BeforeAction,
-  BeforeActionIndex,
+  CheckAction,
+  getHook,
+  hasActionLifecyclehook,
   LifecycleType,
 } from '../components/lifecyclehooks';
 
@@ -78,7 +79,7 @@ export abstract class Game<
     );
     this._stateService = new StateService(this._logger);
 
-    this._logger.info(() => `Starting game ${this.constructor.name}.`);
+    this._logger.info(`Starting game ${this.constructor.name}.`);
     this._setup(parameters as PARAMETERS);
   }
 
@@ -107,7 +108,7 @@ export abstract class Game<
    * The graph of the game, which defines the flow of the game.
    * This is only necessary for setting up the initial graph.
    */
-  protected abstract _graph(): Graph<NodeId>;
+  public abstract rawGraph(): Graph<NodeId>;
 
   /**
    * Returns the set of all action classes that are used in this game.
@@ -173,8 +174,7 @@ export abstract class Game<
    */
   public flush(entity: Entity): void {
     this._logger.debug(
-      () =>
-        `Flushing entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.constructor.name}.`,
+      `Flushing entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.constructor.name}.`,
     );
 
     this._stateService.markDirty(entity);
@@ -193,11 +193,11 @@ export abstract class Game<
    * @param parameters The parameters to set up the game with.
    */
   private _setup(parameters: PARAMETERS): void {
-    this._logger.debug(() => `Setting up game ${this.constructor.name}...`);
-    this._logger.debug(() => `Creating graph service...`);
-    this._graphService = new GraphService(this._graph(), this._logger);
+    this._logger.debug(`Setting up game ${this.constructor.name}...`);
+    this._logger.debug(`Creating graph service...`);
+    this._graphService = new GraphService(this.rawGraph(), this._logger);
 
-    this._logger.info(() => `Spawning entities...`);
+    this._logger.info(`Spawning entities...`);
 
     let spawnCount = 0;
     for (const entity of this.initialize(parameters)) {
@@ -215,10 +215,8 @@ export abstract class Game<
       );
     }
 
-    this._logger.info(() => `Spawned a total of ${spawnCount} entities.`);
-    this._logger.debug(
-      () => `Finished setting up game ${this.constructor.name}.`,
-    );
+    this._logger.info(`Spawned a total of ${spawnCount} entities.`);
+    this._logger.debug(`Finished setting up game ${this.constructor.name}.`);
   }
 
   /**
@@ -284,7 +282,47 @@ export abstract class Game<
     player: PlayerEntity,
     choices: ACTION[],
   ): Promise<ACTION> {
-    return this._stateService.promptPlayer(player, choices);
+    this._logger.debug(
+      `Prompting player ${player[playerId]} with ${choices.length} choices...`,
+    );
+    const filteredChoices: ACTION[] = choices.filter(
+      (choice) => this._actionPreventedBy(choice) === undefined,
+    );
+
+    this._logger.debug(
+      `Will prompt player ${player[playerId]} with ${filteredChoices.length} (original: ${choices.length}) choices...`,
+    );
+
+    return this._stateService.promptPlayer(player, filteredChoices);
+  }
+
+  /**
+   * Checks whether there is any entity with a check-hook that prevents a given action from being executed.
+   * @param action the action to check.
+   * @returns The entity that prevents this action, if such an entity exists, otherwise undefined.
+   */
+  private _actionPreventedBy(
+    action: Action<string, any, any>,
+  ): Entity | undefined {
+    for (const entity of this._entityService
+      .entities()
+      .filter(
+        (entity): entity is Entity & CheckAction<Action<string, any, any>> =>
+          hasActionLifecyclehook(entity, action, 'check'),
+      )) {
+      this._logger.debug(
+        `Calling check hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
+      );
+
+      if (getHook(entity, action, 'check')(this, action.parameters) === false) {
+        this._logger.debug(
+          `Action "${action.$type}" was prevented by check hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+        );
+        return entity;
+      }
+    }
+
+    return undefined;
   }
 
   /**
@@ -298,8 +336,15 @@ export abstract class Game<
   public execute(
     action: Action<string, any, any>,
   ): Action<string, any, any> | undefined {
+    if (this._status === 'ended') {
+      this._logger.warn(
+        `Trying to execute action "${action.$type}" after the game has already ended. This likely means that some trigger or choice execution was executed after ending the game. Please make sure that this can't happen. Ignoring this action...`,
+      );
+      return undefined;
+    }
+
     this._stateService.setSettled(false);
-    this._logger.debug(() => `Executing action ${action.$type}...`);
+    this._logger.debug(`Executing action ${action.$type}...`);
 
     // The action should be registered within the engine, so that clients know abouts its potential existence.
     // If it were not registered, clients might not know how to render it.
@@ -313,12 +358,21 @@ export abstract class Game<
       );
     }
 
+    // Are there any hooks that prevent this?
+    const preventedBy = this._actionPreventedBy(action);
+    if (preventedBy !== undefined) {
+      this._logger.info(
+        `Action "${action.$type}" was prevented by entity "${preventedBy.$type}" with ID "${preventedBy[entityId]}". Preventing execution of this action...`,
+      );
+      return undefined;
+    }
+
     // Find all entities that should be called before this action is executed.
     let beforeEntities: Entity[] = this._entityService
       .entities()
       .filter(
         (entity): entity is Entity & BeforeAction<Action<string, any, any>> =>
-          this._hasActionLifecyclehook(entity, action, 'before'),
+          hasActionLifecyclehook(entity, action, 'before'),
       );
 
     if (beforeEntities.length > 1) {
@@ -330,31 +384,32 @@ export abstract class Game<
     }
 
     // Call before hooks.
-    let cancelled = false;
     for (const entity of beforeEntities) {
       this._logger.debug(
-        () =>
-          `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
+        `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
       );
 
-      const triggerResult = (entity as unknown as BeforeActionIndex)[
-        `before${action.$type.charAt(0).toUpperCase() + action.$type.slice(1)}`
-      ]!(this, action.parameters);
+      const triggerResult = getHook(
+        entity,
+        action,
+        'before',
+      )(this, action.parameters);
 
       if (triggerResult !== undefined && !triggerResult) {
         this._logger.debug(
           `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
         );
-        cancelled = true;
-        break;
+        return undefined;
       }
     }
 
-    if (cancelled) {
-      return undefined;
+    this._stateService.execute(action, this);
+
+    // Inform player about _this_ action, but before potential after-hooks are called.
+    for (const player of this._entityService.players()) {
+      this._stateService.informPlayer(player, false);
     }
 
-    this._stateService.execute(action, this);
     // Action from this point on is immutable!
     const immutableAction: typeof action = Object.assign({}, action);
     Object.setPrototypeOf(immutableAction, Object.getPrototypeOf(action));
@@ -365,7 +420,7 @@ export abstract class Game<
       .entities()
       .filter(
         (entity): entity is Entity & AfterAction<Action<string, any, any>> =>
-          this._hasActionLifecyclehook(entity, immutableAction, 'after'),
+          hasActionLifecyclehook(entity, immutableAction, 'after'),
       );
 
     if (afterEntities.length > 1) {
@@ -379,32 +434,17 @@ export abstract class Game<
     // Call after hooks.
     for (const entity of afterEntities) {
       this._logger.debug(
-        () =>
-          `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
+        `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
       );
 
-      (entity as unknown as AfterActionIndex)[
-        `after${immutableAction.$type.charAt(0).toUpperCase() + immutableAction.$type.slice(1)}`
-      ]!(this, immutableAction.parameters, immutableAction.returned());
-    }
-
-    for (const player of this._entityService.players()) {
-      this._stateService.informPlayer(player, false);
+      getHook(entity, immutableAction, 'after')(
+        this,
+        immutableAction.parameters,
+        immutableAction.returned(),
+      );
     }
 
     return action;
-  }
-
-  private _hasActionLifecyclehook(
-    entity: Entity,
-    action: Action<string, any, any>,
-    actionType: LifecycleType,
-  ): entity is Entity & BeforeAction<Action<string, any, any>> {
-    return (
-      entity instanceof Entity &&
-      `${actionType}${action.$type.charAt(0).toUpperCase() + action.$type.slice(1)}` in
-        entity
-    );
   }
 
   /**
@@ -416,8 +456,7 @@ export abstract class Game<
     this._stateService.setSettled(false);
 
     this._logger.info(
-      () =>
-        `Calculating next snapshot (depth: ${this._stateService.depth()})...`,
+      `Calculating next snapshot (depth: ${this._stateService.depth()})...`,
     );
 
     // Is the game even still running...?
@@ -452,10 +491,10 @@ export abstract class Game<
 
     if (this._graphService.isEnded()) {
       this._status = 'ended';
-      return false;
-    } else {
-      return true;
     }
+
+    // The graph execution should also stop, if the game was ended during an execution using the "end()" method.
+    return this._status !== 'ended';
   }
 
   /**
@@ -503,8 +542,7 @@ export abstract class Game<
    */
   private async _start(): Promise<void> {
     this._logger.info(
-      () =>
-        `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
+      `All player interfaces have registered a callback. Starting game ${this.constructor.name}.`,
     );
     this._status = 'running';
 
@@ -512,7 +550,7 @@ export abstract class Game<
     // Kind of redundant, but does not hurt...
     this._stateService.setSettled(false);
 
-    this._logger.debug(() => `Informing players about initial state...`);
+    this._logger.debug(`Informing players about initial state...`);
     for (const player of this._entityService.players()) {
       this._stateService.informPlayer(player, true);
     }
@@ -528,8 +566,7 @@ export abstract class Game<
    */
   destroyEntity(entity: Entity): void {
     this._logger.info(
-      () =>
-        `Destroying entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.name}.`,
+      `Destroying entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.name}.`,
     );
 
     this._entityService.destroy(entity);
@@ -541,15 +578,14 @@ export abstract class Game<
    */
   spawnEntity(entity: Entity): void {
     this._logger.info(
-      () =>
-        `Spawning entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.name}.`,
+      `Spawning entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.name}.`,
     );
 
     this._entityService.create(entity);
   }
 
   end(parameters: Partial<GameEndParameters>): void {
-    this._logger.info(() => `Ending game...`);
+    this._logger.info(`Ending game...`);
 
     if (this._status === 'ended') {
       this._logger.error(
@@ -623,7 +659,7 @@ export abstract class Game<
   // TODO: Better name!
   endStatus(): GameEndParameters | undefined {
     this._logger.info(
-      () => `Checking end status for game ${this.constructor.name}...`,
+      `Checking end status for game ${this.constructor.name}...`,
     );
 
     return this._endParameters;
@@ -631,8 +667,7 @@ export abstract class Game<
 
   registerCallbacks(callbacks: GameLifecycle): void {
     this._logger.info(
-      () =>
-        `Registering game lifecycle callback for game ${this.constructor.name}...`,
+      `Registering game lifecycle callback for game ${this.constructor.name}...`,
     );
 
     Object.assign(this._callbacks, callbacks);

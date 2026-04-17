@@ -1,7 +1,7 @@
 import { TicTacToeParameters, Mark } from './tictactoe.typed';
 import { Game } from '../../src/game/game';
 import { Entity } from '../../src/components/entity';
-import { MarkAction } from './actions/mark';
+import { TicTacToeMark } from './actions/mark';
 import { Action } from '../../src/components/action';
 import { DiagonalLane } from './entities/diagonal-lane';
 import { Class, EntityClass } from '../../src/game/game.types';
@@ -11,38 +11,41 @@ import { Slot } from './entities/slot';
 import { VerticalLane } from './entities/vertical-lane';
 import { Graph } from '../../src/components/graph/graph';
 import { ModifiableRuntime } from '../../src';
+import { TicTacToeDraw } from './actions/draw';
+import { TicTacToeWin } from './actions/win';
+import { GraphRuntime } from '../../src/game/graph-runtime';
 
 export class TicTacToe extends Game<TicTacToeParameters> {
-  public _graph(): Graph<'INITIAL'> {
+  public rawGraph(): Graph<'INITIAL'> {
     return {
-      INITIAL: async (runtime: ModifiableRuntime) => {
-        while (true) {
-          const currentPlayer = runtime
-            .entities(TicTacToePlayer)
-            .find((player) => player.isCurrentPlayer)!;
+      INITIAL: async (runtime: GraphRuntime) => {
+        const currentPlayer = runtime
+          .entities(TicTacToePlayer)
+          .find((player) => player.isCurrentPlayer)!;
 
-          const freeSlots = runtime
-            .entities(Slot)
-            .filter((slot) => slot.isEmpty());
+        const freeSlots = runtime
+          .entities(Slot)
+          .filter((slot) => slot.isEmpty());
 
-          if (freeSlots.length === 0) {
-            runtime.end({ draws: runtime.entities(TicTacToePlayer) });
-            return;
-          }
-
-          runtime.execute(
-            await runtime.prompt(
-              currentPlayer,
-              freeSlots.map(
-                (slot) =>
-                  new MarkAction({
-                    slot: slot,
-                    player: currentPlayer,
-                  }),
-              ),
-            ),
-          );
+        if (freeSlots.length === 0) {
+          runtime.execute(new TicTacToeDraw());
+          return;
         }
+
+        runtime.execute(
+          await runtime.prompt(
+            currentPlayer,
+            freeSlots.map(
+              (slot) =>
+                new TicTacToeMark({
+                  slot: slot,
+                  player: currentPlayer,
+                }),
+            ),
+          ),
+        );
+
+        return 'INITIAL';
       },
     };
   }
@@ -58,7 +61,7 @@ export class TicTacToe extends Game<TicTacToeParameters> {
   }
 
   actionClasses(): Set<Class<Action<string, any, any>>> {
-    return new Set([MarkAction]);
+    return new Set([TicTacToeMark, TicTacToeDraw, TicTacToeWin]);
   }
 
   public readonly name: string = 'Tic-Tac-Toe';

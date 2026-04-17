@@ -10,13 +10,19 @@ function startGame(): void {
   const mctsPlayer = game.players()![0]!;
   game.registerPlayerCallback(
     mctsPlayer,
-    Players.mcts(game, mctsPlayer, 1000, console),
+    // TODO: Players.mcts(game, mctsPlayer, 1000, console),
+    Players.chicken(() => Math.random() * 500 + 500),
   );
 
   const humanPlayer = game.players()![1]!;
   const client = new TicTacToeClient(humanPlayer);
-  game.registerPlayerCallback(humanPlayer, (snapshots, choices, execute) => {
-    client.feed(snapshots, choices, execute);
+  game.registerPlayerCallback(humanPlayer, {
+    prompt: (choices, execute) => {
+      client.feedChoices(choices, execute);
+    },
+    state: (snapshots) => {
+      client.feedSnapshots(snapshots);
+    },
   });
 }
 

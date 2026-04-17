@@ -1,18 +1,14 @@
-import {
-  Action,
-  Choice,
-  entityId,
-  PlayerInterface,
-  QueryableRuntime,
-} from '@my-engine/library';
+import { Action, entityId, PlayerInterface } from '@my-engine/library';
 import { Client } from '../../src/client';
 import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
 import { HorizontalLane } from '../../../library/tests/tictactoe/entities/horizontal-lane';
-import { Draw } from '../../../library/tests/tictactoe/actions/draw';
-import { MarkAction } from '../../../library/tests/tictactoe/actions/mark';
-import { Win } from '../../../library/tests/tictactoe/actions/win';
+import { TicTacToeDraw } from '../../../library/tests/tictactoe/actions/draw';
+import { TicTacToeMark } from '../../../library/tests/tictactoe/actions/mark';
+import { ClientEntityHandler } from '../../src/client-entity-handler';
+import { TicTacToeWin } from '../../../library/tests/tictactoe/actions/win';
+import { ChoiceTypeMapping } from '../../src/client.types';
 
-export class TicTacToeClient extends Client<HTMLDivElement> {
+export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
   constructor(player: PlayerInterface) {
     super(
       document.getElementById('tic-tac-toe-target') as HTMLDivElement,
@@ -23,7 +19,7 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
     );
   }
 
-  render(renderTarget: HTMLDivElement, runtime: QueryableRuntime): void {
+  render(renderTarget: HTMLDivElement, runtime: ClientEntityHandler): void {
     // Render board.
     let board = renderTarget.querySelector('#board');
     if (board === null) {
@@ -70,9 +66,33 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
     }
   }
 
-  protected async animateBefore(
-    choice: Choice<Action<string, any>>,
-  ): Promise<void> {}
+  public choiceTypeMapping = {
+    mark: {
+      render: async (choice, execute) => {
+        // Highlight the slot in question and make it clickable.
+        const element = document.getElementById(
+          choice.parameters.slot[entityId],
+        )!;
+
+        element.classList.add('highlighted');
+        element.onclick = () => {
+          element.classList.remove('highlighted');
+          element.onclick = null;
+          execute();
+        };
+      },
+      erase: async (choice) => {
+        // And remove the highlight again...
+        const element = document.getElementById(
+          choice.parameters.slot[entityId],
+        )!;
+        element.classList.remove('highlighted');
+        element.onclick = null;
+      },
+    },
+  } satisfies ChoiceTypeMapping<TicTacToeMark>;
+
+  protected async animateBefore(_choice: Action<string, any>): Promise<void> {}
 
   private _launchFireworks(): void {
     const colors = [
@@ -163,11 +183,11 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
   }
 
   protected async animateAfter(
-    choice: Choice<MarkAction | Win | Draw>,
+    choice: TicTacToeMark | TicTacToeWin | TicTacToeDraw,
   ): Promise<void> {
-    switch (choice.execution.$type) {
+    switch (choice.$type) {
       case 'win': {
-        const didWin = choice.execution.parameters!.player === this.player;
+        const didWin = choice.parameters!.player === this.player;
         await this._showResult(didWin ? 'win' : 'lose');
         break;
       }
@@ -177,7 +197,7 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
       }
       case 'mark': {
         // We animate the move by having the mark of that current player "zoom in" slowly to its full size.
-        const slotId = choice.execution.parameters!.slot[entityId];
+        const slotId = choice.parameters!.slot[entityId];
         const slotElement = document.getElementById(slotId);
         if (slotElement) {
           await slotElement.animate(
@@ -193,23 +213,5 @@ export class TicTacToeClient extends Client<HTMLDivElement> {
         }
       }
     }
-  }
-
-  highlightStyle(): HTMLStyleElement {
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .slot.engine-choice {
-        outline: 2px solid yellow;
-      }
-
-      .slot.engine-choice:hover {
-        outline: 2px solid orange;
-      }
-
-      .slot.engine-choice:active {
-        transform: scale(0.95);
-      }
-    `;
-    return style;
   }
 }

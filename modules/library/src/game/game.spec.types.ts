@@ -97,7 +97,7 @@ export class TestGame extends Game {
     return entities;
   }
 
-  _graph(): Graph<NodeId> {
+  rawGraph(): Graph<NodeId> {
     return {
       INITIAL: async (_runtime) => 'END',
       END: async (_runtime) => undefined,

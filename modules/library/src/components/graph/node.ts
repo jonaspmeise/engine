@@ -1,4 +1,4 @@
-import { ModifiableRuntime } from '../../game/modifiable-runtime';
+import { GraphRuntime } from '../../game/graph-runtime';
 import { NodeId } from './node.types';
 
 /**
@@ -8,5 +8,5 @@ import { NodeId } from './node.types';
  * @returns The id of the next node to execute.
  */
 export type Node<NODES extends NodeId | void = void> = (
-  runtime: ModifiableRuntime,
+  runtime: GraphRuntime,
 ) => Promise<NODES> | NODES;

@@ -35,8 +35,7 @@ export class StateService {
 
   public markDirty(entity: Entity): void {
     this._logger.debug(
-      () =>
-        `Marking entity ${entity.constructor.name} with ID ${entity[entityId]} as dirty.`,
+      `Marking entity ${entity.constructor.name} with ID ${entity[entityId]} as dirty.`,
     );
 
     this._state.currentSnapshots[
@@ -66,8 +65,7 @@ export class StateService {
    */
   public pushToStack(...items: Choice<Action<string, any, any>>[]): void {
     this._logger.debug(
-      () =>
-        `Pushing ${items.length} item${items.length !== 1 ? 's' : ''} to stack...`,
+      `Pushing ${items.length} item${items.length !== 1 ? 's' : ''} to stack...`,
     );
 
     for (const item of items) {
@@ -85,8 +83,7 @@ export class StateService {
     choice: EnhancedChoice<Action<string, any>>,
   ): void {
     this._logger.debug(
-      () =>
-        `Registering choice ${choice.execution.$type} for player ${player[playerId]}...`,
+      `Registering choice ${choice.execution.$type} for player ${player[playerId]}...`,
     );
 
     if (!this._state.choices.has(choice.player)) {
@@ -119,7 +116,7 @@ export class StateService {
   }
 
   public setSettled(isSettled: boolean): void {
-    this._logger.debug(() => `Setting state to settled: ${isSettled}...`);
+    this._logger.debug(`Setting state to settled: ${isSettled}...`);
     this._state.isSettled = isSettled;
   }
 
@@ -134,10 +131,9 @@ export class StateService {
     choices: ACTION[],
   ): Promise<ACTION> {
     this._logger.debug(
-      () =>
-        `Prompting player interface with ID ${player[playerId]} with choices: ${choices
-          .map((c) => c.$type)
-          .join(', ')}...`,
+      `Prompting player interface with ID ${player[playerId]} with choices: ${choices
+        .map((c) => c.$type)
+        .join(', ')}...`,
     );
 
     if (choices.length === 0) {
@@ -196,8 +192,7 @@ export class StateService {
     sendFullState: boolean = false,
   ): void {
     this._logger.debug(
-      () =>
-        `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
+      `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
     );
 
     const rawSnapshots = this._state.currentSnapshots;
@@ -216,7 +211,7 @@ export class StateService {
     action: Action<string, any, any>,
     runtime: ModifiableRuntime, // TODO: Modifiable vs. Queryable?
   ): Action<string, any, any> {
-    this._logger.info(() => `Executing action "${action.$type}"...`);
+    this._logger.info(`Executing action "${action.$type}"...`);
 
     // Clear prior snapshot state and calculate the next one.
     this._state.pastSnapshots.push(...this._state.currentSnapshots);

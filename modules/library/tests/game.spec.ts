@@ -48,7 +48,7 @@ export abstract class BaseGameTest<
 
           game.registerCallbacks({
             onEnd: (status) => {
-              console.log(
+              console.debug(
                 `Random play ${i + 1} ended. ${status.draws.length > 0 ? 'It was a draw.' : `Winner(s): ${status.winners.map((w) => w[entityId]).join(', ')}. Loser(s): ${status.losers.map((l) => l[entityId]).join(', ')}.`}`,
               );
 

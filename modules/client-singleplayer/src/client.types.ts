@@ -1,4 +1,4 @@
-import { Snapshot } from '@my-engine/library';
+import { Action, Snapshot } from '@my-engine/library';
 import { ClientEntityHandler } from './client-entity-handler';
 
 /**
@@ -9,4 +9,13 @@ export type ClientState = {
   // TODO: Snapshot[] vs. ClientSnapshotData[]? Is the past choice data really necessary...?
   snapshots: Snapshot[];
   entityHandler: ClientEntityHandler;
+};
+
+export type ActionRenderFunction<ACTION extends Action<string, any, any>> = {
+  render: (choice: ACTION, execute: () => void) => Promise<void>;
+  erase: (choice: ACTION) => Promise<void>;
+};
+
+export type ChoiceTypeMapping<ACTIONS extends Action<string, any, any>> = {
+  [K in ACTIONS['$type']]: ActionRenderFunction<Extract<ACTIONS, { $type: K }>>;
 };

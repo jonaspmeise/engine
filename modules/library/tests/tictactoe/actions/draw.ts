@@ -8,8 +8,8 @@ import { Action } from '../../../src/components/action';
  * we explicitly model it as an Action for this game.
  * It doesn't do much, just internally wraps the ending-of-the-game logic.
  */
-export class Draw extends Action<'draw'> {
-  apply(runtime: ModifiableRuntime): void {
+export class TicTacToeDraw extends Action<'draw'> {
+  async doApply(runtime: ModifiableRuntime): Promise<void> {
     runtime.end({
       draws: runtime.players(),
     });

@@ -50,7 +50,7 @@ export class EntityService
     // Set ID -> Entity mapping for extremely quick lookup of entities by singular IDs.
     const id: EntityID = entity[entityId];
     this._logger.debug(
-      () => `Spawning entity ${entity.constructor.name} with ID ${id}.`,
+      `Spawning entity ${entity.constructor.name} with ID ${id}.`,
     );
 
     const proxy = EntityService._createRecursiveProxy(
@@ -106,7 +106,7 @@ export class EntityService
     const id: EntityID = component[entityId];
 
     this._logger.info(
-      () => `Destroying entity ${component.constructor.name} with ID ${id}.`,
+      `Destroying entity ${component.constructor.name} with ID ${id}.`,
     );
 
     if (!this._entities.ids.has(id)) {

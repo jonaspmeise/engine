@@ -15,7 +15,7 @@ export type EntityClass<T extends Entity> =
 
 export type EntityClassMapping = Record<string, EntityClass<Entity>>;
 
-export type LoggerMethod = (...message: unknown[] | (() => unknown)[]) => void;
+export type LoggerMethod = (...message: unknown[]) => void;
 
 export type GameConfig = {
   logger?: Partial<Logger>;
@@ -35,20 +35,16 @@ export type ResolvedGameConfig = {
 
 export const DEFAULT_LOGGER_METHOD = (
   method: LoggerMethod,
-  ...message: unknown[] | (() => unknown)[]
+  ...message: unknown[]
 ) => {
   if (message.length === 0) {
     return;
   }
 
-  if (typeof message[0] === 'function') {
-    method(message[0]());
+  if (Array.isArray(message)) {
+    method(...message);
   } else {
-    if (Array.isArray(message)) {
-      method(...message);
-    } else {
-      method(message);
-    }
+    method(message);
   }
 };
 
@@ -62,15 +58,15 @@ export const NO_OP_LOGGER: Logger = {
 };
 
 export const DEFAULT_LOGGER: Logger = {
-  log: (...message: unknown[] | (() => unknown)[]) =>
+  log: (...message: unknown[]) =>
     DEFAULT_LOGGER_METHOD(console.log, ...message),
-  warn: (...message: unknown[] | (() => unknown)[]) =>
+  warn: (...message: unknown[]) =>
     DEFAULT_LOGGER_METHOD(console.warn, ...message),
-  error: (...message: unknown[] | (() => unknown)[]) =>
+  error: (...message: unknown[]) =>
     DEFAULT_LOGGER_METHOD(console.error, ...message),
-  info: (...message: unknown[] | (() => unknown)[]) =>
+  info: (...message: unknown[]) =>
     DEFAULT_LOGGER_METHOD(console.info, ...message),
-  debug: (...message: unknown[] | (() => unknown)[]) =>
+  debug: (...message: unknown[]) =>
     DEFAULT_LOGGER_METHOD(console.debug, ...message),
 };
 

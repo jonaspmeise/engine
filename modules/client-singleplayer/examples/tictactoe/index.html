@@ -97,6 +97,18 @@
         text-shadow: 0 0 15px rgba(251, 113, 133, 0.4);
       }
 
+      .slot.highlighted {
+        outline: 2px solid yellow;
+      }
+
+      .slot.highlighted:hover {
+        outline: 2px solid orange;
+      }
+
+      .slot.highlighted:active {
+        transform: scale(0.95);
+      }
+
       /* Hide the empty #board div if it's unused */
       #board {
         display: none;

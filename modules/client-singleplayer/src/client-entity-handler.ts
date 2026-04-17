@@ -5,6 +5,7 @@ import {
   EntityClassMapping,
   entityId,
   EntityService,
+  GameStatus,
   Logger,
   PlayerEntity,
   PlayerInterface,
@@ -18,6 +19,11 @@ export class ClientEntityHandler implements QueryableRuntime {
     private readonly _classMapping: EntityClassMapping,
     private readonly _logger: Logger = DEFAULT_LOGGER,
   ) {}
+
+  status(): Readonly<GameStatus> {
+    // We always consider the game to be running!
+    return 'running';
+  }
 
   private _state = {
     entityByType: new Map<Class<Entity>, Entity[]>(),
