@@ -24,13 +24,5 @@ export class UnoDealTopCardAction extends Action<'deal_top_card'> {
     topCard.position = discardPile.cards(runtime).length;
   }
 
-  public message(): string {
-    return 'Top card flipped to discard pile.';
-  }
-
-  public prompt(): string {
-    return 'Flip top card.';
-  }
-
   public $type: 'deal_top_card' = 'deal_top_card';
 }

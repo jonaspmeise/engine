@@ -138,6 +138,22 @@ export abstract class Client<
    * @param callback The callback, that is issued by the engine / server or the communication layer.
    */
   // TODO: This are redundant types to PlayerInterfaceCallback, so either abstract it here or simply pass a single object...
+  /**
+   * Convenience method that feeds both snapshots and choices in one call.
+   * Subclasses may override this to intercept the full set of choices before
+   * they are dispatched to {@link feedChoices} (e.g. to show a modal for special actions).
+   */
+  public async feed(
+    snapshots: Snapshot[],
+    choices: EnhancedChoice<Action<string, any, any>>[],
+    execute: (
+      choice: EnhancedChoice<Action<string, any, any>> | ChoiceId,
+    ) => void,
+  ): Promise<void> {
+    await this.feedSnapshots(snapshots);
+    await this.feedChoices(choices, execute);
+  }
+
   public async feedSnapshots(snapshots: Snapshot[]): Promise<void> {
     this._logger.debug('Client is fed with snapshots...', snapshots);
 

@@ -1,11 +1,4 @@
-import {
-  Action,
-  Entity,
-  entityId,
-  ModifiableRuntime,
-  PlayerEntity,
-  QueryableRuntime,
-} from '../../../src';
+import { Action, entityId, ModifiableRuntime } from '../../../src';
 import { UnoDeck } from '../entities/deck';
 import { UnoCard } from '../entities/card';
 import { UnoZone } from '../entities/zone';
@@ -31,18 +24,6 @@ export class UnoShuffleAction extends Action<
       cards[i]!.position = cards[j]!.position;
       cards[j]!.position = tmp;
     }
-  }
-
-  public message(_player: PlayerEntity): string {
-    return `The deck is shuffled.`;
-  }
-
-  public prompt(): string {
-    return `Shuffle the deck.`;
-  }
-
-  public affectedEntities(_runtime: QueryableRuntime): Entity[] | void {
-    return [this.parameters.to];
   }
 
   public $type: 'shuffle' = 'shuffle';

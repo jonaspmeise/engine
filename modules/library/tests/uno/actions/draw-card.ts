@@ -1,10 +1,4 @@
-import {
-  Action,
-  Entity,
-  ModifiableRuntime,
-  PlayerEntity,
-  QueryableRuntime,
-} from '../../../src';
+import { Action, ModifiableRuntime } from '../../../src';
 import { UnoCard } from '../entities/card';
 import { UnoDeck } from '../entities/deck';
 import { UnoDiscardPile } from '../entities/discard-pile';
@@ -57,18 +51,4 @@ export class UnoDrawCardAction extends Action<
     return { drawn };
   }
   public $type: 'draw_card' = 'draw_card';
-
-  public message(_player: PlayerEntity): string {
-    return `Player ${this.parameters.player} draws ${this.parameters.amount} card${this.parameters.amount > 1 ? 's' : ''}.`;
-  }
-  public prompt(): string {
-    throw new Error(
-      `Draw ${this.parameters.amount} card${this.parameters.amount > 1 ? 's' : ''}.`,
-    );
-  }
-  public affectedEntities(runtime: QueryableRuntime): Entity[] | void {
-    // Clicking on the deck to draw a card is the most intuitive,
-    // so we return the deck as the affected entity.
-    return [runtime.anyEntity(UnoDeck)!];
-  }
 }

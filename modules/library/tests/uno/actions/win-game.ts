@@ -1,11 +1,4 @@
-import {
-  Action,
-  entityId,
-  EntityID,
-  ModifiableRuntime,
-  PlayerEntity,
-  QueryableRuntime,
-} from '../../../src';
+import { Action, ModifiableRuntime } from '../../../src';
 import { UnoPlayer } from '../entities/player';
 
 export class UnoWinGameAction extends Action<
@@ -14,22 +7,13 @@ export class UnoWinGameAction extends Action<
     player: UnoPlayer;
   }
 > {
-  apply(runtime: ModifiableRuntime): void {
+  async doApply(runtime: ModifiableRuntime): Promise<void> {
     runtime.end({
       winners: [this.parameters.player],
       losers: runtime
         .players()
         .filter((player) => player !== this.parameters.player),
     });
-  }
-  public message(player: PlayerEntity): string {
-    return `${this.parameters.player} wins the game!`;
-  }
-  public prompt(): string {
-    return `Win the game.`;
-  }
-  public affectedEntities(runtime: QueryableRuntime): EntityID[] | void {
-    return [this.parameters.player[entityId]];
   }
 
   public $type: 'WinGame' = 'WinGame';

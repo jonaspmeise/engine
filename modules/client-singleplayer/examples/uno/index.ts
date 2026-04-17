@@ -1,18 +1,18 @@
-import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
 import { DEFAULT_LOGGER, Players } from '@my-engine/library';
 import { UnoClient } from './uno-client';
 import { Uno } from '../../../library/tests/uno/uno';
 
-function startGame(): void {
-  const playerSize = 4;
-  const game = new Uno({
-    playerSize: playerSize,
-  });
+const PLAYER_SIZE = 4;
+const HUMAN_PLAYER_INDEX = 1;
 
-  for (let i = 0; i < playerSize; i++) {
-    const player = game.players()![i]!;
+function startGame(): void {
+  const game = new Uno({ playerSize: PLAYER_SIZE });
+
+  // Register AI players for every slot except the human's.
+  for (let i = 0; i < PLAYER_SIZE; i++) {
+    if (i === HUMAN_PLAYER_INDEX) continue;
     game.registerPlayerCallback(
-      player,
+      game.players()![i]!,
       Players.chicken(
         () => Math.random() * 1000 + 500,
         DEFAULT_LOGGER,
@@ -21,10 +21,16 @@ function startGame(): void {
     );
   }
 
-  const humanPlayer = game.players()![1]!;
-  const client = new UnoClient(humanPlayer, playerSize);
-  game.registerPlayerCallback(humanPlayer, (snapshots, choices, execute) => {
-    client.feed(snapshots, choices, execute);
+  // Register the human player last so the game starts once all players are connected.
+  const humanPlayer = game.players()![HUMAN_PLAYER_INDEX]!;
+  const client = new UnoClient(humanPlayer, PLAYER_SIZE);
+  game.registerPlayerCallback(humanPlayer, {
+    state: (snapshots) => {
+      client.feedSnapshots(snapshots);
+    },
+    prompt: (choices, execute) => {
+      client.feedChoices(choices, execute);
+    },
   });
 }
 

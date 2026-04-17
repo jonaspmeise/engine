@@ -1,13 +1,10 @@
 import {
-  Choice,
   Action,
   QueryableRuntime,
   entityId,
   PlayerInterface,
-  DEFAULT_LOGGER,
   EnhancedChoice,
   ChoiceId,
-  Snapshot,
 } from '@my-engine/library';
 import { Client } from '../../src/client';
 import { UnoCard } from '../../../library/tests/uno/entities/card';
@@ -16,6 +13,17 @@ import { UnoDeck } from '../../../library/tests/uno/entities/deck';
 import { UnoMeta } from '../../../library/tests/uno/entities/meta';
 import { UnoPlayer } from '../../../library/tests/uno/entities/player';
 import { Uno } from '../../../library/tests/uno/uno';
+import { UnoPlayCardAction } from '../../../library/tests/uno/actions/play-card';
+import { UnoDrawCardAction } from '../../../library/tests/uno/actions/draw-card';
+import { UnoPickColorAction } from '../../../library/tests/uno/actions/pick-color';
+import { UnoPassTurnAction } from '../../../library/tests/uno/actions/pass-turn';
+import { ChoiceTypeMapping } from '../../src/client.types';
+
+type UnoActions =
+  | UnoPlayCardAction
+  | UnoDrawCardAction
+  | UnoPickColorAction
+  | UnoPassTurnAction;
 
 // Short display labels for non-numeric values.
 const LABEL: Record<string, string> = {
@@ -35,7 +43,7 @@ function cardsIn(runtime: QueryableRuntime, zoneId: string): UnoCard[] {
   );
 }
 
-export class UnoClient extends Client {
+export class UnoClient extends Client<HTMLDivElement, UnoActions> {
   private _flyFrom: DOMRect | null = null;
   private _flyMeta: {
     color?: string;
@@ -49,14 +57,14 @@ export class UnoClient extends Client {
       document.getElementById('uno-target') as HTMLDivElement,
       new Uno({ playerSize }),
       player,
-      DEFAULT_LOGGER,
-      true,
     );
   }
 
-  /** Intercepts pick_color choices to show the color-picker modal instead of DOM highlights. */
-  override async feed(
-    snapshots: Snapshot[],
+  /**
+   * Intercepts pick_color choices to show the color-picker modal instead of
+   * dispatching them to the DOM-based choiceTypeMapping (which has no element to highlight).
+   */
+  override async feedChoices(
     choices: EnhancedChoice<Action<string, any>>[],
     execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void,
   ): Promise<void> {
@@ -64,22 +72,20 @@ export class UnoClient extends Client {
       (c) => c.execution.$type === 'pick_color',
     );
     if (pickChoices.length > 0 && pickChoices.length === choices.length) {
-      // Don't pass pick_color choices to base class — it can't find their DOM elements.
-      await super.feed(snapshots, [], execute);
+      // Show the color picker modal; do not highlight anything in the DOM.
+      await super.feedChoices([], execute);
       await this._showColorPicker(pickChoices, execute);
       return;
     }
-    await super.feed(snapshots, choices, execute);
+    await super.feedChoices(choices, execute);
   }
 
-  protected async animateBefore(
-    choice: Choice<Action<string, any>>,
-  ): Promise<void> {
-    const type = choice.execution.$type;
-    const params = (choice.execution as any).parameters;
+  protected async animateBefore(choice: Action<string, any>): Promise<void> {
+    const type = choice.$type;
+    const params = (choice as any).parameters;
 
     if (type === 'play_card') {
-      const cardId: string | undefined = params.card?.[entityId];
+      const cardId: string | undefined = params?.card?.[entityId];
       if (cardId) {
         const cardEl = document.getElementById(cardId);
         if (cardEl) {
@@ -93,7 +99,7 @@ export class UnoClient extends Client {
     } else if (type === 'draw_card') {
       const deckEl = document.querySelector<HTMLElement>('.deck-card');
       if (deckEl) {
-        const pid: string | undefined = params.player?.[entityId];
+        const pid: string | undefined = params?.player?.[entityId];
         this._flyFrom = deckEl.getBoundingClientRect();
         this._flyMeta = {
           faceDown: true,
@@ -103,16 +109,22 @@ export class UnoClient extends Client {
     }
   }
 
-  protected async animateAfter(
-    choice: Choice<Action<string, any>>,
-  ): Promise<void> {
+  protected async animateAfter(choice: Action<string, any>): Promise<void> {
+    const type = choice.$type;
+
+    if (type === 'WinGame') {
+      const params = (choice as any).parameters;
+      const winnerEntityId: string | undefined = params?.player?.[entityId];
+      const didWin = winnerEntityId === (this.player as any)[entityId];
+      await this._showResult(didWin ? 'win' : 'lose');
+      return;
+    }
+
     if (!this._flyFrom) return;
     const from = this._flyFrom;
     const meta = this._flyMeta;
     this._flyFrom = null;
     this._flyMeta = {};
-
-    const type = choice.execution.$type;
 
     if (type === 'play_card') {
       const discardEl = document.querySelector<HTMLElement>('.discard-card');
@@ -254,7 +266,7 @@ export class UnoClient extends Client {
     return [...players.slice(idx), ...players.slice(0, idx)];
   }
 
-  protected render(target: HTMLElement, runtime: QueryableRuntime): void {
+  protected render(target: HTMLDivElement, runtime: QueryableRuntime): void {
     const deck = runtime.anyEntity(UnoDeck)!;
     const discard = runtime.anyEntity(UnoDiscardPile)!;
     const meta = runtime.anyEntity(UnoMeta);
@@ -339,13 +351,13 @@ export class UnoClient extends Client {
       const handCards = handId ? cardsIn(runtime, handId) : [];
       handEl.style.setProperty('--cn', String(handCards.length));
 
-      // Remove cards that left the hand
+      // Remove cards that left the hand.
       const liveIds = new Set(handCards.map((c) => c[entityId]));
       for (const child of [...handEl.children]) {
         if (!liveIds.has((child as HTMLElement).id)) handEl.removeChild(child);
       }
 
-      // Create / update individual card elements
+      // Create / update individual card elements.
       for (const [ci, card] of handCards.entries()) {
         let cardEl = handEl.querySelector<HTMLElement>(`#${card[entityId]}`);
         if (!cardEl) {
@@ -368,6 +380,73 @@ export class UnoClient extends Client {
     }
   }
 
+  public choiceTypeMapping = {
+    play_card: {
+      render: async (choice: UnoPlayCardAction, execute: () => void) => {
+        const el = document.getElementById(choice.parameters.card[entityId]);
+        if (el) {
+          el.classList.add('engine-choice');
+          el.onclick = () => {
+            el.classList.remove('engine-choice');
+            el.onclick = null;
+            execute();
+          };
+        }
+      },
+      erase: async (choice: UnoPlayCardAction) => {
+        const el = document.getElementById(choice.parameters.card[entityId]);
+        if (el) {
+          el.classList.remove('engine-choice');
+          el.onclick = null;
+        }
+      },
+    },
+    draw_card: {
+      render: async (_choice: UnoDrawCardAction, execute: () => void) => {
+        const deckEl = document.querySelector<HTMLElement>('.deck-card');
+        if (deckEl) {
+          deckEl.classList.add('engine-choice');
+          deckEl.onclick = () => {
+            deckEl.classList.remove('engine-choice');
+            deckEl.onclick = null;
+            execute();
+          };
+        }
+      },
+      erase: async (_choice: UnoDrawCardAction) => {
+        const deckEl = document.querySelector<HTMLElement>('.deck-card');
+        if (deckEl) {
+          deckEl.classList.remove('engine-choice');
+          deckEl.onclick = null;
+        }
+      },
+    },
+    pick_color: {
+      // Intercepted by feedChoices override; these are never reached in normal flow.
+      render: async (_choice: UnoPickColorAction, _execute: () => void) => {},
+      erase: async (_choice: UnoPickColorAction) => {},
+    },
+    pass_turn: {
+      render: async (_choice: UnoPassTurnAction, execute: () => void) => {
+        let btn = document.getElementById('pass-turn-btn');
+        if (!btn) {
+          btn = document.createElement('button');
+          btn.id = 'pass-turn-btn';
+          btn.className = 'pass-turn-btn';
+          btn.textContent = 'Pass';
+          document.getElementById('uno-target')!.appendChild(btn);
+        }
+        btn.onclick = () => {
+          document.getElementById('pass-turn-btn')?.remove();
+          execute();
+        };
+      },
+      erase: async (_choice: UnoPassTurnAction) => {
+        document.getElementById('pass-turn-btn')?.remove();
+      },
+    },
+  } satisfies ChoiceTypeMapping<UnoActions>;
+
   protected highlightStyle(): HTMLStyleElement {
     const style = document.createElement('style');
     style.textContent = `
@@ -387,5 +466,92 @@ export class UnoClient extends Client {
       }
     `;
     return style;
+  }
+
+  private _launchFireworks(): void {
+    const colors = [
+      '#fbbf24',
+      '#f472b6',
+      '#34d399',
+      '#60a5fa',
+      '#a78bfa',
+      '#fb923c',
+    ];
+    for (let b = 0; b < 7; b++) {
+      setTimeout(() => {
+        const burst = document.createElement('div');
+        burst.className = 'firework-burst';
+        burst.style.left = `${15 + Math.random() * 70}vw`;
+        burst.style.top = `${10 + Math.random() * 55}vh`;
+        document.body.appendChild(burst);
+
+        const numParticles = 20;
+        for (let i = 0; i < numParticles; i++) {
+          const angle = (i / numParticles) * 2 * Math.PI;
+          const dist = 55 + Math.random() * 90;
+          const p = document.createElement('div');
+          p.className = 'firework-particle';
+          p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+          p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+          p.style.setProperty('--dur', `${0.65 + Math.random() * 0.55}s`);
+          p.style.background =
+            colors[Math.floor(Math.random() * colors.length)]!;
+          burst.appendChild(p);
+        }
+
+        setTimeout(() => burst.remove(), 1600);
+      }, b * 320);
+    }
+  }
+
+  private _showResult(type: 'win' | 'lose'): Promise<void> {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('result-overlay')!;
+      const text = document.getElementById('result-text')!;
+      const btn = document.getElementById('play-again')!;
+
+      const labels: Record<string, string> = {
+        win: 'You Win!',
+        lose: 'You Lose!',
+      };
+
+      overlay.className = `result-${type} visible`;
+      text.textContent = labels[type]!;
+
+      // Force CSS animations to replay.
+      for (const el of [text, btn] as HTMLElement[]) {
+        el.style.animation = 'none';
+        el.offsetHeight; // force reflow
+        el.style.animation = '';
+      }
+
+      if (type === 'win') {
+        this._launchFireworks();
+      }
+
+      const doRestart = (): void => {
+        overlay.className = '';
+        this.clear();
+        resolve();
+      };
+
+      btn.addEventListener(
+        'click',
+        (e) => {
+          e.stopPropagation();
+          doRestart();
+        },
+        { once: true },
+      );
+
+      overlay.addEventListener(
+        'click',
+        () => {
+          overlay.className = '';
+          resolve();
+        },
+        { once: true },
+      );
+    });
   }
 }

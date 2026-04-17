@@ -1,4 +1,4 @@
-import { Entity, EntityClass } from '../../src';
+import { Action, Class, Entity, EntityClass } from '../../src';
 import { Game } from '../../src/game/game';
 import { UnoDeck } from './entities/deck';
 import { UnoDefaultCard } from './entities/default-card';
@@ -9,6 +9,16 @@ import { UnoPlayer } from './entities/player';
 import { UnoWildCard } from './entities/wild-card';
 import { ActionCard } from './entities/action-card';
 import { UnoCard } from './entities/card';
+import { Graph } from '../../src/components/graph/graph';
+import { NodeId } from '../../src/components/graph/node.types';
+import { UnoDealTopCardAction } from './actions/deal-top-card';
+import { UnoDrawCardAction } from './actions/draw-card';
+import { UnoEndTurnAction } from './actions/end-turn';
+import { UnoPickColorAction } from './actions/pick-color';
+import { UnoPlayCardAction } from './actions/play-card';
+import { UnoShuffleAction } from './actions/shuffle';
+import { UnoPassTurnAction } from './actions/pass-turn';
+import { UnoWinGameAction } from './actions/win-game';
 
 export const UnoDefaultColors = ['red', 'yellow', 'green', 'blue'] as const;
 
@@ -65,6 +75,22 @@ export class Uno extends Game<{
     return entities;
   }
   public name: string = 'Uno';
+
+  public rawGraph(): Graph<NodeId> {
+    throw new Error('Method not implemented.');
+  }
+  public actionClasses(): Set<Class<Action<string, any, any>>> {
+    return new Set([
+      UnoDealTopCardAction,
+      UnoDrawCardAction,
+      UnoEndTurnAction,
+      UnoPickColorAction,
+      UnoPlayCardAction,
+      UnoShuffleAction,
+      UnoPassTurnAction,
+      UnoWinGameAction,
+    ]);
+  }
 
   protected entityClasses(): Set<EntityClass<Entity>> {
     return new Set([
