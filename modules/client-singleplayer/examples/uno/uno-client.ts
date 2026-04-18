@@ -3,8 +3,6 @@ import {
   QueryableRuntime,
   entityId,
   PlayerInterface,
-  EnhancedChoice,
-  ChoiceId,
 } from '@my-engine/library';
 import { Client } from '../../src/client';
 import { UnoCard } from '../../../library/tests/uno/entities/card';
@@ -33,15 +31,6 @@ const LABEL: Record<string, string> = {
   skip: '⊘',
   reverse: '↺',
 };
-const toLabel = (v: string | number | undefined): string =>
-  v === undefined ? '' : (LABEL[String(v)] ?? String(v));
-
-/** All UnoCards whose `location[entityId]` matches `zoneId`. Safe for filtered/hidden cards. */
-function cardsIn(runtime: QueryableRuntime, zoneId: string): UnoCard[] {
-  return (runtime.entities(UnoCard) as UnoCard[]).filter(
-    (c) => c.location != null && c.location[entityId] === zoneId,
-  );
-}
 
 export class UnoClient extends Client<HTMLDivElement, UnoActions> {
   private _flyFrom: DOMRect | null = null;
@@ -233,7 +222,10 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       deckEl.classList.add('zone-card', 'deck-card');
       center.appendChild(deckEl);
     }
-    deckEl.dataset.count = String(cardsIn(runtime, deck[entityId]).length);
+    deckEl.dataset.count = runtime
+      .anyEntity(UnoDeck)!
+      .cards(runtime)
+      .length.toString();
 
     // Discard pile – show top card face-up
     let discardEl = center.querySelector<HTMLElement>(`#${discard[entityId]}`);
@@ -243,16 +235,10 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       discardEl.classList.add('zone-card', 'discard-card');
       center.appendChild(discardEl);
     }
-    const topCard = cardsIn(runtime, discard[entityId]).sort(
-      (a, b) => (b.position ?? 0) - (a.position ?? 0),
-    )[0];
-    if (topCard?.color) {
-      discardEl.dataset.color = topCard.color;
-      discardEl.dataset.label = toLabel(topCard.value);
-    } else {
-      delete discardEl.dataset.color;
-      delete discardEl.dataset.label;
-    }
+
+    const topcard = runtime.anyEntity(UnoDiscardPile)!.top(runtime);
+    discardEl.dataset.color = topcard.color;
+    discardEl.dataset.label = LABEL[topcard.value];
 
     // ── player boards ─────────────────────────────────────────────────
     const sorted = this._sorted([...runtime.entities(UnoPlayer)]);
@@ -272,8 +258,6 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         table.appendChild(board);
       }
       board.style.setProperty('--i', String(i));
-      board.dataset.self =
-        player[entityId] === (this.player as any)[entityId] ? 'true' : '';
       board.dataset.current = player[entityId] === currentId ? 'true' : '';
 
       // Hand container
@@ -284,8 +268,8 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         board.appendChild(handEl);
       }
 
-      const handId = player.hand(runtime)?.[entityId];
-      const handCards = handId ? cardsIn(runtime, handId) : [];
+      const hand = player.hand(runtime);
+      const handCards = hand.cards(runtime);
       handEl.style.setProperty('--cn', String(handCards.length));
 
       // Remove cards that left the hand.
@@ -310,7 +294,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
           cardEl.classList.add('hidden');
         } else {
           cardEl.dataset.color = card.color;
-          cardEl.dataset.label = toLabel(card.value);
+          cardEl.dataset.label = LABEL[card.value];
           cardEl.classList.remove('hidden');
         }
       }
@@ -333,7 +317,6 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       const buttons = document.createElement('div');
       buttons.className = 'color-pick-buttons';
 
-      // Append color buttons to panel, but keep hidden until needed.
       for (const color of UnoDefaultColors) {
         const button = document.createElement('button');
         button.className = `color-picker`;

@@ -2,8 +2,6 @@ import { Entity, ModifiableRuntime } from '../../../src';
 import { AfterAction } from '../../../src/components/lifecyclehooks';
 import { GraphRuntime } from '../../../src/game/graph-runtime';
 import { UnoPlayCardAction } from '../actions/play-card';
-import { UnoDeck } from './deck';
-import { UnoHand } from './hand';
 import { UnoPlayer } from './player';
 import { UnoZone } from './zone';
 
@@ -54,14 +52,16 @@ export abstract class UnoCard
       _hidden: true,
     } as unknown as Partial<this>;
 
+    console.error('visibility', this, player);
+
     // Cards are not visible if they are in the deck.
-    if (this.location instanceof UnoDeck) {
+    if (this.location.$type === 'Deck') {
       return hidden;
     }
 
-    if (!(this.location instanceof UnoHand)) {
+    if (!(this.location.$type === 'Hand')) {
       // Cards in own hand are visible.
-      if ((this.location as UnoHand).player === player) {
+      if ((this.location as any).player === player) {
         return this;
       }
 

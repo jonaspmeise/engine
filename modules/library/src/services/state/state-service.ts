@@ -213,8 +213,7 @@ export class StateService {
           }
 
           this._logger.info(
-            () =>
-              `Player ${player[playerId]} tries to execute choice "${fetchedChoice.id}" (${fetchedChoice.execution.$type})...`,
+            `Player ${player[playerId]} tries to execute choice "${fetchedChoice.id}" (${fetchedChoice.execution.$type})...`,
           );
 
           this._logger.debug(

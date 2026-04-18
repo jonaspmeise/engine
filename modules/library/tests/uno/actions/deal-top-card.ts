@@ -6,6 +6,7 @@ import {
 } from '../../../src';
 import { UnoDeck } from '../entities/deck';
 import { UnoDiscardPile } from '../entities/discard-pile';
+import { UnoPutDiscardPileAction } from './put-discardpile';
 
 export class UnoDealTopCardAction extends Action<'deal_top_card'> {
   public affectedEntities(_runtime: QueryableRuntime): Entity[] | void {
@@ -14,14 +15,17 @@ export class UnoDealTopCardAction extends Action<'deal_top_card'> {
 
   public async doApply(runtime: ModifiableRuntime): Promise<void> {
     const deck = runtime.anyEntity(UnoDeck)!;
-    const discardPile = runtime.anyEntity(UnoDiscardPile)!;
     const topCard = deck.cards(runtime).at(-1);
+    // TODO: Fix
     if (!topCard) {
       return;
     }
 
-    topCard.location = discardPile;
-    topCard.position = discardPile.cards(runtime).length;
+    await runtime.execute(
+      new UnoPutDiscardPileAction({
+        card: topCard,
+      }),
+    );
   }
 
   public $type: 'deal_top_card' = 'deal_top_card';

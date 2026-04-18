@@ -18,6 +18,7 @@ import { UnoPlayCardAction } from './actions/play-card';
 import { UnoShuffleAction } from './actions/shuffle';
 import { UnoPassTurnAction } from './actions/pass-turn';
 import { UnoWinGameAction } from './actions/win-game';
+import { UnoPutDiscardPileAction } from './actions/put-discardpile';
 
 export const UnoDefaultColors = ['red', 'yellow', 'green', 'blue'] as const;
 
@@ -114,20 +115,25 @@ export class Uno extends Game<{
           .cards(runtime)
           .filter((card) => card.drawCards !== undefined);
 
-        await runtime.execute(
-          await runtime.prompt(currentPlayer, [
-            new UnoDrawCardAction({
-              amount: meta.drawOverloads,
-              player: currentPlayer,
-            }),
-            ...cascadeableCards.map(
-              (card) =>
-                new UnoPlayCardAction({
-                  card,
-                }),
-            ),
-          ]),
-        );
+        const prompt = await runtime.prompt(currentPlayer, [
+          new UnoDrawCardAction({
+            amount: meta.drawOverloads,
+            player: currentPlayer,
+          }),
+          ...cascadeableCards.map(
+            (card) =>
+              new UnoPlayCardAction({
+                card,
+              }),
+          ),
+        ]);
+
+        runtime.execute(prompt);
+
+        if (prompt instanceof UnoDrawCardAction) {
+          // We reset the draw overloads.
+          meta.drawOverloads = 0;
+        }
 
         await runtime.execute(new UnoEndTurnAction());
 
@@ -174,6 +180,7 @@ export class Uno extends Game<{
       UnoShuffleAction,
       UnoPassTurnAction,
       UnoWinGameAction,
+      UnoPutDiscardPileAction,
     ]);
   }
 
