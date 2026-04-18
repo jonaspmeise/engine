@@ -2,32 +2,6 @@ import { Action } from './action';
 import { PlayerEntity } from '../services/entity/entity-service.types';
 import { ChoiceId, dereferenceEntityID } from './choice.types';
 import { Entity, entityId } from './entity';
-import { NodeId } from './graph/node.types';
-
-/**
- * A choice is a specific instance of an action that a player can take, including the parameters for that action and a prompt and message to be shown to the player when presenting this choice.
- * This is one of the main objects (besides the raw game state) that is communicated to the player.
- * The player visualizes these choices and can select one of them to execute.
- */
-export class Choice<ACTION extends Action<string, any, any>> {
-  /**
-   * Instantiate a choice.
-   * @param execution The action that will be executed when the player selects this choice, including the parameters for that action.
-   * Since the object is instantiated, the action and parameters are bound here.
-   * @param player The player to who this choice belongs.
-   * @param preventedBy A reference to a negative rule that prevents this choice from being executed.
-   * This is only sent to clients that request this. This way, the client can show _why_ certain choices can not be executed.
-   */
-  constructor(
-    public readonly execution: ACTION,
-    public readonly player: PlayerEntity,
-  ) {
-    // Should not be serialized!
-    Object.defineProperty(this, 'player', {
-      enumerable: false,
-    });
-  }
-}
 
 /**
  * This enhanced version of the Choice class is issued by the engine and communicated to the player.

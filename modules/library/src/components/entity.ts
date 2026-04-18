@@ -28,10 +28,10 @@ export abstract class Entity {
    * This is used to ensure that players only receive information about the game state that they are supposed to have.
    * By default, all information is visible.
    * Classes extending Entity can override this method to implement custom visibility logic.
-   * @param player The player for whom the visibility is being calculated.
+   * @param _player The player for whom the visibility is being calculated.
    * @returns A partial version of this entity, with private information removed.
    */
-  public visibility(player: PlayerEntity): Partial<this> {
+  public visibility(_player: PlayerEntity): Partial<this> {
     return this;
   }
 

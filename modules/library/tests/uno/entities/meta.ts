@@ -1,11 +1,14 @@
-import { Entity } from '../../../src';
+import { Entity, ModifiableRuntime } from '../../../src';
+import { AfterAction } from '../../../src/components/lifecyclehooks';
+import { UnoPlayCardAction } from '../actions/play-card';
+import { UnoWinGameAction } from '../actions/win-game';
 import { UnoPlayer } from './player';
 
 /**
  * A "meta" entity that stores global data about the game.
  * This entity only exists as a singleton.
  */
-export class UnoMeta extends Entity {
+export class UnoMeta extends Entity implements AfterAction<UnoPlayCardAction> {
   public $type: string = 'Meta';
 
   public drawOverloads: number = 0;
@@ -22,5 +25,17 @@ export class UnoMeta extends Entity {
 
   public currentPlayer() {
     return this.players[this.currentPlayerIndex]!;
+  }
+
+  afterPlay_card(runtime: ModifiableRuntime) {
+    // After a card is played, we check for a win here.
+    const player = this.currentPlayer()!;
+    if (player.hand(runtime).cards.length === 0) {
+      runtime.execute(
+        new UnoWinGameAction({
+          player: player,
+        }),
+      );
+    }
   }
 }

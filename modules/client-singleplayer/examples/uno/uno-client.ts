@@ -12,7 +12,7 @@ import { UnoDiscardPile } from '../../../library/tests/uno/entities/discard-pile
 import { UnoDeck } from '../../../library/tests/uno/entities/deck';
 import { UnoMeta } from '../../../library/tests/uno/entities/meta';
 import { UnoPlayer } from '../../../library/tests/uno/entities/player';
-import { Uno } from '../../../library/tests/uno/uno';
+import { Uno, UnoDefaultColors } from '../../../library/tests/uno/uno';
 import { UnoPlayCardAction } from '../../../library/tests/uno/actions/play-card';
 import { UnoDrawCardAction } from '../../../library/tests/uno/actions/draw-card';
 import { UnoPickColorAction } from '../../../library/tests/uno/actions/pick-color';
@@ -58,26 +58,6 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       new Uno({ playerSize }),
       player,
     );
-  }
-
-  /**
-   * Intercepts pick_color choices to show the color-picker modal instead of
-   * dispatching them to the DOM-based choiceTypeMapping (which has no element to highlight).
-   */
-  override async feedChoices(
-    choices: EnhancedChoice<Action<string, any>>[],
-    execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void,
-  ): Promise<void> {
-    const pickChoices = choices.filter(
-      (c) => c.execution.$type === 'pick_color',
-    );
-    if (pickChoices.length > 0 && pickChoices.length === choices.length) {
-      // Show the color picker modal; do not highlight anything in the DOM.
-      await super.feedChoices([], execute);
-      await this._showColorPicker(pickChoices, execute);
-      return;
-    }
-    await super.feedChoices(choices, execute);
   }
 
   protected async animateBefore(choice: Action<string, any>): Promise<void> {
@@ -214,49 +194,6 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     });
   }
 
-  private _showColorPicker(
-    choices: EnhancedChoice<Action<string, any>>[],
-    execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void,
-  ): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const overlay = document.createElement('div');
-      overlay.className = 'color-pick-overlay';
-
-      const panel = document.createElement('div');
-      panel.className = 'color-pick-panel';
-
-      const title = document.createElement('p');
-      title.textContent = 'Pick a color';
-      panel.appendChild(title);
-
-      const buttons = document.createElement('div');
-      buttons.className = 'color-pick-buttons';
-
-      for (const choice of choices) {
-        const color = (choice.execution as any).parameters.color as string;
-        const btn = document.createElement('button');
-        btn.className = 'color-pick-btn';
-        btn.dataset.color = color;
-        btn.title = color;
-        btn.setAttribute('aria-label', color);
-        btn.addEventListener(
-          'click',
-          () => {
-            overlay.remove();
-            execute(choice.id);
-            resolve();
-          },
-          { once: true },
-        );
-        buttons.appendChild(btn);
-      }
-
-      panel.appendChild(buttons);
-      overlay.appendChild(panel);
-      document.body.appendChild(overlay);
-    });
-  }
-
   /** Reorders players so the human player is at index 0 (rendered at bottom). */
   private _sorted(players: readonly UnoPlayer[]): UnoPlayer[] {
     const idx = players.findIndex(
@@ -367,16 +304,51 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
           handEl.appendChild(cardEl);
         }
         cardEl.style.setProperty('--ci', String(ci));
-        if (card.color) {
-          cardEl.dataset.color = card.color;
-          cardEl.dataset.label = toLabel(card.value);
-          cardEl.classList.remove('hidden');
-        } else {
+        if (card._hidden) {
           delete cardEl.dataset.color;
           delete cardEl.dataset.label;
           cardEl.classList.add('hidden');
+        } else {
+          cardEl.dataset.color = card.color;
+          cardEl.dataset.label = toLabel(card.value);
+          cardEl.classList.remove('hidden');
         }
       }
+    }
+
+    // Choice picker
+    let colorPicker = document.getElementById('color-pick-overlay');
+    if (colorPicker === null) {
+      const overlay = document.createElement('div');
+      overlay.className = 'color-pick-overlay';
+      overlay.id = 'color-pick-overlay';
+
+      const panel = document.createElement('div');
+      panel.className = 'color-pick-panel';
+
+      const title = document.createElement('p');
+      title.textContent = 'Pick a color';
+      panel.appendChild(title);
+
+      const buttons = document.createElement('div');
+      buttons.className = 'color-pick-buttons';
+
+      // Append color buttons to panel, but keep hidden until needed.
+      for (const color of UnoDefaultColors) {
+        const button = document.createElement('button');
+        button.className = `color-picker`;
+        button.id = `color-pick-${color}`;
+        button.dataset.color = color;
+        button.title = color;
+        button.setAttribute('aria-label', color);
+        buttons.appendChild(button);
+      }
+      panel.appendChild(buttons);
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+
+      // Hide element.
+      overlay.style.display = 'none';
     }
   }
 
@@ -423,8 +395,34 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     },
     pick_color: {
       // Intercepted by feedChoices override; these are never reached in normal flow.
-      render: async (_choice: UnoPickColorAction, _execute: () => void) => {},
-      erase: async (_choice: UnoPickColorAction) => {},
+      render: async (choice, execute) => {
+        const pickElementButton = document.getElementById(
+          `color-pick-${choice.parameters.color}`,
+        )!;
+
+        pickElementButton.onclick = () => {
+          execute();
+        };
+
+        // Show overlay.
+        const overlay = document.querySelector<HTMLElement>(
+          '.color-pick-overlay',
+        )!;
+        overlay.style.display = 'flex';
+      },
+      erase: async (choice: UnoPickColorAction) => {
+        // Hide overlay.
+        const overlay = document.querySelector<HTMLElement>(
+          '.color-pick-overlay',
+        )!;
+        overlay.style.display = 'none';
+
+        // Clear button executor.
+        const buttons = document.getElementById(
+          `color-pick-${choice.parameters.color}`,
+        )!;
+        buttons.onclick = null;
+      },
     },
     pass_turn: {
       render: async (_choice: UnoPassTurnAction, execute: () => void) => {
@@ -446,27 +444,6 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       },
     },
   } satisfies ChoiceTypeMapping<UnoActions>;
-
-  protected highlightStyle(): HTMLStyleElement {
-    const style = document.createElement('style');
-    style.textContent = `
-      .engine-choice.card {
-        filter: drop-shadow(0 0 6px gold) brightness(1.25);
-        cursor: pointer;
-        z-index: 10;
-      }
-      .engine-choice.card:hover {
-        filter: drop-shadow(0 0 14px gold) brightness(1.5);
-        transform: translateX(-50%) rotate(calc(var(--off, 0) * 7deg)) translateY(-1.4rem);
-        z-index: 20;
-      }
-      .engine-choice.deck-card {
-        box-shadow: 0 0 0 3px gold, 0 4px 14px rgba(0,0,0,0.55);
-        cursor: pointer;
-      }
-    `;
-    return style;
-  }
 
   private _launchFireworks(): void {
     const colors = [

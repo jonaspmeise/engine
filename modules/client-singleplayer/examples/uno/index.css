@@ -394,7 +394,7 @@ h1 {
 }
 
 /* Each button is a card-sized swatch. Inherits --c from [data-color] rules. */
-.color-pick-btn {
+.color-picker {
   width: var(--card-w);
   height: var(--card-h);
   border-radius: var(--card-r);
@@ -472,6 +472,24 @@ h1 {
   gap: 1.5rem;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
   cursor: default;
+}
+
+.engine-choice.card {
+  filter: drop-shadow(0 0 6px gold) brightness(1.25);
+  cursor: pointer;
+  z-index: 10;
+}
+.engine-choice.card:hover {
+  filter: drop-shadow(0 0 14px gold) brightness(1.5);
+  transform: translateX(-50%) rotate(calc(var(--off, 0) * 7deg))
+    translateY(-1.4rem);
+  z-index: 20;
+}
+.engine-choice.deck-card {
+  box-shadow:
+    0 0 0 3px gold,
+    0 4px 14px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
 }
 
 #result-text {

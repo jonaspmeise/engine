@@ -10,7 +10,6 @@ import { UnoWildCard } from './entities/wild-card';
 import { ActionCard } from './entities/action-card';
 import { UnoCard } from './entities/card';
 import { Graph } from '../../src/components/graph/graph';
-import { NodeId } from '../../src/components/graph/node.types';
 import { UnoDealTopCardAction } from './actions/deal-top-card';
 import { UnoDrawCardAction } from './actions/draw-card';
 import { UnoEndTurnAction } from './actions/end-turn';
@@ -76,8 +75,94 @@ export class Uno extends Game<{
   }
   public name: string = 'Uno';
 
-  public rawGraph(): Graph<NodeId> {
-    throw new Error('Method not implemented.');
+  public rawGraph(): Graph<'INITIAL' | 'NORMAL_TURN' | 'CHECK_DRAW'> {
+    return {
+      INITIAL: async (runtime) => {
+        // Shuffle the deck.
+        await runtime.execute(
+          new UnoShuffleAction({
+            from: runtime.anyEntity(UnoDeck)!,
+            to: runtime.anyEntity(UnoDeck)!,
+          }),
+        );
+
+        // Every player draws 7 cards.
+        for (const player of runtime.entities(UnoPlayer)) {
+          await runtime.execute(
+            new UnoDrawCardAction({
+              amount: 7,
+              player: player,
+            }),
+          );
+        }
+
+        // Deal the top card of the deck.
+        await runtime.execute(new UnoDealTopCardAction());
+
+        return 'CHECK_DRAW' as const;
+      },
+      CHECK_DRAW: async (runtime) => {
+        const meta = runtime.anyEntity(UnoMeta)!;
+        // If no cards are forced to draw, continue with the normal turn loop.
+        if (meta.drawOverloads == 0) {
+          return 'NORMAL_TURN';
+        }
+
+        const currentPlayer = meta.currentPlayer()!;
+        const cascadeableCards = currentPlayer
+          .hand(runtime)
+          .cards(runtime)
+          .filter((card) => card.drawCards !== undefined);
+
+        await runtime.execute(
+          await runtime.prompt(currentPlayer, [
+            new UnoDrawCardAction({
+              amount: meta.drawOverloads,
+              player: currentPlayer,
+            }),
+            ...cascadeableCards.map(
+              (card) =>
+                new UnoPlayCardAction({
+                  card,
+                }),
+            ),
+          ]),
+        );
+
+        await runtime.execute(new UnoEndTurnAction());
+
+        return 'CHECK_DRAW';
+      },
+      NORMAL_TURN: async (runtime) => {
+        // You may play a card from your hand or draw a card.
+        const currentPlayer = runtime.anyEntity(UnoMeta)!.currentPlayer();
+        const topCard = runtime.anyEntity(UnoDiscardPile)!.top(runtime)!;
+        const playableCards = currentPlayer
+          .hand(runtime)
+          .cards(runtime)
+          .filter((card) => card.playableOn(topCard));
+
+        await runtime.execute(
+          await runtime.prompt(currentPlayer, [
+            new UnoDrawCardAction({
+              amount: 1,
+              player: currentPlayer,
+            }),
+            ...playableCards.map(
+              (card) =>
+                new UnoPlayCardAction({
+                  card,
+                }),
+            ),
+          ]),
+        );
+
+        // End your turn.
+        await runtime.execute(new UnoEndTurnAction());
+
+        return 'CHECK_DRAW' as const;
+      },
+    };
   }
   public actionClasses(): Set<Class<Action<string, any, any>>> {
     return new Set([

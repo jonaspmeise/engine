@@ -27,11 +27,11 @@ export class TicTacToe extends Game<TicTacToeParameters> {
           .filter((slot) => slot.isEmpty());
 
         if (freeSlots.length === 0) {
-          runtime.execute(new TicTacToeDraw());
+          await runtime.execute(new TicTacToeDraw());
           return;
         }
 
-        runtime.execute(
+        await runtime.execute(
           await runtime.prompt(
             currentPlayer,
             freeSlots.map(

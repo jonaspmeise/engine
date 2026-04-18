@@ -386,12 +386,12 @@ describe('game', () => {
         rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
-              runtime.execute(
+              await runtime.execute(
                 await runtime.prompt(runtime.entities(TestPlayerEntity)[0]!, [
                   new ParameterizedTestAction({ value: 1 }),
                 ]),
               );
-              runtime.execute(
+              await runtime.execute(
                 await runtime.prompt(runtime.entities(TestPlayerEntity)[1]!, [
                   new ParameterizedTestAction({ value: 2 }),
                 ]),
@@ -436,7 +436,7 @@ describe('game', () => {
         rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
-              runtime.execute(
+              await runtime.execute(
                 await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
                   new TestAction(),
                 ]),
@@ -482,7 +482,7 @@ describe('game', () => {
         rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
-              runtime.execute(
+              await runtime.execute(
                 await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
                   new TestAction(),
                 ]),
@@ -663,7 +663,7 @@ describe('game', () => {
         rawGraph(): Graph {
           return {
             INITIAL: async (runtime) => {
-              runtime.execute(new TestAction());
+              await runtime.execute(new TestAction());
             },
           };
         }
@@ -745,7 +745,9 @@ describe('game', () => {
             INITIAL: async (runtime) => {
               const player =
                 runtime.anyEntity<TestPlayerEntity>(TestPlayerEntity)!;
-              runtime.execute(await runtime.prompt(player, [new TestAction()]));
+              await runtime.execute(
+                await runtime.prompt(player, [new TestAction()]),
+              );
 
               return 'INITIAL' as const;
             },
@@ -867,7 +869,7 @@ describe('game', () => {
             INITIAL: async (runtime) => {
               const entity = runtime.anyEntity<TestEntityC>(TestEntityC)!;
 
-              runtime.execute(
+              await runtime.execute(
                 await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
                   new TargetedAction({
                     target: entity,
@@ -954,7 +956,7 @@ describe('game', () => {
         rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
-              runtime.execute(new TestAction());
+              await runtime.execute(new TestAction());
             },
           };
         }
@@ -1010,7 +1012,7 @@ describe('game', () => {
         rawGraph(): Graph<'INITIAL'> {
           return {
             INITIAL: async (runtime) => {
-              runtime.execute(new TestAction());
+              await runtime.execute(new TestAction());
             },
           };
         }
@@ -1063,7 +1065,7 @@ describe('game', () => {
                 this.end({
                   draws: [runtime.anyEntity(TestPlayerEntity)!],
                 });
-                runtime.execute(new TestAction());
+                await runtime.execute(new TestAction());
 
                 // THEN
                 expect(runtime.anyEntity(TestEntityC)!.volatileNumber).toBe(0); // The action should not have been executed, so the state should be unchanged.
@@ -1114,7 +1116,7 @@ describe('game', () => {
             return {
               INITIAL: async (runtime) => {
                 // This action should be cancelled!
-                expect(runtime.execute(new TestAction())).toBeUndefined();
+                expect(await runtime.execute(new TestAction())).toBeUndefined();
                 done();
               },
             };
@@ -1150,7 +1152,7 @@ describe('game', () => {
               },
               NEXT: async (runtime) => {
                 const action = new TestAction();
-                const returned = runtime.execute(action);
+                const returned = await runtime.execute(action);
 
                 // THEN
                 expect(returned).toBe(action);
@@ -1219,7 +1221,7 @@ describe('game', () => {
             return {
               INITIAL: async (runtime) => {
                 // WHEN
-                runtime.execute(new UnloggedAction());
+                await runtime.execute(new UnloggedAction());
 
                 // THEN
                 expect(logger.error).toHaveBeenCalledWith(
@@ -1240,6 +1242,68 @@ describe('game', () => {
         });
 
         timeout(done);
+      });
+
+      test('execute() awaits async before/after-hooks before returning.', (done) => {
+        // GIVEN
+        class AsyncAfterEntity
+          extends Entity
+          implements AfterAction<TestAction>
+        {
+          public $type: string = 'AsyncAfterEntity';
+          public result: number = 0;
+
+          constructor() {
+            super('async-after-entity');
+          }
+
+          async afterTestAction(_runtime: ModifiableRuntime): Promise<void> {
+            return new Promise((resolve) =>
+              setTimeout(() => {
+                this.result = 42;
+                resolve();
+              }, 50),
+            );
+          }
+
+          public toString(): string {
+            return 'AsyncAfterEntity';
+          }
+        }
+
+        class DummyGame extends TestGame {
+          initialize() {
+            return new Set<Entity>([
+              new TestPlayerEntity(1),
+              new TestEntityC(1),
+              new AsyncAfterEntity(),
+            ]);
+          }
+
+          rawGraph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                const entity = runtime.anyEntity(AsyncAfterEntity)!;
+
+                // WHEN
+                await runtime.execute(new TestAction());
+
+                // THEN
+                // The value is set here asynchronously through the after-hook.
+                expect(entity.result).toBe(42);
+                done();
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done, 100);
       });
     });
 
@@ -1275,7 +1339,7 @@ describe('game', () => {
           rawGraph(): Graph<'INITIAL'> {
             return {
               INITIAL: async (runtime) => {
-                runtime.execute(
+                await runtime.execute(
                   new ParameterizedTestAction({
                     value: 10,
                   }),
@@ -1335,7 +1399,7 @@ describe('game', () => {
           rawGraph(): Graph<'INITIAL'> {
             return {
               INITIAL: async (runtime) => {
-                runtime.execute(
+                await runtime.execute(
                   new ParameterizedTestAction({
                     value: 10,
                   }),
@@ -1390,11 +1454,13 @@ describe('game', () => {
                 // WHEN
                 // This action should be executed, since its check hook returns true.
                 expect(
-                  runtime.execute(new ParameterizedTestAction({ value: 10 })),
+                  await runtime.execute(
+                    new ParameterizedTestAction({ value: 10 }),
+                  ),
                 ).toBeDefined();
                 // Action should be prevented, so undefined is returned.
                 expect(
-                  runtime.execute(
+                  await runtime.execute(
                     new ParameterizedTestAction({
                       value: 5,
                     }),
@@ -1454,7 +1520,7 @@ describe('game', () => {
           rawGraph(): Graph<'INITIAL'> {
             return {
               INITIAL: async (runtime) => {
-                runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+                await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
                   new ParameterizedTestAction({ value: 10 }),
                   new ParameterizedTestAction({ value: 5 }),
                 ]);

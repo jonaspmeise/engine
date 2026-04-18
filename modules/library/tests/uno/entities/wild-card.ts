@@ -1,4 +1,4 @@
-import { Choice, ModifiableRuntime } from '../../../src';
+import { ModifiableRuntime } from '../../../src';
 import { UnoPickColorAction } from '../actions/pick-color';
 import { UnoDefaultColors } from '../uno';
 import { UnoCard } from './card';
@@ -34,18 +34,14 @@ export class UnoWildCard extends UnoCard {
       case 'wild-draw-four':
         meta.drawOverloads += 4;
       case 'wild':
-        (
+        runtime.execute(
           await runtime.prompt(
             currentPlayer,
             UnoDefaultColors.map(
-              (color) =>
-                new Choice(
-                  new UnoPickColorAction({ card: this, color }),
-                  currentPlayer,
-                ),
+              (color) => new UnoPickColorAction({ card: this, color }),
             ),
-          )
-        ).apply(runtime);
+          ),
+        );
     }
   }
 }

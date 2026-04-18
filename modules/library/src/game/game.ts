@@ -268,21 +268,22 @@ export abstract class Game<
     return this._entityService.anyEntity(type);
   }
 
-  /**
-   * Prompts a player with a set of choices, and waits for the player to make a choice.
-   * @param player The player to prompt.
-   * @param choices The set of choices to present to the player.
-   * @returns A promise that resolves to the chosen action.
-   */
-  public prompt<ACTION extends Action<string, any, any>>(
+  public async prompt<ACTION extends Action<string, any, any>>(
     player: PlayerEntity,
     choices: ACTION[],
   ): Promise<ACTION> {
     this._logger.debug(
       `Prompting player ${player[playerId]} with ${choices.length} choices...`,
     );
-    const filteredChoices: ACTION[] = choices.filter(
-      (choice) => this._actionPreventedBy(choice) === undefined,
+    const filteredChoices: ACTION[] = await Promise.all(
+      choices.map(async (choice) => {
+        if ((await this._actionPreventedBy(choice)) === undefined) {
+          return choice;
+        }
+        return undefined;
+      }),
+    ).then(
+      (results) => results.filter((choice) => choice !== undefined) as ACTION[],
     );
 
     this._logger.debug(
@@ -297,15 +298,18 @@ export abstract class Game<
    * @param action the action to check.
    * @returns The entity that prevents this action, if such an entity exists, otherwise undefined.
    */
-  private _actionPreventedBy(
+  private async _actionPreventedBy(
     action: Action<string, any, any>,
-  ): Entity | undefined {
+  ): Promise<Entity | undefined> {
     for (const entity of this._entityService.getHook('check', action)) {
       this._logger.debug(
         `Calling check hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
       );
 
-      if (getHook(entity, action, 'check')(this, action.parameters) === false) {
+      if (
+        (await getHook(entity, action, 'check')(this, action.parameters)) ===
+        false
+      ) {
         this._logger.debug(
           `Action "${action.$type}" was prevented by check hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
         );
@@ -324,9 +328,9 @@ export abstract class Game<
    * since some properties (or even its complete type!) may be modified during execution due to triggers.
    * Undefined is returned, if the action was prevented.
    */
-  public execute(
+  public async execute(
     action: Action<string, any, any>,
-  ): Action<string, any, any> | undefined {
+  ): Promise<Action<string, any, any> | undefined> {
     if (this._stateService.status() === 'ended') {
       this._logger.warn(
         `Trying to execute action "${action.$type}" after the game has already ended. This likely means that some trigger or choice execution was executed after ending the game. Please make sure that this can't happen. Ignoring this action...`,
@@ -350,7 +354,7 @@ export abstract class Game<
     }
 
     // Are there any hooks that prevent this?
-    const preventedBy = this._actionPreventedBy(action);
+    const preventedBy = await this._actionPreventedBy(action);
     if (preventedBy !== undefined) {
       this._logger.info(
         `Action "${action.$type}" was prevented by entity "${preventedBy.$type}" with ID "${preventedBy[entityId]}". Preventing execution of this action...`,
@@ -378,7 +382,7 @@ export abstract class Game<
         `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
       );
 
-      const triggerResult = getHook(
+      const triggerResult = await getHook(
         entity,
         action,
         'before',
@@ -424,7 +428,7 @@ export abstract class Game<
         `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
       );
 
-      getHook(entity, immutableAction, 'after')(
+      await getHook(entity, immutableAction, 'after')(
         this,
         immutableAction.parameters,
         immutableAction.returned(),
@@ -471,7 +475,7 @@ export abstract class Game<
     // Drain queued executed choices.
     const choice = this._stateService.getQueuedChoice();
     if (choice !== undefined) {
-      this.execute(choice.execution);
+      await this.execute(choice.execution);
     }
 
     this._stateService.setSettled(true);

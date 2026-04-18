@@ -1,12 +1,10 @@
-import { dir } from 'node:console';
 import { Action } from '../../components/action';
-import { Choice, EnhancedChoice } from '../../components/choice';
+import { EnhancedChoice } from '../../components/choice';
 import { ChoiceId } from '../../components/choice.types';
 import { Entity, entityId } from '../../components/entity';
 import {
   SnapshotData,
   Logger,
-  DeepReadonly,
   GameStatus,
   GameEndParameters,
   Snapshot,
@@ -35,7 +33,7 @@ export class StateService {
       },
     ],
     pastSnapshots: [],
-    stack: [] as Choice<Action<string, any, any>>[],
+    stack: [] as EnhancedChoice<Action<string, any, any>>[],
     choices: new Map<PlayerInterface, EnhancedChoice<Action<string, any>>[]>(),
     queuedChoices: [] as EnhancedChoice<Action<string, any>>[],
     isSettled: true,
@@ -110,7 +108,9 @@ export class StateService {
    * Pushes a single item to the stack, which is worked off in the next snapshot.
    * @param items The items to add.
    */
-  public pushToStack(...items: Choice<Action<string, any, any>>[]): void {
+  public pushToStack(
+    ...items: EnhancedChoice<Action<string, any, any>>[]
+  ): void {
     this._logger.debug(
       `Pushing ${items.length} item${items.length !== 1 ? 's' : ''} to stack...`,
     );
@@ -118,7 +118,7 @@ export class StateService {
     for (const item of items) {
       this._logger.debug(
         () =>
-          `Pushing ${item instanceof Choice ? `choice (${item.execution.$type})` : 'execution'} to stack...`,
+          `Pushing ${item instanceof EnhancedChoice ? `choice (${item.execution.$type})` : 'execution'} to stack...`,
       );
 
       this._state.stack.push(item);

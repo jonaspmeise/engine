@@ -1,5 +1,5 @@
 import { Action } from '../components/action';
-import { Choice, EnhancedChoice } from '../components/choice';
+import { EnhancedChoice } from '../components/choice';
 import { ChoiceId } from '../components/choice.types';
 import { Entity } from '../components/entity';
 import { EntityID } from '../components/entity.types';
@@ -138,7 +138,7 @@ export type SnapshotData = {
   // Which choices were executed since the last snapshot?
   queuedChoices: EnhancedChoice<Action<string, any>>[];
   // Which executions are currently queued to be executed?
-  stack: Choice<Action<string, any, any>>[];
+  stack: EnhancedChoice<Action<string, any, any>>[];
   //  Is the current state settled, meaning that all triggers have been worked off and input of player can be accepted?
   isSettled: boolean;
   // How many choices were created so far?

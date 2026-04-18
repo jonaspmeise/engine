@@ -42,7 +42,7 @@ export type LifecycleHook<T extends Action<any, any, any>> =
 type BeforeActionHook<ACTION extends Action<string, any, any>> = (
   runtime: ModifiableRuntime,
   parameters: ActionParametersType<ACTION>,
-) => boolean | void;
+) => Promise<boolean | void> | boolean | void;
 export type BeforeAction<
   ACTION extends Action<NAME, any, any>,
   NAME extends string = ActionType<ACTION>,
@@ -53,7 +53,7 @@ export type BeforeAction<
 /** Indexable form of {@link BeforeAction} — use when you need to call a before-hook via a dynamic key. */
 export type BeforeActionIndex = Record<
   `before${string}`,
-  (runtime: ModifiableRuntime, parameters: unknown) => void
+  (runtime: ModifiableRuntime, parameters: unknown) => Promise<void> | void
 >;
 
 /**
@@ -66,7 +66,7 @@ export type BeforeActionIndex = Record<
 type CheckActionHook<ACTION extends Action<string, any, any>> = (
   runtime: ModifiableRuntime,
   parameters: ActionParametersType<ACTION>,
-) => boolean;
+) => Promise<boolean> | boolean;
 export type CheckAction<
   ACTION extends Action<string, any, any>,
   NAME extends string = ActionType<ACTION>,
@@ -77,7 +77,10 @@ export type CheckAction<
 /** Indexable form of {@link CheckAction} — use when you need to call a check-hook via a dynamic key. */
 export type CheckActionIndex = Record<
   `check${string}`,
-  (runtime: ModifiableRuntime, parameters: unknown) => boolean
+  (
+    runtime: ModifiableRuntime,
+    parameters: unknown,
+  ) => Promise<boolean> | boolean
 >;
 
 /**
@@ -90,7 +93,7 @@ type AfterActionHook<ACTION extends Action<string, any, any>> = (
   runtime: ModifiableRuntime,
   parameters: ActionParametersType<ACTION>,
   returnType: ActionReturnType<ACTION>,
-) => void;
+) => Promise<void> | void;
 export type AfterAction<
   ACTION extends Action<NAME, any, any>,
   NAME extends string = ActionType<ACTION>,

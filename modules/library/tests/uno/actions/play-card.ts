@@ -1,9 +1,10 @@
-import { Action, ModifiableRuntime } from '../../../src';
+import { Action } from '../../../src';
+import { GraphRuntime } from '../../../src/game/graph-runtime';
 import { UnoCard } from '../entities/card';
 import { UnoDiscardPile } from '../entities/discard-pile';
 
 export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
-  async doApply(runtime: ModifiableRuntime): Promise<void> {
+  async doApply(runtime: GraphRuntime): Promise<void> {
     const card = this.parameters.card;
 
     const discardPile = runtime.anyEntity(UnoDiscardPile)!;
