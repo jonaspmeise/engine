@@ -76,20 +76,17 @@ describe('entityService', () => {
   });
 
   describe('spawnEntity', () => {
-    test.todo(
-      'throws an error if an entity is registered with an ID that is already taken by another entity.',
-      () => {
-        // GIVEN
-        service.create(new TestEntityA(1));
+    test('throws an error if an entity is registered with an ID that is already taken by another entity.', () => {
+      // GIVEN
+      service.create(new TestEntityA(1));
 
-        // WHEN / THEN
-        expect(() => service.create(new TestEntityA(1))).toThrowError(
-          /duplicate/gi,
-        );
-      },
-    );
+      // WHEN / THEN
+      expect(() => service.create(new TestEntityA(1))).toThrowError(
+        /duplicate/gi,
+      );
+    });
 
-    test.todo('when an entity is spawned, it is registered.', () => {
+    test('when an entity is spawned, it is registered.', () => {
       // GIVEN / WHEN
       service.create(new TestEntityA(1));
 
@@ -99,114 +96,113 @@ describe('entityService', () => {
       expect(service.entities(TestEntityA)[0]![entityId]).toBe('TestEntityA-1');
     });
 
-    test.todo(
-      'when an entity is spawned, the flush callback is called. The engine needs to be notified of changes to entity state.',
-      () => {
-        // GIVEN / WHEN
-        service.create(new TestEntityA(1));
+    test('when an entity is spawned, the flush callback is called. The engine needs to be notified of changes to entity state.', () => {
+      // GIVEN / WHEN
+      const entity = new TestEntityA(1);
+      service.create(entity);
 
-        // THEN
-        expect(callback).toHaveBeenCalledTimes(1);
-      },
-    );
+      // THEN
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith(entity, 'created');
+    });
 
-    test.todo(
-      'when the internal state of an entity is modified, the flush callback is called.',
-      () => {
-        // GIVEN
-        const entity = service.create(new TestEntityA(1));
+    test('when the internal state of an entity is modified, the flush callback is called.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
 
-        // WHEN
-        entity.volatileNumber = 42;
+      // WHEN
+      entity.volatileNumber = 42;
 
-        // THEN
-        expect(callback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
-      },
-    );
+      // THEN
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
+      expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
+    });
 
-    test.todo(
-      'when the nested internal state of an entity is modified, the flush callback is called.',
-      () => {
-        // GIVEN
-        class TestEntityD extends TestEntityA {
-          public nested = {
-            value: 0,
-          };
-        }
+    test('when the nested internal state of an entity is modified, the flush callback is called.', () => {
+      // GIVEN
+      class TestEntityD extends TestEntityA {
+        public nested = {
+          value: 0,
+        };
+      }
 
-        // WHEN
-        const entity = service.create(new TestEntityD(1));
-        entity.nested.value = 42;
+      // WHEN
+      const entity = service.create(new TestEntityD(1));
+      entity.nested.value = 42;
 
-        // THEN
-        expect(callback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
-      },
-    );
+      // THEN
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
+      expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
+    });
 
-    test.todo(
-      'when a symbol property of an entity is modified, the flush callback is not called.',
-      () => {
-        // GIVEN
-        const symbolKey = Symbol('test');
+    test('when a symbol property of an entity is modified, the flush callback is not called.', () => {
+      // GIVEN
+      const symbolKey = Symbol('test');
 
-        class TestEntityE extends TestEntityA {
-          public [symbolKey]: number = 0;
-        }
+      class TestEntityE extends TestEntityA {
+        public [symbolKey]: number = 0;
+      }
 
-        // WHEN
-        const entity = service.create(new TestEntityE(1));
-        entity[symbolKey] = 42;
+      // WHEN
+      const entity = service.create(new TestEntityE(1));
+      entity[symbolKey] = 42;
 
-        // THEN
-        expect(callback).toHaveBeenCalledTimes(1); // Only the initial spawn, not the symbol property change
-      },
-    );
+      // THEN
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
+    });
 
-    test.todo(
-      'when a player entity is spawned, it receives an unique player ID.',
-      () => {
-        // GIVEN
-        const playerEntity = service.create(
-          new TestPlayerEntity(1),
-        ) as PlayerEntity;
+    test('when a player entity is spawned, it receives an unique player ID.', () => {
+      // GIVEN
+      const playerEntity = service.create(
+        new TestPlayerEntity(1),
+      ) as PlayerEntity;
 
-        // THEN
-        expect(playerEntity[playerId]).toBeDefined();
-        expect(typeof playerEntity[playerId]).toBe('string');
-        expect(playerEntity[playerId]!.length).toBeGreaterThan(0);
-      },
-    );
+      // THEN
+      expect(playerEntity[playerId]).toBeDefined();
+      expect(typeof playerEntity[playerId]).toBe('string');
+      expect(playerEntity[playerId]!.length).toBeGreaterThan(0);
+    });
   });
 
   describe('destroyEntity', () => {
-    test.todo(
-      'when an entity is destroyed, it is removed from the registry.',
-      () => {
-        // GIVEN
-        const entity = service.create(new TestEntityA(1));
+    test('when an entity is destroyed, it is removed from the registry.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
 
-        // WHEN
-        service.destroy(entity);
+      // WHEN
+      service.destroy(entity);
 
-        // THEN
-        expect(service.entities()).toHaveLength(0);
-      },
-    );
+      // THEN
+      expect(service.entities()).toHaveLength(0);
+    });
 
-    test.todo(
-      'when an entity is destroyed, that is not registered, an error is thrown.',
-      () => {
-        // GIVEN
-        const entity = new TestEntityA(1);
+    test('when an entity is destroyed, that is not registered, an error is thrown.', () => {
+      // GIVEN
+      const entity = new TestEntityA(1);
 
-        // WHEN / THEN
-        expect(() => service.destroy(entity)).toThrowError();
-      },
-    );
+      // WHEN / THEN
+      expect(() => service.destroy(entity)).toThrowError();
+    });
+
+    test('when an entity is destroyed, it is flushed.', () => {
+      // GIVEN
+      const entity = new TestEntityA(1);
+      service.create(entity);
+
+      // WHEN
+      service.destroy(entity);
+
+      // THEN
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
+      expect(callback).toHaveBeenNthCalledWith(2, entity, 'deleted');
+    });
   });
 
   describe('entitySet', () => {
-    test.todo('returns spawned entities.', () => {
+    test('returns spawned entities.', () => {
       // GIVEN / WHEN
       service.create(new TestEntityA(1));
       service.create(new TestEntityA(2));
@@ -224,7 +220,7 @@ describe('entityService', () => {
       expect(service.entitySet(TestEntityC)).toHaveLength(1);
     });
 
-    test.todo('has the keys of all types of entities.', () => {
+    test('has the keys of all types of entities.', () => {
       // GIVEN / WHEN
       service.create(new TestEntityA(1));
       service.create(new TestEntityB(1));
@@ -247,7 +243,7 @@ describe('entityService', () => {
   });
 
   describe('entities', () => {
-    test.todo('returns spawned entities.', () => {
+    test('returns spawned entities.', () => {
       // GIVEN / WHEN
       service.create(new TestEntityA(1));
       service.create(new TestEntityA(2));
@@ -267,39 +263,33 @@ describe('entityService', () => {
   });
 
   describe('players', () => {
-    test.todo('returns an empty array if no players are registered.', () => {
+    test('returns an empty array if no players are registered.', () => {
       // THEN
       expect(service.players()).toHaveLength(0);
     });
 
-    test.todo(
-      'returns spawned entities that implement the PlayerInterface.',
-      () => {
-        // GIVEN / WHEN
-        service.create(new TestPlayerEntity(1));
-        service.create(new TestPlayerEntity(2));
+    test('returns spawned entities that implement the PlayerInterface.', () => {
+      // GIVEN / WHEN
+      service.create(new TestPlayerEntity(1));
+      service.create(new TestPlayerEntity(2));
 
-        // THEN
-        expect(service.players()).toHaveLength(2);
-      },
-    );
+      // THEN
+      expect(service.players()).toHaveLength(2);
+    });
   });
 
   describe('getNonProxy', () => {
-    test.todo(
-      'returns the original non-proxy object for a proxied entity.',
-      () => {
-        // GIVEN
-        const entity = service.create(new TestEntityA(1));
-        const original = new TestEntityA(1);
+    test('returns the original non-proxy object for a proxied entity.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+      const original = new TestEntityA(1);
 
-        // THEN
-        expect(entity).not.toBe(original);
-        expect(service.getNonProxy(entity)).toEqual(original);
-      },
-    );
+      // THEN
+      expect(entity).not.toBe(original);
+      expect(service.getNonProxy(entity)).toEqual(original);
+    });
 
-    test.todo('returns undefined if the entity is not registered.', () => {
+    test('returns undefined if the entity is not registered.', () => {
       // GIVEN
       const entity = new TestEntityA(1);
 

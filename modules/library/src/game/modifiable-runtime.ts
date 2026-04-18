@@ -1,4 +1,5 @@
 import { Entity } from '../components/entity';
+import { EntityFlushCallback } from '../services/entity/entity-service.types';
 import { GameEndParameters } from './game.types';
 import { GraphRuntime } from './graph-runtime';
 
@@ -10,4 +11,5 @@ export interface ModifiableRuntime extends GraphRuntime {
   destroyEntity(entity: Entity): void;
   spawnEntity(entity: Entity): void;
   end(parameters: Partial<GameEndParameters>): void;
+  flush: EntityFlushCallback;
 }

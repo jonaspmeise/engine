@@ -1,3 +1,4 @@
+import { dir } from 'node:console';
 import { Action } from '../../components/action';
 import { Choice, EnhancedChoice } from '../../components/choice';
 import { ChoiceId } from '../../components/choice.types';
@@ -8,6 +9,7 @@ import {
   DeepReadonly,
   GameStatus,
   GameEndParameters,
+  Snapshot,
 } from '../../game/game.types';
 import { ModifiableRuntime } from '../../game/modifiable-runtime';
 import {
@@ -15,7 +17,10 @@ import {
   handler,
   playerId,
 } from '../../interfaces/player-interface';
-import { PlayerEntity } from '../entity/entity-service.types';
+import {
+  EntityFlushCallbackType,
+  PlayerEntity,
+} from '../entity/entity-service.types';
 
 // TODO: Clean up, write tests.
 /**
@@ -42,7 +47,7 @@ export class StateService {
 
   constructor(private readonly _logger: Logger) {}
 
-  public markDirty(entity: Entity): void {
+  public markDirty(entity: Entity, type: EntityFlushCallbackType): void {
     this._logger.debug(
       `Marking entity ${entity.constructor.name} with ID ${entity[entityId]} as dirty.`,
     );
@@ -50,7 +55,7 @@ export class StateService {
     this._state.currentSnapshots[
       this._state.currentSnapshots.length - 1
       // TODO: "as" needed here?
-    ]!.dirtyEntities[entity[entityId]] = entity as DeepReadonly<typeof entity>;
+    ]!.dirtyEntities[entity[entityId]] = type === 'deleted' ? null : entity;
   }
 
   public status(): GameStatus {
@@ -231,15 +236,26 @@ export class StateService {
    */
   public informPlayer(
     player: PlayerEntity,
-    sendFullState: boolean = false,
+    sendFullState: boolean = false, // TODO: Implement!
   ): void {
     this._logger.debug(
       `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
     );
 
-    const rawSnapshots = this._state.currentSnapshots;
+    // We translate the internal snapshot data into a player-facing format and apply visibility...
+    const snapshots: Snapshot[] = this._state.currentSnapshots.map(
+      (snapshot) => ({
+        dirtyEntities: Object.fromEntries(
+          Object.entries(snapshot.dirtyEntities).map(([id, entity]) => [
+            id,
+            entity == null ? null : entity.visibility(player),
+          ]),
+        ),
+        executed: snapshot.executed,
+      }),
+    );
 
-    player[handler]!.state(rawSnapshots);
+    player[handler]!.state(snapshots);
   }
 
   /**

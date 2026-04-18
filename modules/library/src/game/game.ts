@@ -20,7 +20,10 @@ import {
   handler,
   playerId,
 } from '../interfaces/player-interface';
-import { PlayerEntity } from '../services/entity/entity-service.types';
+import {
+  EntityFlushCallbackType,
+  PlayerEntity,
+} from '../services/entity/entity-service.types';
 import { ModifiableRuntime } from './modifiable-runtime';
 import { Action } from '../components/action';
 import { StateService } from '../services/state/state-service';
@@ -161,12 +164,12 @@ export abstract class Game<
    * This should be called, when that entity is changed or a new entity is spawned.
    * @param entity The entity to flush.
    */
-  public flush(entity: Entity): void {
+  public flush(entity: Entity, type: EntityFlushCallbackType): void {
     this._logger.debug(
       `Flushing entity ${entity.constructor.name} with ID ${entity[entityId]} in game ${this.constructor.name}.`,
     );
 
-    this._stateService.markDirty(entity);
+    this._stateService.markDirty(entity, type);
   }
 
   /**

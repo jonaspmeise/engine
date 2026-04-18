@@ -26,7 +26,7 @@ export class EntityService
     private readonly _flushCallback: EntityFlushCallback,
   ) {}
 
-  clear(): void {
+  public clear(): void {
     this._entities = {
       types: new Map<Class<Entity>, Set<Entity>>(),
       ids: new Map<EntityID, Entity>(),
@@ -250,16 +250,16 @@ export class EntityService
     this._indexEntityHooks(proxy, entity);
 
     // Notify the engine that state has changed.
-    this._flushCallback(proxy);
+    this._flushCallback(proxy, 'created');
 
     return proxy as ENTITY;
   }
 
-  public destroy(component: Entity): void {
-    const id: EntityID = component[entityId];
+  public destroy(entity: Entity): void {
+    const id: EntityID = entity[entityId];
 
     this._logger.info(
-      `Destroying entity ${component.constructor.name} with ID ${id}.`,
+      `Destroying entity ${entity.constructor.name} with ID ${id}.`,
     );
 
     if (!this._entities.ids.has(id)) {
@@ -271,9 +271,12 @@ export class EntityService
     this._entities.ids.delete(id);
     for (const type of this._entities.types.values()) {
       // FIXME: Only access the types that this entity is actually part of, instead of looping through all types.
-      type.delete(component);
+      type.delete(entity);
     }
-    this._removeEntityFromHooks(component);
+    this._removeEntityFromHooks(entity);
+
+    // Flush the entity, so that the clients know that this entity does not exist anymoore.
+    this._flushCallback(entity, 'deleted');
   }
 
   public entities<TYPE extends Entity>(type: Class<TYPE>): ReadonlyArray<TYPE>;
@@ -323,7 +326,7 @@ export class EntityService
   // - simply always flush/recreate all entities every tick, with disregard to proxies.
   private static _createRecursiveProxy = (
     target: any,
-    callback: (root: any) => void,
+    callback: EntityFlushCallback,
     rootProxy?: any,
     ids?: Map<EntityID, Entity>,
     onHookSet?: (prop: string, value: unknown, root: Entity) => void,
@@ -363,7 +366,7 @@ export class EntityService
         // Trigger the callback using the original root proxy only for non-symbol properties.
         // Symbols should not be communicated to the client anyhow and are only for internal state.
         if (typeof prop !== 'symbol') {
-          callback(rootProxy || receiver);
+          callback(rootProxy || receiver, 'updated');
           onHookSet?.(prop as string, value, rootProxy || receiver);
         }
 

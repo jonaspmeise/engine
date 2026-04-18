@@ -1,3 +1,4 @@
+import { PlayerEntity } from '../services/entity/entity-service.types';
 import { EntityID } from './entity.types';
 
 export const entityId: unique symbol = Symbol('EntityID');
@@ -21,6 +22,18 @@ export abstract class Entity {
   public abstract toString(): string;
 
   public readonly [entityId]: EntityID;
+
+  /**
+   * Returns a version of this entity, which only contains the information that is visible to the given player.
+   * This is used to ensure that players only receive information about the game state that they are supposed to have.
+   * By default, all information is visible.
+   * Classes extending Entity can override this method to implement custom visibility logic.
+   * @param player The player for whom the visibility is being calculated.
+   * @returns A partial version of this entity, with private information removed.
+   */
+  public visibility(player: PlayerEntity): Partial<this> {
+    return this;
+  }
 
   /**
    * Constructs a new entity with the given ID.

@@ -106,8 +106,24 @@ export type PlayerInterfaceCallback = {
   ) => void;
 };
 
+/**
+ * The definition of a snapshot.
+ * A snapshot contains information about:
+ * - which entities were modified since the last snapshot (dirtyEntities)
+ * - which choice was executed since the last snapshot (executed)
+ *
+ * If an entity was deleted, the entry for that entity in dirtyEntities is null, otherwise it contains the full entity.
+ */
 export type Snapshot = {
-  dirtyEntities: Record<EntityID, DeepReadonly<AnyEntity>>;
+  dirtyEntities: Record<EntityID, DeepReadonly<AnyEntity> | null>;
+  executed?: Action<string, any, any> | undefined;
+};
+
+/**
+ * Internal data structure for snapshots, which contains the full entity copies.
+ */
+export type InternalSnapshot = {
+  dirtyEntities: Record<EntityID, Entity | null>;
   executed?: Action<string, any, any> | undefined;
 };
 
@@ -115,8 +131,8 @@ export type Snapshot = {
  * This models data that defines the content of a snapshot.
  */
 export type SnapshotData = {
-  currentSnapshots: Snapshot[];
-  pastSnapshots: Snapshot[];
+  currentSnapshots: InternalSnapshot[];
+  pastSnapshots: InternalSnapshot[];
   // Which choices are currently available for each player?
   choices: Map<PlayerInterface, EnhancedChoice<Action<string, any>>[]>;
   // Which choices were executed since the last snapshot?
