@@ -12,8 +12,6 @@ export class UnoPutDiscardPileAction extends Action<
 
     card.location = discardPile;
     card.position = discardPile.cards(runtime).length + 1;
-
-    console.log('????', discardPile.cards(runtime), card);
   }
   public $type: 'put_discard_pile' = 'put_discard_pile';
 }

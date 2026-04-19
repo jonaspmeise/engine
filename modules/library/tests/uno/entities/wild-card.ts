@@ -34,7 +34,7 @@ export class UnoWildCard extends UnoCard {
       case 'wild-draw-four':
         meta.drawOverloads += 4;
       case 'wild':
-        runtime.execute(
+        await runtime.execute(
           await runtime.prompt(
             currentPlayer,
             UnoDefaultColors.map(

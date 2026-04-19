@@ -261,13 +261,13 @@ export class StateService {
    * Executes an action and thus modifies the game state.
    * @param action The action to execute.
    * @param runtime The runtime to execute the action in.
-   * @returns The executed action. This may not be the same object as the passed in action,
+   * @returns A promise that resolves to the executed action. This may not be the same object as the passed in action,
    * since some properties (or even its complete type!) may be modified during execution due to triggers.
    */
-  public execute(
+  public async execute(
     action: Action<string, any, any>,
     runtime: ModifiableRuntime, // TODO: Modifiable vs. Queryable?
-  ): Action<string, any, any> {
+  ): Promise<Action<string, any, any>> {
     this._logger.info(`Executing action "${action.$type}"...`);
 
     // Clear prior snapshot state and calculate the next one.
@@ -278,7 +278,7 @@ export class StateService {
         executed: action,
       },
     ];
-    action.apply(runtime);
+    await action.apply(runtime);
 
     return action;
   }

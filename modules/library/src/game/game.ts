@@ -396,7 +396,7 @@ export abstract class Game<
       }
     }
 
-    this._stateService.execute(action, this);
+    await this._stateService.execute(action, this);
 
     // Inform player about _this_ action, but before potential after-hooks are called.
     for (const player of this._entityService.players()) {

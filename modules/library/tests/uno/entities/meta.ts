@@ -27,11 +27,11 @@ export class UnoMeta extends Entity implements AfterAction<UnoPlayCardAction> {
     return this.players[this.currentPlayerIndex]!;
   }
 
-  afterPlay_card(runtime: ModifiableRuntime) {
+  async afterPlay_card(runtime: ModifiableRuntime) {
     // After a card is played, we check for a win here.
     const player = this.currentPlayer()!;
-    if (player.hand(runtime).cards.length === 0) {
-      runtime.execute(
+    if (player.hand(runtime).cards(runtime).length === 0) {
+      await runtime.execute(
         new UnoWinGameAction({
           player: player,
         }),

@@ -2,6 +2,7 @@ import { Action, entityId, ModifiableRuntime } from '../../../src';
 import { UnoDeck } from '../entities/deck';
 import { UnoCard } from '../entities/card';
 import { UnoZone } from '../entities/zone';
+import { UnoWildCard } from '../entities/wild-card';
 
 export class UnoShuffleAction extends Action<
   'shuffle',
@@ -23,6 +24,11 @@ export class UnoShuffleAction extends Action<
       const tmp = cards[i]!.position;
       cards[i]!.position = cards[j]!.position;
       cards[j]!.position = tmp;
+
+      // Also: reset the color of each wild card!
+      if (cards[i]! instanceof UnoWildCard) {
+        (cards[i] as UnoWildCard).color = 'black';
+      }
     }
   }
 

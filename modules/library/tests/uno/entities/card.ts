@@ -24,10 +24,13 @@ export abstract class UnoCard
     super(`${id}-card`);
   }
 
-  afterPlay_card(runtime: ModifiableRuntime, parameters: { card: UnoCard }) {
+  async afterPlay_card(
+    runtime: ModifiableRuntime,
+    parameters: { card: UnoCard },
+  ) {
     // After a card is played, we execute its effect - if _this_ was the card played.
     if (parameters.card === this) {
-      return this.onPlay(runtime);
+      return await this.onPlay(runtime);
     }
   }
 
@@ -52,21 +55,22 @@ export abstract class UnoCard
       _hidden: true,
     } as unknown as Partial<this>;
 
-    console.error('visibility', this, player);
-
     // Cards are not visible if they are in the deck.
     if (this.location.$type === 'Deck') {
       return hidden;
     }
 
-    if (!(this.location.$type === 'Hand')) {
+    if (this.location.$type === 'Hand') {
       // Cards in own hand are visible.
       if ((this.location as any).player === player) {
         return this;
       }
 
-      // Cards in other player's hands are not visible.
-      return hidden;
+      // Cards in other player's hands are not visible, but their position needs to be known for animations.
+      return {
+        ...hidden,
+        position: this.position,
+      };
     }
 
     return this;

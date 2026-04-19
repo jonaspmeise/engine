@@ -39,6 +39,9 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     label?: string;
     faceDown?: boolean;
     toSelector?: string;
+    toRect?: DOMRect;
+    discardPrevColor?: string;
+    discardPrevLabel?: string;
   } = {};
 
   constructor(player: PlayerInterface, playerSize: number) {
@@ -53,15 +56,43 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     const type = choice.$type;
     const params = (choice as any).parameters;
 
-    if (type === 'play_card') {
+    if (type === 'put_discard_pile' && !this._flyFrom) {
+      // Capture card position for AI-played cards (human cards are captured at
+      // click time in the choiceTypeMapping render handler). This runs before
+      // render() so the card element still exists in the hand DOM.
       const cardId: string | undefined = params?.card?.[entityId];
       if (cardId) {
         const cardEl = document.getElementById(cardId);
         if (cardEl) {
+          const discardEl =
+            document.querySelector<HTMLElement>('.discard-card');
           this._flyFrom = cardEl.getBoundingClientRect();
           this._flyMeta = {
             color: cardEl.dataset.color,
             label: cardEl.dataset.label,
+            toRect: discardEl?.getBoundingClientRect(),
+            discardPrevColor: discardEl?.dataset.color,
+            discardPrevLabel: discardEl?.dataset.label,
+          };
+        }
+      }
+    } else if (type === 'drawdiscard_pile' && !this._flyFrom) {
+      // Capture card position for AI-played cards (human cards are captured at
+      // click time in the choiceTypeMapping render handler). This runs before
+      // render() so the card element still exists in the hand DOM.
+      const cardId: string | undefined = params?.card?.[entityId];
+      if (cardId) {
+        const cardEl = document.getElementById(cardId);
+        if (cardEl) {
+          const discardEl =
+            document.querySelector<HTMLElement>('.discard-card');
+          this._flyFrom = cardEl.getBoundingClientRect();
+          this._flyMeta = {
+            color: cardEl.dataset.color,
+            label: cardEl.dataset.label,
+            toRect: discardEl?.getBoundingClientRect(),
+            discardPrevColor: discardEl?.dataset.color,
+            discardPrevLabel: discardEl?.dataset.label,
           };
         }
       }
@@ -95,15 +126,25 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     this._flyFrom = null;
     this._flyMeta = {};
 
-    if (type === 'play_card') {
+    if (type === 'play_card' || type === 'put_discard_pile') {
       const discardEl = document.querySelector<HTMLElement>('.discard-card');
-      if (discardEl) {
-        await this._flyAnimation(
-          from,
-          discardEl.getBoundingClientRect(),
-          meta.color,
-          meta.label,
-        );
+      const toRect = meta.toRect ?? discardEl?.getBoundingClientRect();
+      if (discardEl && toRect) {
+        // Capture whatever render() already put on the discard element.
+        // This may differ from meta.color/meta.label when the played card was
+        // hidden (no data-color on the element), so we must not rely on meta.
+        const newColor = discardEl.dataset.color;
+        const newLabel = discardEl.dataset.label;
+        // Temporarily show the old top card so the destination doesn't flicker.
+        if (meta.discardPrevColor !== undefined)
+          discardEl.dataset.color = meta.discardPrevColor;
+        if (meta.discardPrevLabel !== undefined)
+          discardEl.dataset.label = meta.discardPrevLabel;
+        await this._flyAnimation(from, toRect, meta.color, meta.label);
+        // Restore the new top card using what render() set, not the played
+        // card's own color (which is undefined for hidden opponent cards).
+        if (newColor !== undefined) discardEl.dataset.color = newColor;
+        if (newLabel !== undefined) discardEl.dataset.label = newLabel;
       }
     } else if (type === 'draw_card' && meta.toSelector) {
       const targetEl = document.querySelector<HTMLElement>(meta.toSelector);
@@ -227,6 +268,26 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       .cards(runtime)
       .length.toString();
 
+    // Meta indicator – doubles as the draw-chain counter.
+    // Uses meta's entityId so the debug right-click tooltip exposes the full
+    // meta state (direction, currentPlayerIndex, drawOverloads, …).
+    const drawOverloads = meta?.drawOverloads ?? 0;
+    const metaElId = meta?.[entityId] ?? 'draw-chain-counter';
+    let drawChainEl = center.querySelector<HTMLElement>(`#${metaElId}`);
+    if (!drawChainEl) {
+      drawChainEl = document.createElement('div');
+      drawChainEl.id = metaElId;
+      drawChainEl.className = 'draw-chain-counter';
+      center.appendChild(drawChainEl);
+    }
+    if (drawOverloads > 0) {
+      drawChainEl.textContent = `+${drawOverloads}`;
+      drawChainEl.style.setProperty('--chain', String(drawOverloads));
+      drawChainEl.style.display = '';
+    } else {
+      drawChainEl.style.display = 'none';
+    }
+
     // Discard pile – show top card face-up
     let discardEl = center.querySelector<HTMLElement>(`#${discard[entityId]}`);
     if (!discardEl) {
@@ -236,9 +297,19 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       center.appendChild(discardEl);
     }
 
-    const topcard = runtime.anyEntity(UnoDiscardPile)!.top(runtime);
-    discardEl.dataset.color = topcard.color;
-    discardEl.dataset.label = LABEL[topcard.value];
+    const topcard = discard.top(runtime);
+    console.log(`Top card of discard pile is:`, topcard);
+    if (topcard === undefined) {
+      delete discardEl.dataset.color;
+      delete discardEl.dataset.label;
+    } else {
+      discardEl.dataset.color = topcard?.color;
+      discardEl.dataset.label = topcard
+        ? typeof topcard.value === 'number'
+          ? String(topcard.value)
+          : LABEL[topcard.value]
+        : '';
+    }
 
     // ── player boards ─────────────────────────────────────────────────
     const sorted = this._sorted([...runtime.entities(UnoPlayer)]);
@@ -294,7 +365,10 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
           cardEl.classList.add('hidden');
         } else {
           cardEl.dataset.color = card.color;
-          cardEl.dataset.label = LABEL[card.value];
+          cardEl.dataset.label =
+            typeof card.value === 'number'
+              ? String(card.value)
+              : LABEL[card.value];
           cardEl.classList.remove('hidden');
         }
       }
@@ -342,6 +416,18 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         if (el) {
           el.classList.add('engine-choice');
           el.onclick = () => {
+            // Capture fly animation state at click time, before any
+            // render() removes the card element from the DOM.
+            this._flyFrom = el.getBoundingClientRect();
+            const discardEl =
+              document.querySelector<HTMLElement>('.discard-card');
+            this._flyMeta = {
+              color: el.dataset.color,
+              label: el.dataset.label,
+              toRect: discardEl?.getBoundingClientRect(),
+              discardPrevColor: discardEl?.dataset.color,
+              discardPrevLabel: discardEl?.dataset.label,
+            };
             el.classList.remove('engine-choice');
             el.onclick = null;
             execute();
@@ -383,6 +469,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
           `color-pick-${choice.parameters.color}`,
         )!;
 
+        pickElementButton.classList.add('engine-choice');
         pickElementButton.onclick = () => {
           execute();
         };
@@ -391,7 +478,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         const overlay = document.querySelector<HTMLElement>(
           '.color-pick-overlay',
         )!;
-        overlay.style.display = 'flex';
+        overlay.style.display = 'grid';
       },
       erase: async (choice: UnoPickColorAction) => {
         // Hide overlay.
@@ -401,10 +488,11 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         overlay.style.display = 'none';
 
         // Clear button executor.
-        const buttons = document.getElementById(
+        const pickElementButton = document.getElementById(
           `color-pick-${choice.parameters.color}`,
         )!;
-        buttons.onclick = null;
+        pickElementButton.classList.remove('engine-choice');
+        pickElementButton.onclick = null;
       },
     },
     pass_turn: {

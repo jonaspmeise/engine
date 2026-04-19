@@ -1305,6 +1305,75 @@ describe('game', () => {
 
         timeout(done, 100);
       });
+
+      test('after-hooks observe entity state mutated by a nested execute() inside doApply', (done) => {
+        // GIVEN
+        class InnerAction extends Action<'InnerAction', undefined, void> {
+          public $type: 'InnerAction' = 'InnerAction';
+          async doApply(runtime: ModifiableRuntime): Promise<void> {
+            runtime.anyEntity(TestEntityC)!.volatileNumber = 99;
+          }
+        }
+
+        class OuterAction extends Action<'OuterAction', undefined, void> {
+          public $type: 'OuterAction' = 'OuterAction';
+          async doApply(runtime: GraphRuntime): Promise<void> {
+            await runtime.execute(new InnerAction());
+          }
+        }
+
+        // Records what volatileNumber looked like when afterOuterAction fired.
+        let observedInAfterHook = -1;
+
+        class ObserverEntity
+          extends Entity
+          implements AfterAction<OuterAction>
+        {
+          public $type: string = 'ObserverEntity';
+          constructor() {
+            super('observer-entity');
+          }
+          afterOuterAction(runtime: ModifiableRuntime): void {
+            observedInAfterHook =
+              runtime.anyEntity(TestEntityC)!.volatileNumber;
+          }
+          public toString() {
+            return 'ObserverEntity';
+          }
+        }
+
+        class DummyGame extends TestGame {
+          initialize() {
+            return new Set<Entity>([
+              new TestEntityC(1),
+              new TestPlayerEntity(1),
+              new ObserverEntity(),
+            ]);
+          }
+
+          rawGraph(): Graph<'INITIAL'> {
+            return {
+              INITIAL: async (runtime) => {
+                // WHEN
+                await runtime.execute(new OuterAction());
+
+                // THEN: InnerAction ran during doApply, so by the time
+                // afterOuterAction fired, volatileNumber should already be 99.
+                expect(observedInAfterHook).toBe(99);
+                done();
+              },
+            };
+          }
+        }
+
+        const game = new DummyGame();
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          state: () => {},
+          prompt: () => {},
+        });
+
+        timeout(done);
+      });
     });
 
     describe('lifecycle hooks', () => {

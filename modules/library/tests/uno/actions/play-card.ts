@@ -12,9 +12,6 @@ export class UnoPlayCardAction extends Action<'play_card', { card: UnoCard }> {
         card,
       }),
     );
-
-    // Accumulate forced draw cards for the next player.
-    await card.onPlay(runtime);
   }
 
   public $type: 'play_card' = 'play_card';

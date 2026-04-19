@@ -78,9 +78,20 @@ export class ClientEntityHandler implements QueryableRuntime {
    * If the entity already exists, the delta is applied to the existing entity.
    * @param entityDelta The delta of the entity, which is applied to the internal state.
    */
-  public apply(id: EntityID, entityDelta: Partial<ClientEntity>): void {
+  public apply(id: EntityID, entityDelta: Partial<ClientEntity> | null): void {
     if (this._state.entityById.has(id)) {
       const existingEntity = this._state.entityById.get(id)!;
+
+      if (entityDelta === null) {
+        this._logger.debug(`Destroying entity ${id}...`);
+        this._state.entityById.delete(id);
+        this._state.entities.splice(
+          this._state.entities.findIndex((e) => e[entityId] === id),
+          1,
+        );
+        return;
+      }
+
       Object.assign(existingEntity, entityDelta);
 
       // We re-update the prototype here, because it might have changed in the delta!

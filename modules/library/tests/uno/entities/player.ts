@@ -12,7 +12,6 @@ import { entityId } from '@my-engine/library';
 
 export class UnoPlayer extends Entity implements PlayerInterface {
   public $type: string = 'UnoPlayer';
-  public skipped: boolean = false;
 
   [playerInterfaceMarker]: true = true as const;
   [handler]?: PlayerInterfaceCallback;

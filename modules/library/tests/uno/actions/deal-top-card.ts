@@ -5,7 +5,6 @@ import {
   QueryableRuntime,
 } from '../../../src';
 import { UnoDeck } from '../entities/deck';
-import { UnoDiscardPile } from '../entities/discard-pile';
 import { UnoPutDiscardPileAction } from './put-discardpile';
 
 export class UnoDealTopCardAction extends Action<'deal_top_card'> {

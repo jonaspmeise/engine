@@ -1,8 +1,6 @@
 /// <reference lib="dom" />
 
 import {
-  Choice,
-  Class,
   Clearable,
   DEFAULT_GAME_CONFIG,
   EntityClassMapping,
@@ -17,6 +15,7 @@ import {
 } from '@my-engine/library';
 import { ActionRenderFunction, ClientState } from './client.types';
 import { ClientEntityHandler } from './client-entity-handler';
+import { DebugService } from './debug-service';
 /**
  * Models a HTML5-based client for a game.
  * This client is responsible for rendering the game state, allowing the user to interact with the game
@@ -32,7 +31,7 @@ export abstract class Client<
 
   protected readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger;
   private readonly _entityClassMapping: EntityClassMapping;
-  private _debugPanel: HTMLElement | null = null;
+  private readonly _debug: DebugService;
   private _choices: EnhancedChoice<Action<string, any, any>>[] = [];
   public static readonly GAME_RESET_EVENT = 'game:reset';
 
@@ -49,7 +48,6 @@ export abstract class Client<
     game: Game<any>,
     protected readonly player: PlayerInterface,
     logger?: Partial<Logger>,
-    debug: boolean = false,
   ) {
     Object.assign(this._logger, logger);
 
@@ -62,12 +60,7 @@ export abstract class Client<
       ),
     };
 
-    this._logger.debug('Injecting style element for choice highlighting...');
-
-    if (debug) {
-      // TODO: this._debugPanel = this._createDebugPanel();
-      // TODO: document.body.appendChild(this._debugPanel);
-    }
+    this._debug = new DebugService(() => this._state.entityHandler.entities());
 
     // Register this object in global window scope.
     (window as any).client = this;
@@ -85,6 +78,7 @@ export abstract class Client<
         this._logger,
       ),
     };
+    this._debug.clear();
     this.renderTarget.replaceChildren();
     this.renderTarget.dispatchEvent(
       new CustomEvent(Client.GAME_RESET_EVENT, { bubbles: true }),
@@ -160,6 +154,9 @@ export abstract class Client<
     for (const snapshot of snapshots) {
       this._state.snapshots.push(snapshot);
 
+      // Record debug history eagerly before the entity handler applies the delta.
+      this._debug.recordSnapshot(snapshot);
+
       // Feed the snapshot into our entity service!
       for (const [id, entityDelta] of Object.entries(snapshot.dirtyEntities)) {
         this._logger.debug(`Applying delta for entity ${id}...`, entityDelta);
@@ -186,10 +183,6 @@ export abstract class Client<
         );
         await this.animateAfter(snapshot.executed);
       }
-    }
-
-    if (this._debugPanel) {
-      // TODO: this._updateDebugPanel(this._debugPanel, snapshots, choices);
     }
   }
 

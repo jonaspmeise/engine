@@ -19,6 +19,7 @@ import { UnoShuffleAction } from './actions/shuffle';
 import { UnoPassTurnAction } from './actions/pass-turn';
 import { UnoWinGameAction } from './actions/win-game';
 import { UnoPutDiscardPileAction } from './actions/put-discardpile';
+import { LifecycleType } from '../../src/components/lifecyclehooks';
 
 export const UnoDefaultColors = ['red', 'yellow', 'green', 'blue'] as const;
 
@@ -76,6 +77,19 @@ export class Uno extends Game<{
   }
   public name: string = 'Uno';
 
+  public resolveTriggerOrder<ACTION extends Action<any, any, any>>(
+    type: LifecycleType,
+    action: ACTION,
+    entities: Entity[],
+  ): Entity[] {
+    if (action instanceof UnoPlayCardAction && type === 'after') {
+      // First, our meta entity should be evaluated, because it checks for a win.
+      return entities.sort((a) => (a instanceof UnoMeta ? -1 : 1));
+    }
+
+    return entities;
+  }
+
   public rawGraph(): Graph<'INITIAL' | 'NORMAL_TURN' | 'CHECK_DRAW'> {
     return {
       INITIAL: async (runtime) => {
@@ -128,7 +142,7 @@ export class Uno extends Game<{
           ),
         ]);
 
-        runtime.execute(prompt);
+        await runtime.execute(prompt);
 
         if (prompt instanceof UnoDrawCardAction) {
           // We reset the draw overloads.

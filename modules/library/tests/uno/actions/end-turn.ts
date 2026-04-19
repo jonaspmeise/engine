@@ -7,7 +7,8 @@ export class UnoEndTurnAction extends Action<'end_turn'> {
 
     // Transfer current player's turn to the next player.
     meta.currentPlayerIndex =
-      (meta.currentPlayerIndex + 1) % meta.players.length;
+      (meta.currentPlayerIndex + meta.direction + meta.players.length) %
+      meta.players.length;
   }
   public $type: 'end_turn' = 'end_turn';
 }

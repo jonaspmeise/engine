@@ -146,6 +146,22 @@ h1 {
   line-height: 1;
 }
 
+/* Draw chain counter – shown beneath the deck when drawOverloads > 0 */
+.draw-chain-counter {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 900;
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.7), 0 2px 6px rgba(0, 0, 0, 0.6);
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  /* size grows with the chain value, clamped to a readable range */
+  font-size: clamp(1rem, calc(0.8rem + var(--chain, 1) * 0.18rem), 2.4rem);
+}
+
 /* Discard pile – shows top card colour + value */
 .discard-card {
   background-color: var(--c, rgba(255, 255, 255, 0.06));
@@ -232,6 +248,12 @@ h1 {
   width: calc((var(--cn, 1) - 1) * var(--step) + var(--card-w));
   max-width: 70vw;
   height: calc(var(--card-h) + 1.8rem); /* extra height for rotation arc */
+  /* Rotate the fan to face outward from the player's seat.
+     --i (0-based seat index) and --n (total players) are set by JS.
+     i=0 (human, bottom) → 0°, i=1 (right) → 90°,
+     i=2 (top) → 180°, i=3 (left) → 270°. */
+  transform: rotate(calc(var(--i, 0) / var(--n, 1) * 360deg));
+  transform-origin: center center;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -335,9 +357,6 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-.engine-choice {
-  outline: none;
-}
 .color-pick-overlay {
   position: fixed;
   inset: 0;
@@ -474,22 +493,22 @@ h1 {
   cursor: default;
 }
 
-.engine-choice.card {
+.engine-choice {
+  outline: none;
   filter: drop-shadow(0 0 6px gold) brightness(1.25);
   cursor: pointer;
   z-index: 10;
-}
-.engine-choice.card:hover {
-  filter: drop-shadow(0 0 14px gold) brightness(1.5);
-  transform: translateX(-50%) rotate(calc(var(--off, 0) * 7deg))
-    translateY(-1.4rem);
-  z-index: 20;
-}
-.engine-choice.deck-card {
   box-shadow:
     0 0 0 3px gold,
     0 4px 14px rgba(0, 0, 0, 0.55);
-  cursor: pointer;
+}
+.engine-choice:hover {
+  filter: drop-shadow(0 0 14px gold) brightness(1.5);
+}
+.engine-choice.card:hover {
+  transform: translateX(-50%) rotate(calc(var(--off, 0) * 7deg))
+    translateY(-1.4rem);
+  z-index: 20;
 }
 
 #result-text {
