@@ -1,4 +1,4 @@
-import { test, expect } from 'bun:test';
+import { test, expect, describe } from 'bun:test';
 import { TicTacToe } from './tictactoe';
 import { TicTacToeParameters } from './tictactoe.typed';
 import { BaseGameTest } from '../game.spec';
@@ -7,6 +7,9 @@ import { Lane } from './entities/lane';
 import { TicTacToePlayer } from './entities/player';
 import { Slot } from './entities/slot';
 import { NO_OP_LOGGER } from '../../src';
+import { GameScenario } from '../game-scenario';
+import { TicTacToeMark } from './actions/mark';
+import { TicTacToeWin } from './actions/win';
 
 class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
   readonly numberOfPlayers = 2;
@@ -309,3 +312,62 @@ class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
 }
 
 new TicTacToeSpec().run();
+
+describe('TicTacToe game', () => {
+  test('TicTacToeMark sets markedBy on the target slot', async () => {
+    let executor!: TicTacToePlayer;
+    let targetSlot!: Slot;
+
+    await GameScenario.from(
+      new TicTacToe({ firstPlayer: 'X' }, { logger: NO_OP_LOGGER }),
+    )
+      .when((game) => {
+        executor = game.entities(TicTacToePlayer).find((p) => p.mark === 'X')!;
+        targetSlot = game.entities(Slot).find((s) => s.x === 0 && s.y === 0)!;
+        return new TicTacToeMark({ player: executor, slot: targetSlot });
+      })
+      .run();
+
+    expect(targetSlot.markedBy).toBe(executor);
+  });
+
+  test('when the last slot in a lane is marked, that player wins the game', async () => {
+    let playerX!: TicTacToePlayer;
+    let playerO!: TicTacToePlayer;
+    let winSlot!: Slot;
+
+    // GIVEN / WHEN
+    const scenario = await GameScenario.from(
+      new TicTacToe({ firstPlayer: 'X' }, { logger: NO_OP_LOGGER }),
+    )
+      .setup((game) => {
+        playerX = game.entities(TicTacToePlayer).find((p) => p.mark === 'X')!;
+        playerO = game.entities(TicTacToePlayer).find((p) => p.mark === 'O')!;
+        winSlot = game.entities(Slot).find((s) => s.x === 0 && s.y === 2)!;
+        game
+          .entities(Slot)
+          .filter((s) => s.x === 0 && s.y !== 2)
+          .forEach((s) => {
+            s.markedBy = playerX;
+          });
+      })
+      .when(() => new TicTacToeMark({ player: playerX, slot: winSlot }))
+      .run();
+
+    // THEN
+    expect(scenario.executed()).toHaveLength(2);
+    expect(scenario.executed()[0]).toBeInstanceOf(TicTacToeMark);
+    expect(scenario.executed()[1]).toBeInstanceOf(TicTacToeWin);
+    expect((scenario.executed()[1] as TicTacToeWin).parameters.player).toBe(
+      playerX,
+    );
+
+    const status = scenario.endStatus()!;
+    expect(status.winners).toHaveLength(1);
+    expect(status.winners[0]).toBe(playerX);
+    expect(status.losers).toContain(playerO);
+
+    expect(scenario.promptCount(playerX)).toBe(0);
+    expect(scenario.promptCount(playerO)).toBe(0);
+  });
+});

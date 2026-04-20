@@ -268,6 +268,14 @@ export abstract class Game<
     return this._entityService.anyEntity(type);
   }
 
+  public entityById(id: string): Entity | undefined {
+    return this._entityService.entityById(id);
+  }
+
+  public setCurrentNode(nodeId: NodeId): void {
+    this._graphService.setCurrentNode(nodeId);
+  }
+
   public async prompt<ACTION extends Action<string, any, any>>(
     player: PlayerEntity,
     choices: ACTION[],

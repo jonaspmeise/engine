@@ -265,5 +265,21 @@ describe('StateService', () => {
         ]),
       );
     });
+
+    test('when the player has no handler registered, it logs an error and does not call state.', () => {
+      // GIVEN — a player without a registered handler (e.g. disconnected)
+      // @ts-expect-error intentionally omit handler to simulate disconnected player
+      const disconnectedPlayer: PlayerEntity = {
+        ...player,
+        [handler]: undefined,
+      };
+
+      // WHEN
+      service.informPlayer(disconnectedPlayer);
+
+      // THEN — error is logged, state is never called on anything
+      expect(logger.error).toHaveBeenCalled();
+      expect(player[handler]!.state).not.toHaveBeenCalled();
+    });
   });
 });

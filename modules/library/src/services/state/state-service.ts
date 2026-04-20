@@ -254,7 +254,13 @@ export class StateService {
       }),
     );
 
-    player[handler]!.state(snapshots);
+    if (player[handler] === undefined) {
+      this._logger.error(
+        `Player ${player[playerId]} does not have a handler registered to receive state updates. This likely means that the player disconnected and has not reconnected yet. Skipping informing this player...`,
+      );
+      return;
+    }
+    player[handler].state(snapshots);
   }
 
   /**

@@ -45,6 +45,10 @@ export class GraphService<NODES extends NodeId> {
     );
   }
 
+  public setCurrentNode(nodeId: NODES): void {
+    this.rawGraph.current = nodeId;
+  }
+
   /**
    * Creates a deep clone of this graph service, preserving the current node, ended flag, and call counts.
    * The cloned service shares the same node execute functions (they are stateless).

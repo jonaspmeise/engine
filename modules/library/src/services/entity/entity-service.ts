@@ -314,6 +314,10 @@ export class EntityService
     return null;
   }
 
+  public entityById(id: string): Entity | undefined {
+    return this._entities.ids.get(id);
+  }
+
   public players(): ReadonlyArray<Entity & PlayerInterface> {
     // TODO: Other return type that is more performant than array? Maybe set? Map access?
     return this._entities.players;

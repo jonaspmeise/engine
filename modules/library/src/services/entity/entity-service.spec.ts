@@ -262,6 +262,32 @@ describe('entityService', () => {
     });
   });
 
+  describe('entityById', () => {
+    test('returns the entity with the given ID.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+
+      // WHEN / THEN
+      expect(service.entityById('TestEntityA-1')).toBe(entity);
+    });
+
+    test('returns undefined if no entity with the given ID exists.', () => {
+      // WHEN / THEN
+      expect(service.entityById('does-not-exist')).toBeUndefined();
+    });
+
+    test('returns undefined after the entity with that ID is destroyed.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+
+      // WHEN
+      service.destroy(entity);
+
+      // THEN
+      expect(service.entityById('TestEntityA-1')).toBeUndefined();
+    });
+  });
+
   describe('players', () => {
     test('returns an empty array if no players are registered.', () => {
       // THEN
