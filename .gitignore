@@ -1,1 +1,15 @@
 node_modules/
+
+# build outputs
+dist/
+out/
+coverage/
+*.tgz
+
+# compiled artifacts
+**/*.js
+**/*.map
+**/*.d.ts
+**/*.d.cts
+**/*.d.mts
+**/*.tsbuildinfo

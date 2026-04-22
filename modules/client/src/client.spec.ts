@@ -9,11 +9,12 @@ import {
 } from '../../library/src/game/game.spec.types';
 import {
   Action,
-  Choice,
+  EnhancedChoice,
   PlayerEntity,
   QueryableRuntime,
   Snapshot,
 } from '@my-engine/library';
+import { ActionRenderFunction } from './client.types';
 
 const animateBefore = mock(() => Promise.resolve());
 const animateAfter = mock(() => Promise.resolve());
@@ -21,6 +22,7 @@ const render = mock(() => {});
 const element: HTMLElement = document.createElement('div');
 
 class DummyClient extends Client {
+  public choiceTypeMapping = {};
   protected animateBefore(): Promise<void> {
     return animateBefore();
   }
@@ -92,7 +94,7 @@ describe('client', () => {
                 $type: 'TestEntityA',
               },
             },
-            executed: new Choice({} as Action<string, any>, {} as PlayerEntity),
+            executed: {} as Action<string, any>,
           },
         ];
 

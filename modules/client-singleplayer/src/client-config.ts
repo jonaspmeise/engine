@@ -134,13 +134,12 @@ function showAiSelection<TClient extends Client<HTMLElement, any>>(
 export function startSingleplayer<TClient extends Client<HTMLElement, any>>(
   config: ClientConfig<TClient>,
 ): void {
-  const isMultiplayer = window.location.pathname === '/multiplayer';
+  const isMultiplayer = (window as any).__MULTIPLAYER__ === true;
 
   if (isMultiplayer) {
     if (!config.multiplayer) return;
 
     let client: TClient | null = null;
-    // MultiplayerSession connects in its constructor — only instantiate in multiplayer mode.
     const session = new MultiplayerSession();
     session
       .onSetup((playerIndex) => {
@@ -164,6 +163,23 @@ export function startSingleplayer<TClient extends Client<HTMLElement, any>>(
         });
       })
       .onGameOver(() => {});
+
+    // Show lobby input — connect only after the user submits a lobby ID.
+    const overlay = document.createElement('div');
+    const input = document.createElement('input');
+    input.placeholder = 'Lobby ID';
+    const btn = document.createElement('button');
+    btn.textContent = 'Join / Create';
+    btn.addEventListener(
+      'click',
+      () => {
+        overlay.remove();
+        session.connect(input.value.trim() || crypto.randomUUID().slice(0, 8));
+      },
+      { once: true },
+    );
+    overlay.append(input, btn);
+    document.body.appendChild(overlay);
     return;
   }
 

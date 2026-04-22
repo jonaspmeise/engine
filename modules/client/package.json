@@ -19,6 +19,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "example:tictactoe:server": "bun --hot examples/server.ts tictactoe",
+    "example:tictactoe:run": "bun --hot examples/tictactoe/index.html",
     "example:uno:server": "bun --hot examples/server.ts uno",
     "example:uno:run": "bun --hot examples/uno/index.html"
   },

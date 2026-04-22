@@ -25,10 +25,5 @@
     "skipLibCheck": true
   },
   "files": [],
-  "references": [
-    { "path": "modules/library" },
-    { "path": "modules/client-singleplayer" },
-    { "path": "modules/client-p2p" },
-    { "path": "modules/server" }
-  ]
+  "references": [{ "path": "modules/library" }, { "path": "modules/client" }]
 }
