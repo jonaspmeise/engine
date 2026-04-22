@@ -114,18 +114,6 @@ export class DebugService {
     const panel = document.createElement('div');
     Object.assign(panel.style, {
       position: 'fixed',
-      top: '0.5rem',
-      right: '0.5rem',
-      width: '24rem',
-      maxHeight: '80vh',
-      background: 'rgba(8,8,12,0.94)',
-      color: '#d4d4d8',
-      fontFamily: 'ui-monospace, monospace',
-      fontSize: '11px',
-      borderRadius: '6px',
-      border: '1px solid rgba(255,255,255,0.1)',
-      boxShadow: '0 6px 32px rgba(0,0,0,0.7)',
-      zIndex: '9000',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
@@ -134,15 +122,6 @@ export class DebugService {
 
     const header = document.createElement('div');
     Object.assign(header.style, {
-      padding: '5px 10px',
-      background: 'rgba(167,139,250,0.12)',
-      borderBottom: '1px solid rgba(255,255,255,0.08)',
-      color: '#a78bfa',
-      fontWeight: 'bold',
-      letterSpacing: '0.07em',
-      fontSize: '10px',
-      textTransform: 'uppercase',
-      flexShrink: '0',
       display: 'flex',
       alignItems: 'center',
     });
@@ -155,16 +134,8 @@ export class DebugService {
     exportBtn.textContent = 'Export JSON';
     Object.assign(exportBtn.style, {
       marginLeft: 'auto',
-      padding: '1px 7px',
-      fontSize: '10px',
-      fontFamily: 'inherit',
-      background: 'rgba(167,139,250,0.18)',
-      color: '#a78bfa',
-      border: '1px solid rgba(167,139,250,0.35)',
-      borderRadius: '4px',
       cursor: 'pointer',
       letterSpacing: 'normal',
-      textTransform: 'none',
       fontWeight: 'normal',
       lineHeight: '1.6',
     });

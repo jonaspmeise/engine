@@ -1,11 +1,13 @@
-import type {
-  Action,
-  ChoiceId,
-  EnhancedChoice,
-  Game,
-  PlayerEntity,
-  PlayerInterfaceCallback,
-  Snapshot,
+import {
+  Entity,
+  entityId,
+  type Action,
+  type ChoiceId,
+  type EnhancedChoice,
+  type Game,
+  type PlayerEntity,
+  type PlayerInterfaceCallback,
+  type Snapshot,
 } from '@my-engine/library';
 import type { ServerMessage } from './messages';
 import type { SessionKey, WebSocketId } from './server.types';
@@ -49,6 +51,15 @@ export class GameSession {
    */
   private readonly _sessionKeys: Map<WebSocketId, SessionKey>;
 
+  /** True after the game ends, until a restart clears it. */
+  private _gameEnded = false;
+
+  /** Players who have voted to play again after the game ended. */
+  private readonly _pendingRestartVotes = new Set<WebSocketId>();
+
+  /** The currently active game instance (replaced on restart). */
+  private _game: Game<any>;
+
   /**
    * @param _game       The game instance managed by this session.
    * @param playerMap   Maps each WebSocket player ID to its corresponding
@@ -56,13 +67,17 @@ export class GameSession {
    * @param _send       Callback used to push `ServerMessage`s to a specific client.
    */
   constructor(
-    private readonly _game: Game<any>,
+    game: Game<any>,
     playerMap: ReadonlyMap<WebSocketId, PlayerEntity>,
     private readonly _send: SessionSendFn,
   ) {
+    this._game = game;
     this._playerMap = new Map(playerMap);
     this._sessionKeys = new Map(
-      [...playerMap.keys()].map((id) => [id, crypto.randomUUID() as SessionKey]),
+      [...playerMap.keys()].map((id) => [
+        id,
+        crypto.randomUUID() as SessionKey,
+      ]),
     );
   }
 
@@ -83,7 +98,9 @@ export class GameSession {
    * Finds the current WebSocket ID of the player holding the given session key.
    * Returns `undefined` when the key is not recognised.
    */
-  public findPlayerBySessionKey(sessionKey: SessionKey): WebSocketId | undefined {
+  public findPlayerBySessionKey(
+    sessionKey: SessionKey,
+  ): WebSocketId | undefined {
     for (const [wsPlayerId, key] of this._sessionKeys) {
       if (key === sessionKey) {
         return wsPlayerId;
@@ -115,6 +132,73 @@ export class GameSession {
       this._sessionKeys.delete(oldId);
       this._sessionKeys.set(newId, sessionKey);
     }
+  }
+
+  /** Returns all current WebSocket player IDs in this session. */
+  public playerIds(): ReadonlyArray<WebSocketId> {
+    return [...this._playerMap.keys()];
+  }
+
+  /** Returns `true` when the game has ended and the session is awaiting restart votes or cleanup. */
+  public isEnded(): boolean {
+    return this._gameEnded;
+  }
+
+  /** Marks the session as ended (called by the server's onEnd callback). */
+  public markEnded(): void {
+    this._gameEnded = true;
+  }
+
+  /**
+   * Records a restart vote from the given player.
+   * Returns `true` when every player has voted and a restart should begin.
+   */
+  public voteRestart(wsPlayerId: WebSocketId): boolean {
+    if (!this._gameEnded) return false;
+    if (!this._playerMap.has(wsPlayerId)) return false;
+    this._pendingRestartVotes.add(wsPlayerId);
+    return this._pendingRestartVotes.size === this._playerMap.size;
+  }
+
+  /**
+   * Restarts the session with a fresh game instance.
+   * Remaps player entities, resets pending state, sends SETUP to each player,
+   * then re-registers callbacks so the new game begins immediately.
+   *
+   * @param createGame Factory that returns a new `Game` instance.
+   * @param onEnd      Callback registered on the new game's `onEnd` hook.
+   */
+  public async restart(
+    createGame: () => Game<any>,
+    onEnd: () => void,
+  ): Promise<void> {
+    const newGame = createGame();
+    const oldPlayers = this._game.players();
+    const newPlayers = newGame.players();
+
+    // Remap _playerMap entries to the new game's player entities (same index).
+    for (const [wsPlayerId, oldEntity] of this._playerMap) {
+      const index = oldPlayers.indexOf(oldEntity);
+      if (index !== -1 && index < newPlayers.length) {
+        this._playerMap.set(wsPlayerId, newPlayers[index]!);
+      }
+    }
+
+    this._game = newGame;
+    this._pendingExecute.clear();
+    this._pendingRestartVotes.clear();
+    this._gameEnded = false;
+
+    newGame.registerCallbacks({ onEnd });
+
+    // Send SETUP before registering callbacks so the client initialises before
+    // the first STATE arrives.
+    for (const [wsPlayerId, playerEntity] of this._playerMap) {
+      const playerIndex = this._game.players().indexOf(playerEntity);
+      this._send(wsPlayerId, { type: 'SETUP', payload: { playerIndex } });
+    }
+
+    await this.start();
   }
 
   /**
@@ -169,15 +253,51 @@ export class GameSession {
   }
 
   /**
+   * Recursively replaces `Entity` instances in action parameters with
+   * `$ENGINE:<id>` placeholder strings so they survive JSON serialisation.
+   * The client's `resolveParams` function reconstructs entity stubs from
+   * these placeholders.
+   */
+  private static _serializeParams(value: unknown): unknown {
+    if (value instanceof Entity) {
+      return `$ENGINE:${value[entityId]}`;
+    }
+    if (Array.isArray(value)) {
+      return value.map((v) => GameSession._serializeParams(v));
+    }
+    if (typeof value === 'object' && value !== null) {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+          k,
+          GameSession._serializeParams(v),
+        ]),
+      );
+    }
+    return value;
+  }
+
+  /**
    * Builds a `PlayerInterfaceCallback` that forwards game events (state
    * snapshots and choice prompts) to the client identified by `wsPlayerId`.
    */
   private _callbackFor(wsPlayerId: WebSocketId): PlayerInterfaceCallback {
     return {
       state: (snapshots: Snapshot[]) => {
+        const serialized = snapshots.map((s) => ({
+          dirtyEntities: s.dirtyEntities,
+          executed:
+            s.executed !== undefined
+              ? {
+                  $type: s.executed.$type,
+                  parameters: GameSession._serializeParams(
+                    s.executed.parameters,
+                  ),
+                }
+              : undefined,
+        }));
         this._send(wsPlayerId, {
           type: 'STATE',
-          payload: { state: snapshots },
+          payload: { state: serialized },
         });
       },
       prompt: (

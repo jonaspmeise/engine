@@ -20,7 +20,6 @@ import {
   PlayerEntity,
 } from '../entity/entity-service.types';
 
-// TODO: Clean up, write tests.
 /**
  * Models and encapsulates all information relevant to the state of the game.
  */
@@ -36,6 +35,8 @@ export class StateService {
     stack: [] as EnhancedChoice<Action<string, any, any>>[],
     choices: new Map<PlayerInterface, EnhancedChoice<Action<string, any>>[]>(),
     queuedChoices: [] as EnhancedChoice<Action<string, any>>[],
+    prompt: null,
+    promptCallback: null,
     isSettled: true,
     idCounter: 0,
   };
@@ -191,39 +192,66 @@ export class StateService {
     const priorChoices: EnhancedChoice<ACTION>[] = [];
     this._state.choices.set(player, priorChoices);
 
-    // TODO: Enhance choices with ID and save the choices somewhere!
     choices.forEach((choice) => {
       priorChoices.push(
         EnhancedChoice.fromAction(choice, player, this._state.idCounter++),
       );
     });
 
-    return new Promise((resolve) => {
-      player[handler]!.prompt(
-        priorChoices,
-        (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => {
-          const id = typeof choice === 'object' ? choice.id : choice;
-          const fetchedChoice = priorChoices.find((c) => c.id === id);
+    this._state.prompt = new Promise((resolve) => {
+      this._state.promptCallback = (
+        choice: EnhancedChoice<Action<string, any>> | ChoiceId,
+      ) => {
+        const id = typeof choice === 'object' ? choice.id : choice;
+        const fetchedChoice = this._state.choices
+          .get(player)!
+          .find((c) => c.id === id);
 
-          if (fetchedChoice === undefined) {
-            this._logger.error(
-              `Player ${player[playerId]} tried to execute an invalid choice with ID ${choice}. Ignoring this...`,
-            );
-            return;
-          }
-
-          this._logger.info(
-            `Player ${player[playerId]} tries to execute choice "${fetchedChoice.id}" (${fetchedChoice.execution.$type})...`,
+        if (fetchedChoice === undefined) {
+          this._logger.error(
+            `Player ${player[playerId]} tried to execute an invalid choice with ID ${choice}. Ignoring this...`,
           );
+          return;
+        }
 
-          this._logger.debug(
-            `Returning ${fetchedChoice.execution.$type} (class: ${fetchedChoice.execution.constructor.name}) as result of prompt...`,
-          );
+        this._logger.info(
+          `Player ${player[playerId]} tries to execute choice "${fetchedChoice.id}" (${fetchedChoice.execution.$type})...`,
+        );
 
-          resolve(fetchedChoice.execution);
-        },
-      );
+        this._logger.debug(
+          `Returning ${fetchedChoice.execution.$type} (class: ${fetchedChoice.execution.constructor.name}) as result of prompt...`,
+        );
+
+        resolve(fetchedChoice.execution);
+      };
+
+      player[handler]!.prompt(priorChoices, this._state.promptCallback);
     });
+
+    return this._state.prompt! as Promise<ACTION>;
+  }
+
+  /**
+   * Send all prompts that are currently registered for a player again.
+   * Should be called when a client reconnects after a disconnect.
+   * This will resum the game loop where it was before.
+   * @param player The player to inform.
+   */
+  public repromptPlayer(player: PlayerEntity): void {
+    if (this._state.prompt === null || this._state.promptCallback === null) {
+      return;
+    }
+
+    const choices = this._state.choices.get(player);
+    if (choices === undefined || choices.length === 0) {
+      return;
+    }
+
+    this._logger.debug(
+      `Re-prompting player ${player[playerId]} with ${choices.length} choice(s)...`,
+    );
+
+    player[handler]!.prompt(choices, this._state.promptCallback);
   }
 
   /**

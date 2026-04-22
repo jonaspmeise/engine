@@ -192,6 +192,91 @@ describe('game', () => {
   });
 
   describe('registerPlayerCallback', () => {
+    test('sends the choices available to a player if that player reconnects.', (done) => {
+      // GIVEN
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([
+            new TestPlayerEntity(1),
+            new TestPlayerEntity(2),
+            new TestEntityC(1),
+          ]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              const playerThatWillDisconnect =
+                runtime.entities(TestPlayerEntity)[0]!;
+
+              await runtime.prompt(playerThatWillDisconnect, [
+                new TestAction(),
+                new TestAction(),
+                new TestAction(),
+              ]);
+            },
+          };
+        }
+      }
+      const game = new DummyGame();
+      const disconnectedPlayer = game.entities(TestPlayerEntity)[0]!;
+
+      game.registerPlayerCallback(disconnectedPlayer, {
+        // Not relevant, the reconnected callback is more interesting.
+        state: () => {},
+        prompt: () => {},
+      });
+      let normalPlayerStateCalled = 0;
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[1]!, {
+        state: () => {
+          normalPlayerStateCalled++;
+          if (normalPlayerStateCalled > 1) {
+            throw new Error(
+              'Player should not receive state updates for other players reconnecting!',
+            );
+          }
+        },
+        prompt: (choices) => {
+          if (choices.length > 0) {
+            throw new Error('This player should not have any choices!');
+          }
+        },
+      });
+
+      // WHEN
+      setTimeout(() => {
+        // Players reconnects and registers their callback again:
+        let reconnectedPlayerStateCalled = false;
+        let reconnectedPlayerChoicesCalled = false;
+
+        game.registerPlayerCallback(disconnectedPlayer, {
+          state: (snapshots) => {
+            // THEN
+            // State is sent again.
+            expect(snapshots).toHaveLength(1);
+            expect(Object.keys(snapshots[0]?.dirtyEntities!)).toHaveLength(3); // The full state should be sent!
+
+            reconnectedPlayerStateCalled = true;
+            if (reconnectedPlayerChoicesCalled) {
+              done();
+            }
+          },
+          prompt: (choices) => {
+            // THEN
+            // Prompts are sent again.
+            expect(choices).toHaveLength(3);
+
+            reconnectedPlayerChoicesCalled = true;
+            if (reconnectedPlayerStateCalled) {
+              done();
+            }
+          },
+        });
+      }, 10);
+
+      timeout(done, 20);
+    });
+
     test('issues a warning if a callback is registered when another callback is already registered.', () => {
       // GIVEN
       const game = new TestGame(undefined, { logger });

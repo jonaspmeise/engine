@@ -9,10 +9,29 @@ const game = new TicTacToe({ firstPlayer: 'X' });
 let client: TicTacToeClient | null = null;
 
 const session = new MultiplayerSession();
+
+function attachClient(playerIndex: number): void {
+  const player = game.players()[playerIndex]!;
+  // Clear the board DOM so a fresh game renders cleanly (avoids stale
+  // slot classes from a previous game without firing the game:reset event).
+  const renderTarget = document.getElementById(
+    'tic-tac-toe-target',
+  ) as HTMLDivElement;
+  renderTarget.replaceChildren();
+
+  client = new TicTacToeClient(player);
+  client.onResultChoice = (result) => {
+    if (result === 'restart') {
+      session.playAgain();
+    } else {
+      window.location.href = '/';
+    }
+  };
+}
+
 session
   .onSetup((playerIndex) => {
-    const player = game.players()[playerIndex]!;
-    client = new TicTacToeClient(player);
+    attachClient(playerIndex);
   })
   .onState((snapshots) => {
     client?.feedSnapshots(snapshots);
@@ -23,6 +42,6 @@ session
     });
   })
   .onGameOver(() => {
-    client?.clear();
-    window.location.href = '/';
+    // Navigation / restart is handled by the result overlay (onResultChoice).
+    // The session key has already been cleared by MultiplayerSession.
   });

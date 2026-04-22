@@ -143,6 +143,13 @@ export type SnapshotData = {
   isSettled: boolean;
   // How many choices were created so far?
   idCounter: 0;
+  // The current prompt, that is being executed.
+  // A reconnecting client can set up on this execution again.
+  prompt: Promise<Action<string, any, any>> | null;
+  // The callback for the current prompt, stored so a reconnecting player can be re-prompted.
+  promptCallback:
+    | ((choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void)
+    | null;
 };
 
 /**

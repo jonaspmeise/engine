@@ -216,8 +216,15 @@
         }
       }
 
-      /* ===== Play Again Button ===== */
-      #play-again {
+      /* ===== Play Again / Cancel Buttons ===== */
+      #result-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+      }
+
+      #play-again,
+      #cancel-btn {
         padding: 0.65rem 2rem;
         border: 2px solid currentColor;
         border-radius: 9999px;
@@ -235,29 +242,35 @@
           color 0.15s ease;
       }
 
-      .result-win #play-again {
+      .result-win #play-again,
+      .result-win #cancel-btn {
         color: #fbbf24;
       }
 
-      .result-win #play-again:hover {
+      .result-win #play-again:hover,
+      .result-win #cancel-btn:hover {
         background: #fbbf24;
         color: #0f172a;
       }
 
-      .result-lose #play-again {
+      .result-lose #play-again,
+      .result-lose #cancel-btn {
         color: #f87171;
       }
 
-      .result-lose #play-again:hover {
+      .result-lose #play-again:hover,
+      .result-lose #cancel-btn:hover {
         background: #f87171;
         color: #0f172a;
       }
 
-      .result-draw #play-again {
+      .result-draw #play-again,
+      .result-draw #cancel-btn {
         color: #94a3b8;
       }
 
-      .result-draw #play-again:hover {
+      .result-draw #play-again:hover,
+      .result-draw #cancel-btn:hover {
         background: #94a3b8;
         color: #0f172a;
       }
@@ -277,7 +290,10 @@
     <div id="result-overlay">
       <div id="result-content">
         <span id="result-text"></span>
-        <button id="play-again">Play Again?</button>
+        <div id="result-buttons">
+          <button id="play-again">Play Again?</button>
+          <button id="cancel-btn">Cancel</button>
+        </div>
       </div>
     </div>
   </body>

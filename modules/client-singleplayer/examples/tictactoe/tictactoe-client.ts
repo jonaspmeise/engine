@@ -6,9 +6,19 @@ import { TicTacToeDraw } from '../../../library/tests/tictactoe/actions/draw';
 import { TicTacToeMark } from '../../../library/tests/tictactoe/actions/mark';
 import { ClientEntityHandler } from '../../src/client-entity-handler';
 import { TicTacToeWin } from '../../../library/tests/tictactoe/actions/win';
+import { TicTacToePlayer } from '../../../library/tests/tictactoe/entities/player';
 import { ChoiceTypeMapping } from '../../src/client.types';
 
 export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
+  /**
+   * Optional hook called after the result overlay is dismissed.
+   * When set (e.g. in multiplayer), the callee decides what to do:
+   *   - 'restart' → request a new game from the server
+   *   - 'cancel'  → navigate back to the menu
+   * When not set the default singleplayer behaviour applies (`this.clear()`).
+   */
+  public onResultChoice: ((result: 'restart' | 'cancel') => void) | null = null;
+
   constructor(player: PlayerInterface) {
     super(
       document.getElementById('tic-tac-toe-target') as HTMLDivElement,
@@ -130,11 +140,14 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
     }
   }
 
-  private _showResult(type: 'win' | 'lose' | 'draw'): Promise<void> {
+  private _showResult(
+    type: 'win' | 'lose' | 'draw',
+  ): Promise<'restart' | 'cancel'> {
     return new Promise((resolve) => {
       const overlay = document.getElementById('result-overlay')!;
       const text = document.getElementById('result-text')!;
       const btn = document.getElementById('play-again')!;
+      const cancelBtn = document.getElementById('cancel-btn')!;
 
       const labels: Record<string, string> = {
         win: 'You Win!',
@@ -146,7 +159,7 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
       text.textContent = labels[type]!;
 
       // Force CSS animations to replay (they already fired on first game).
-      for (const el of [text, btn] as HTMLElement[]) {
+      for (const el of [text, btn, cancelBtn] as HTMLElement[]) {
         el.style.animation = 'none';
         el.offsetHeight; // force reflow
         el.style.animation = '';
@@ -156,29 +169,29 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
         this._launchFireworks();
       }
 
-      const doRestart = (): void => {
+      const cleanup = (): void => {
         overlay.className = '';
-        this.clear();
-        resolve();
       };
 
-      // "Play again?" button restarts immediately.
       btn.addEventListener(
         'click',
         (e) => {
           e.stopPropagation();
-          doRestart();
+          cleanup();
+          resolve('restart');
         },
         { once: true },
       );
 
-      // Clicking elsewhere on the overlay just dismisses it (board stays visible).
-      const dismiss = (): void => {
-        overlay.className = '';
-        overlay.removeEventListener('click', dismiss);
-        resolve();
-      };
-      overlay.addEventListener('click', dismiss);
+      cancelBtn.addEventListener(
+        'click',
+        (e) => {
+          e.stopPropagation();
+          cleanup();
+          resolve('cancel');
+        },
+        { once: true },
+      );
     });
   }
 
@@ -187,12 +200,24 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
   ): Promise<void> {
     switch (choice.$type) {
       case 'win': {
-        const didWin = choice.parameters!.player === this.player;
-        await this._showResult(didWin ? 'win' : 'lose');
+        const didWin =
+          choice.parameters!.player[entityId] ===
+          (this.player as unknown as TicTacToePlayer)[entityId];
+        const result = await this._showResult(didWin ? 'win' : 'lose');
+        if (this.onResultChoice) {
+          this.onResultChoice(result);
+        } else {
+          this.clear();
+        }
         break;
       }
       case 'draw': {
-        await this._showResult('draw');
+        const result = await this._showResult('draw');
+        if (this.onResultChoice) {
+          this.onResultChoice(result);
+        } else {
+          this.clear();
+        }
         break;
       }
       case 'mark': {

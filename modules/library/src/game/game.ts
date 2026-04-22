@@ -531,6 +531,7 @@ export abstract class Game<
         );
 
         this._stateService.informPlayer(player, true);
+        this._stateService.repromptPlayer(player);
       }
     }
   }

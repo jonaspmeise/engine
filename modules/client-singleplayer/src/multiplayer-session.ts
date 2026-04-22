@@ -1,3 +1,4 @@
+import { PlayAgainMessage } from '../../server/src/messages';
 /// <reference lib="dom" />
 import {
   entityId,
@@ -66,7 +67,6 @@ export class MultiplayerSession {
     const sessionKey = sessionStorage.getItem(SESSION_KEY_STORAGE_KEY);
     if (sessionKey === null) {
       window.location.href = '/';
-      // This line is never reached; the throw satisfies the type checker.
       throw new Error('No session key found – redirecting to menu.');
     }
 
@@ -109,6 +109,11 @@ export class MultiplayerSession {
     return this;
   }
 
+  /** Send a PLAY_AGAIN vote to the server to restart the current game. */
+  public playAgain(): void {
+    this._ws.send(JSON.stringify({ type: 'PLAY_AGAIN' } as PlayAgainMessage));
+  }
+
   private _handleMessage(msg: { type: string; payload?: unknown }): void {
     if (
       this._onSetup === null ||
@@ -133,12 +138,35 @@ export class MultiplayerSession {
     switch (msg.type) {
       case 'SETUP': {
         const payload = msg.payload as { playerIndex: number };
-        this._onSetup?.(payload.playerIndex);
+        this._onSetup!(payload.playerIndex);
         break;
       }
       case 'STATE': {
-        const payload = msg.payload as { state: Snapshot[] };
-        this._onState?.(payload.state);
+        const payload = msg.payload as {
+          state: Array<{
+            dirtyEntities: Record<string, unknown>;
+            executed?:
+              | {
+                  $type: string;
+                  parameters: Record<string, unknown> | null | undefined;
+                }
+              | undefined;
+          }>;
+        };
+        const snapshots: Snapshot[] = payload.state.map((s) => ({
+          dirtyEntities: s.dirtyEntities,
+          executed:
+            s.executed !== undefined
+              ? {
+                  $type: s.executed.$type,
+                  parameters: resolveParams(s.executed.parameters) as Record<
+                    string,
+                    unknown
+                  >,
+                }
+              : undefined,
+        })) as Snapshot[];
+        this._onState!(snapshots);
         break;
       }
       case 'CHOICES': {
@@ -164,7 +192,7 @@ export class MultiplayerSession {
             >,
           },
         })) as unknown as EnhancedChoice<Action<string, any, any>>[];
-        this._onChoices?.(choices, (choiceId: ChoiceId) => {
+        this._onChoices!(choices, (choiceId: ChoiceId) => {
           this._ws.send(
             JSON.stringify({ type: 'CHOICE', payload: { choiceId } }),
           );
@@ -173,7 +201,7 @@ export class MultiplayerSession {
       }
       case 'GAME_OVER': {
         sessionStorage.removeItem(SESSION_KEY_STORAGE_KEY);
-        this._onGameOver?.();
+        this._onGameOver!();
         break;
       }
     }

@@ -23,12 +23,17 @@ export type ReconnectMessage = {
   readonly payload: { readonly sessionKey: string };
 };
 
+export type PlayAgainMessage = {
+  readonly type: 'PLAY_AGAIN';
+};
+
 export type ClientMessage =
   | JoinLobbyMessage
   | CreateLobbyMessage
   | RequestStateMessage
   | ChoiceMessage
-  | ReconnectMessage;
+  | ReconnectMessage
+  | PlayAgainMessage;
 
 // ── Server → Client ───────────────────────────────────────────────────────────
 

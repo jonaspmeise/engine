@@ -196,17 +196,25 @@ async function startGameSession(
   }
 
   gameInstance.registerCallbacks({
-    onEnd: () => {
-      for (const wsPlayerId of playerMap.keys()) {
-        state.sendToPlayer(wsPlayerId, { type: 'GAME_OVER' });
-      }
-      state.sessions.delete(lobbyId);
-      state.lobbyStore.deleteLobby(lobbyId);
-      console.info(`[lobby] ${lobbyId} deleted (game ended)`);
-    },
+    onEnd: makeGameEndCallback(session, lobbyId, state),
   });
 
   await session.start();
+}
+
+/** Builds the onEnd callback for a game, keeping the session alive for restart votes. */
+function makeGameEndCallback(
+  session: GameSession,
+  lobbyId: LobbyId,
+  state: ServerState,
+): () => void {
+  return () => {
+    for (const wsPlayerId of session.playerIds()) {
+      state.sendToPlayer(wsPlayerId, { type: 'GAME_OVER' });
+    }
+    session.markEnded();
+    console.info(`[lobby] ${lobbyId} game ended (awaiting restart or cleanup)`);
+  };
 }
 
 /** Returns the active `GameSession` the given player is part of, or `undefined`. */
@@ -266,7 +274,7 @@ function handleMessage(
     case 'REQUEST_STATE': {
       // Re-register the player's callback so the game re-delivers their state.
       const session = findSessionForPlayer(ws.data.playerId, state);
-      if (session === undefined) {
+      if (session === undefined || session.isEnded()) {
         send(ws, {
           type: 'ERROR',
           payload: { message: 'No active game session found.' },
@@ -278,7 +286,7 @@ function handleMessage(
     }
     case 'CHOICE': {
       const session = findSessionForPlayer(ws.data.playerId, state);
-      if (session === undefined) {
+      if (session === undefined || session.isEnded()) {
         send(ws, {
           type: 'ERROR',
           payload: { message: 'No active game session found.' },
@@ -297,6 +305,32 @@ function handleMessage(
       }
       break;
     }
+    case 'PLAY_AGAIN': {
+      const session = findSessionForPlayer(ws.data.playerId, state);
+      if (session === undefined || !session.isEnded()) {
+        send(ws, {
+          type: 'ERROR',
+          payload: { message: 'No ended game session found.' },
+        });
+        return;
+      }
+      const allVoted = session.voteRestart(ws.data.playerId);
+      if (allVoted) {
+        // Find this session's lobby ID so we can rebuild the onEnd callback.
+        let lobbyId: LobbyId | undefined;
+        for (const [id, s] of state.sessions.entries()) {
+          if (s === session) {
+            lobbyId = id;
+            break;
+          }
+        }
+        if (lobbyId === undefined) return;
+        const lid = lobbyId;
+        void session.restart(state.game.createGame, makeGameEndCallback(session, lid, state));
+        console.info(`[lobby] ${lid} game restarted`);
+      }
+      break;
+    }
     case 'RECONNECT': {
       const { sessionKey } = message.payload;
       // Find the session that issued this key.
@@ -311,6 +345,14 @@ function handleMessage(
         }
       }
       if (foundSession === undefined || oldPlayerId === undefined) {
+        send(ws, {
+          type: 'ERROR',
+          payload: { message: 'Invalid or expired session key.' },
+        });
+        return;
+      }
+      // Reject reconnect to ended sessions — the game is over.
+      if (foundSession.isEnded()) {
         send(ws, {
           type: 'ERROR',
           payload: { message: 'Invalid or expired session key.' },
@@ -438,11 +480,31 @@ export async function createServer(
       close(ws) {
         console.info(`[ws] ${ws.data.playerId} disconnected`);
         ws.unsubscribe(ws.data.playerId);
+        const playerId = ws.data.playerId;
+
+        // If the player is in an ended session (awaiting restart votes), clean up
+        // immediately and notify any remaining connected players.
+        for (const [lobbyId, session] of state.sessions.entries()) {
+          if (session.hasPlayer(playerId) && session.isEnded()) {
+            for (const otherId of session.playerIds()) {
+              if (otherId !== playerId) {
+                state.sendToPlayer(otherId, { type: 'GAME_OVER' });
+              }
+            }
+            state.sessions.delete(lobbyId);
+            state.lobbyStore.deleteLobby(lobbyId);
+            console.info(
+              `[lobby] ${lobbyId} deleted (player disconnected during ended session)`,
+            );
+            return;
+          }
+        }
+
         // Record which lobbies this player is in before removing them.
         const affectedLobbyIds = [...state.lobbyStore.lobbies.entries()]
-          .filter(([, lobby]) => lobby.players.includes(ws.data.playerId))
+          .filter(([, lobby]) => lobby.players.includes(playerId))
           .map(([id]) => id);
-        state.lobbyStore.leaveLobby(ws.data.playerId);
+        state.lobbyStore.leaveLobby(playerId);
         // If a lobby became empty and no game session is running, remove it.
         // When a session exists the players are expected to reconnect via RECONNECT,
         // so we must NOT delete the session here.

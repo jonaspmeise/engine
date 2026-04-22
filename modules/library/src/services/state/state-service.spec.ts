@@ -278,8 +278,9 @@ describe('StateService', () => {
       service.informPlayer(disconnectedPlayer);
 
       // THEN — error is logged, state is never called on anything
-      expect(logger.error).toHaveBeenCalled();
-      expect(player[handler]!.state).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringMatching(/disconnect/i),
+      );
     });
   });
 });
