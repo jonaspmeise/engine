@@ -3,20 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
   "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+    ".": "./src/index.ts"
   },
   "dependencies": {
+    "@my-engine/client-singleplayer": "workspace:*",
     "@my-engine/library": "workspace:*"
   },
   "scripts": {
     "build": "tsc -b",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "server:tictactoe": "bun src/index.ts tictactoe",
+    "server:uno": "bun src/index.ts uno"
   }
 }

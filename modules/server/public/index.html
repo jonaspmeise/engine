@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{GAME_NAME}}</title>
+
+    <!--
+      Game-specific stylesheet — gives the menu the same look & feel as the
+      game itself. Each game's ServerGameConfig points to its own CSS file.
+    -->
+    <link rel="stylesheet" href="/game.css" />
+
+    <style>
+      :root {
+        --menu-bg: #0f172a;
+        --menu-text: #f8fafc;
+        --menu-surface: #1e293b;
+        --menu-surface-hover: #334155;
+        --menu-surface-active: #475569;
+        --menu-border: #334155;
+        --menu-radius: 12px;
+        --menu-gap: 0.75rem;
+        --menu-accent: #60a5fa;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background-color: var(--menu-bg);
+        color: var(--menu-text);
+        font-family:
+          'Inter',
+          system-ui,
+          -apple-system,
+          sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100svh;
+      }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--menu-gap);
+        padding: 2.5rem 1.5rem;
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0 0 1.5rem;
+        font-size: clamp(2.5rem, 10vw, 4.5rem);
+        font-weight: 700;
+        letter-spacing: -0.025em;
+      }
+
+      /* ── Buttons ─────────────────────────────────────────────────────────── */
+      .btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--menu-gap);
+        width: 100%;
+        max-width: 280px;
+      }
+
+      button {
+        padding: 0.85rem 2rem;
+        background: var(--menu-surface);
+        color: var(--menu-text);
+        border: 1px solid var(--menu-border);
+        border-radius: var(--menu-radius);
+        font-family: inherit;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          transform 0.1s ease;
+        width: 100%;
+      }
+
+      button:hover {
+        background: var(--menu-surface-hover);
+      }
+
+      button:active {
+        background: var(--menu-surface-active);
+        transform: scale(0.98);
+      }
+
+      /* ── Modal ───────────────────────────────────────────────────────────── */
+      dialog {
+        background: var(--menu-bg);
+        color: var(--menu-text);
+        border: 1px solid var(--menu-border);
+        border-radius: var(--menu-radius);
+        padding: 2rem;
+        width: min(360px, 90vw);
+      }
+
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+      }
+
+      .modal-content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--menu-gap);
+      }
+
+      .modal-content h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1.4rem;
+        text-align: center;
+      }
+
+      /* ── Lobby ID input ──────────────────────────────────────────────────── */
+      #lobby-input {
+        display: flex;
+        flex-direction: column;
+        gap: var(--menu-gap);
+      }
+
+      input[type='text'] {
+        padding: 0.65rem 1rem;
+        background: var(--menu-surface);
+        color: var(--menu-text);
+        border: 1px solid var(--menu-border);
+        border-radius: calc(var(--menu-radius) / 2);
+        font-family: inherit;
+        font-size: 1rem;
+        width: 100%;
+        outline: none;
+      }
+
+      input[type='text']:focus {
+        border-color: var(--menu-accent);
+      }
+
+      /* ── Lobby ID display ────────────────────────────────────────────────── */
+      #lobby-id-display {
+        background: var(--menu-surface);
+        border: 1px solid var(--menu-border);
+        border-radius: calc(var(--menu-radius) / 2);
+        padding: 0.75rem 1rem;
+        font-family: monospace;
+        font-size: 1rem;
+        text-align: center;
+        letter-spacing: 0.05em;
+        word-break: break-all;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>{{GAME_NAME}}</h1>
+
+      <div class="btn-group">
+        <button id="singleplayer">Singleplayer</button>
+        <button id="multiplayer">Multiplayer</button>
+      </div>
+    </main>
+
+    <dialog id="multiplayer-modal">
+      <div class="modal-content">
+        <h2>Multiplayer</h2>
+
+        <button id="host">Host Lobby</button>
+        <button id="join">Join Lobby</button>
+
+        <div id="lobby-input" hidden>
+          <input
+            id="lobby-id-input"
+            type="text"
+            placeholder="Enter lobby ID&hellip;"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="confirm-join">Join</button>
+        </div>
+
+        <p id="lobby-id-display" hidden></p>
+
+        <button id="close-modal">Close</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="/menu.js"></script>
+  </body>
+</html>
