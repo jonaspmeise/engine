@@ -1,4 +1,3 @@
-import { PlayAgainMessage } from '../../server/src/messages';
 /// <reference lib="dom" />
 import {
   entityId,
@@ -111,7 +110,7 @@ export class MultiplayerSession {
 
   /** Send a PLAY_AGAIN vote to the server to restart the current game. */
   public playAgain(): void {
-    this._ws.send(JSON.stringify({ type: 'PLAY_AGAIN' } as PlayAgainMessage));
+    this._ws.send(JSON.stringify({ type: 'PLAY_AGAIN' }));
   }
 
   private _handleMessage(msg: { type: string; payload?: unknown }): void {

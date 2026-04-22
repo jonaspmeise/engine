@@ -15,7 +15,7 @@
     "build": "tsc -b",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "server:tictactoe": "bun src/index.ts tictactoe",
-    "server:uno": "bun src/index.ts uno"
+    "server:tictactoe": "bun src/games/tictactoe.ts",
+    "server:uno": "bun src/games/uno.ts"
   }
 }

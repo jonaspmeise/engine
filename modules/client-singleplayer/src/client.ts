@@ -36,6 +36,19 @@ export abstract class Client<
   public static readonly GAME_RESET_EVENT = 'game:reset';
 
   /**
+   * Called after the end-of-game result overlay is dismissed.
+   *
+   * - `'restart'` — the player wants to play again.
+   * - `'cancel'`  — the player wants to return to the menu.
+   *
+   * When `null` (the default), the client falls back to calling `this.clear()`
+   * which fires `game:reset` and navigates back to the main menu (singleplayer
+   * behaviour). Set this in multiplayer context via {@link startMultiplayerClient}
+   * or manually to override the default.
+   */
+  public onResultChoice: ((result: 'restart' | 'cancel') => void) | null = null;
+
+  /**
    * Initializes a HTML5-based client for a game.
    * @param renderTarget The target element into which the game should be rendered.
    * @param game The reference to the base game. The game is not instantiated, just used to access setup methods.

@@ -19,9 +19,9 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "example:tictactoe:run": "bun --hot examples/tictactoe/index.html",
-    "example:tictactoe:build": "bun build ./examples/tictactoe/index.ts --outdir ./examples/tictactoe/dist --target browser",
+    "example:tictactoe:build": "bun build ./examples/tictactoe/tictactoe.ts --outdir ./examples/tictactoe/dist --target browser",
     "example:uno:run": "bun --hot examples/uno/index.html",
-    "example:uno:build": "bun build ./examples/uno/index.ts --outdir ./examples/uno/dist --target browser"
+    "example:uno:build": "bun build ./examples/uno/uno.ts --outdir ./examples/uno/dist --target browser"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.8.9"

@@ -116,7 +116,12 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       const params = (choice as any).parameters;
       const winnerEntityId: string | undefined = params?.player?.[entityId];
       const didWin = winnerEntityId === (this.player as any)[entityId];
-      await this._showResult(didWin ? 'win' : 'lose');
+      const result = await this._showResult(didWin ? 'win' : 'lose');
+      if (this.onResultChoice) {
+        this.onResultChoice(result);
+      } else {
+        this.clear();
+      }
       return;
     }
 
@@ -552,7 +557,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     }
   }
 
-  private _showResult(type: 'win' | 'lose'): Promise<void> {
+  private _showResult(type: 'win' | 'lose'): Promise<'restart'> {
     return new Promise((resolve) => {
       const overlay = document.getElementById('result-overlay')!;
       const text = document.getElementById('result-text')!;
@@ -579,8 +584,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
 
       const doRestart = (): void => {
         overlay.className = '';
-        this.clear();
-        resolve();
+        resolve('restart');
       };
 
       btn.addEventListener(
@@ -596,7 +600,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         'click',
         () => {
           overlay.className = '';
-          resolve();
+          resolve('restart');
         },
         { once: true },
       );

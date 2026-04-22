@@ -10,15 +10,6 @@ import { TicTacToePlayer } from '../../../library/tests/tictactoe/entities/playe
 import { ChoiceTypeMapping } from '../../src/client.types';
 
 export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
-  /**
-   * Optional hook called after the result overlay is dismissed.
-   * When set (e.g. in multiplayer), the callee decides what to do:
-   *   - 'restart' → request a new game from the server
-   *   - 'cancel'  → navigate back to the menu
-   * When not set the default singleplayer behaviour applies (`this.clear()`).
-   */
-  public onResultChoice: ((result: 'restart' | 'cancel') => void) | null = null;
-
   constructor(player: PlayerInterface) {
     super(
       document.getElementById('tic-tac-toe-target') as HTMLDivElement,

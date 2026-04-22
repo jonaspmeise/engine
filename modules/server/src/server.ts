@@ -1,8 +1,9 @@
 import type { ServerWebSocket } from 'bun';
 import { join } from 'path';
+import type { Game } from '@my-engine/library';
 import type { ClientMessage, ServerMessage } from './messages';
 import type {
-  ServerGameConfig,
+  GameServerConfig,
   ServerOptions,
   SessionKey,
   WebSocketId,
@@ -19,7 +20,7 @@ export type ConnectionData = {
 // ── Server state ──────────────────────────────────────────────────────────────
 
 type ServerState = {
-  readonly game: ServerGameConfig;
+  readonly game: GameServerConfig<any>;
   readonly lobbyStore: LobbyStore;
   /** Running game sessions keyed by lobby ID. */
   readonly sessions: Map<LobbyId, GameSession>;
@@ -29,15 +30,13 @@ type ServerState = {
   readonly gameStyles: string;
   readonly singleplayerPage: string;
   readonly menuBundle: string;
-  /** Adapted singleplayer HTML with /multiplayer-game.js, or undefined if not configured. */
+  /** Adapted HTML for the multiplayer route, or undefined if not configured. */
   readonly multiplayerPage: string | undefined;
-  /** Bundled multiplayer client script, or undefined if not configured. */
-  readonly multiplayerBundle: string | undefined;
 };
 
 // ── Asset building ────────────────────────────────────────────────────────────
 
-async function buildBundle(entry: string): Promise<string> {
+export async function buildBundle(entry: string): Promise<string> {
   const result = await Bun.build({
     entrypoints: [entry],
     target: 'browser',
@@ -57,11 +56,6 @@ async function buildBundle(entry: string): Promise<string> {
   return output.text();
 }
 
-async function loadStyles(path?: string): Promise<string> {
-  if (path === undefined) return '';
-  return Bun.file(path).text();
-}
-
 // ── HTML page building ────────────────────────────────────────────────────────
 
 const MAIN_MENU_HTML_PATH = join(import.meta.dir, '../public/index.html');
@@ -77,19 +71,17 @@ function renderTemplate(
   );
 }
 
-async function buildSingleplayerPage(
-  config: ServerGameConfig,
-): Promise<string> {
-  let html = await Bun.file(config.singleplayerHtml).text();
+function buildSingleplayerPage(html: string): string {
+  let result = html;
 
   // Replace the local module script with the server-bundled version.
-  html = html.replace(
+  result = result.replace(
     /<script\s+type="module"\s+src="[^"]*"><\/script>/g,
     '<script type="module" src="/game.js"></script>',
   );
 
   // Replace local CSS links with the server route.
-  html = html.replace(
+  result = result.replace(
     /<link\s+rel="stylesheet"\s+href="(?!\/)[^"]*"\s*\/?>/g,
     '<link rel="stylesheet" href="/game.css">',
   );
@@ -102,24 +94,22 @@ async function buildSingleplayerPage(
     }, { capture: true });
   </script>`;
 
-  html = html.replace('</head>', `${override}\n  </head>`);
-
-  return html;
+  return result.replace('</head>', `${override}\n  </head>`);
 }
 
 /**
  * Builds the multiplayer variant of the game page.
- * Identical to {@link buildSingleplayerPage} but loads `/multiplayer-game.js`.
+ * Loads the same `/game.js` bundle which detects the `/multiplayer` path at runtime.
  */
-async function buildMultiplayerPage(config: ServerGameConfig): Promise<string> {
-  let html = await Bun.file(config.singleplayerHtml).text();
+function buildMultiplayerPage(html: string): string {
+  let result = html;
 
-  html = html.replace(
+  result = result.replace(
     /<script\s+type="module"\s+src="[^"]*"><\/script>/g,
-    '<script type="module" src="/multiplayer-game.js"></script>',
+    '<script type="module" src="/game.js"></script>',
   );
 
-  html = html.replace(
+  result = result.replace(
     /<link\s+rel="stylesheet"\s+href="(?!\/)[^"]*"\s*\/?>/g,
     '<link rel="stylesheet" href="/game.css">',
   );
@@ -130,9 +120,7 @@ async function buildMultiplayerPage(config: ServerGameConfig): Promise<string> {
     }, { capture: true });
   </script>`;
 
-  html = html.replace('</head>', `${override}\n  </head>`);
-
-  return html;
+  return result.replace('</head>', `${override}\n  </head>`);
 }
 
 // ── HTTP response helpers ─────────────────────────────────────────────────────
@@ -177,7 +165,10 @@ async function startGameSession(
   const lobby = state.lobbyStore.lobbies.get(lobbyId);
   if (lobby === undefined || state.sessions.has(lobbyId)) return;
 
-  const gameInstance = state.game.createGame();
+  const lobbyData = lobby.players.map((pid) => lobby.playerData.get(pid));
+  const gameInstance = (state.game.createGame as (d: unknown[]) => Game<any>)(
+    lobbyData,
+  );
 
   const gamePlayers = gameInstance.players();
   const playerMap = new Map(
@@ -238,7 +229,7 @@ function handleMessage(
   switch (message.type) {
     case 'CREATE_LOBBY': {
       const id = state.lobbyStore.createLobby();
-      state.lobbyStore.joinLobby(id, ws.data.playerId);
+      state.lobbyStore.joinLobby(id, ws.data.playerId, message.payload?.data);
       console.info(`[lobby] ${id} created by ${ws.data.playerId}`);
       send(ws, { type: 'LOBBY_CREATED', payload: { id } });
 
@@ -257,7 +248,7 @@ function handleMessage(
         });
         return;
       }
-      state.lobbyStore.joinLobby(id, ws.data.playerId);
+      state.lobbyStore.joinLobby(id, ws.data.playerId, message.payload.data);
       console.info(`[lobby] ${id} joined by ${ws.data.playerId}`);
 
       // Start the session once the lobby has enough players.
@@ -326,7 +317,16 @@ function handleMessage(
         }
         if (lobbyId === undefined) return;
         const lid = lobbyId;
-        void session.restart(state.game.createGame, makeGameEndCallback(session, lid, state));
+        const restartLobby = state.lobbyStore.lobbies.get(lid);
+        const restartData =
+          restartLobby !== undefined
+            ? restartLobby.players.map((pid) => restartLobby.playerData.get(pid))
+            : [];
+        void session.restart(
+          () =>
+            (state.game.createGame as (d: unknown[]) => Game<any>)(restartData),
+          makeGameEndCallback(session, lid, state),
+        );
         console.info(`[lobby] ${lid} game restarted`);
       }
       break;
@@ -370,31 +370,21 @@ function handleMessage(
 // ── Server factory ────────────────────────────────────────────────────────────
 
 export async function createServer(
-  game: ServerGameConfig,
+  game: GameServerConfig<any>,
   options: ServerOptions = {},
 ): Promise<Bun.Server<ConnectionData>> {
   const { port = 3000 } = options;
 
-  const [
-    clientBundle,
-    gameStyles,
-    singleplayerPage,
-    menuBundle,
-    rawMenuHtml,
-    multiplayerBundle,
-  ] = await Promise.all([
-    buildBundle(game.clientEntry),
-    loadStyles(game.clientStyles),
-    buildSingleplayerPage(game),
+  const [menuBundle, rawMenuHtml] = await Promise.all([
     buildBundle(MAIN_MENU_ENTRY_PATH),
     Bun.file(MAIN_MENU_HTML_PATH).text(),
-    game.multiplayerClientEntry
-      ? buildBundle(game.multiplayerClientEntry)
-      : Promise.resolve(undefined),
   ]);
 
-  const multiplayerPage = game.multiplayerClientEntry
-    ? await buildMultiplayerPage(game)
+  const clientBundle = game.files.client;
+  const gameStyles = game.files.styles ?? '';
+  const singleplayerPage = buildSingleplayerPage(game.files.html);
+  const multiplayerPage = game.multiplayer
+    ? buildMultiplayerPage(game.files.html)
     : undefined;
 
   const mainMenuHtml = renderTemplate(rawMenuHtml, { GAME_NAME: game.name });
@@ -416,7 +406,6 @@ export async function createServer(
     singleplayerPage,
     menuBundle,
     multiplayerPage,
-    multiplayerBundle,
   };
 
   bunServer = Bun.serve<ConnectionData>({
@@ -443,11 +432,6 @@ export async function createServer(
             return new Response('Multiplayer not available.', { status: 404 });
           }
           return serveHtml(state.multiplayerPage);
-        case '/multiplayer-game.js':
-          if (state.multiplayerBundle === undefined) {
-            return new Response('Not Found', { status: 404 });
-          }
-          return serveJs(state.multiplayerBundle);
         case '/game.js':
           return serveJs(state.clientBundle);
         case '/game.css':
@@ -523,4 +507,39 @@ export async function createServer(
   });
 
   return bunServer;
+}
+
+// ── GameServer ────────────────────────────────────────────────────────────────
+
+/**
+ * The batteries-included entry point for hosting a game.
+ *
+ * ```ts
+ * import { GameServer } from '@my-engine/server';
+ * import { TicTacToeConfig } from './tictactoe';
+ *
+ * new GameServer(TicTacToeConfig).run();
+ * ```
+ */
+export class GameServer<TLobbyData = void> {
+  constructor(private readonly _config: GameServerConfig<TLobbyData>) {}
+
+  /**
+   * Starts the HTTP + WebSocket server and returns the Bun server handle.
+   * Prefer {@link run} when you just want to start and log.
+   */
+  public start(options: ServerOptions = {}): Promise<Bun.Server<ConnectionData>> {
+    return createServer(this._config as GameServerConfig<any>, options);
+  }
+
+  /**
+   * Starts the server, logs the URL, and keeps the process alive.
+   * This is the recommended entry point for production use.
+   */
+  public async run(options: ServerOptions = {}): Promise<void> {
+    const server = await this.start(options);
+    console.info(
+      `[server] http://${server.hostname}:${server.port}  (${this._config.name})`,
+    );
+  }
 }

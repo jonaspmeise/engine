@@ -7,6 +7,7 @@ import {
   test,
 } from 'bun:test';
 import { startServer } from './index';
+import { TicTacToeServer } from './games/tictactoe';
 import type { ConnectionData } from './server';
 
 // Bundling the game client at startup can take a moment.
@@ -18,7 +19,7 @@ describe('server (tictactoe)', () => {
   let wsUrl: string;
 
   beforeAll(async () => {
-    server = await startServer('tictactoe', { port: 0 });
+    server = await startServer(TicTacToeServer, { port: 0 });
     baseUrl = `http://${server.hostname}:${server.port}`;
     wsUrl = `ws://${server.hostname}:${server.port}/ws`;
   });
@@ -225,11 +226,13 @@ describe('server (tictactoe)', () => {
   });
 
   describe('startServer', () => {
-    test('rejects for unknown game names', async () => {
-      // GIVEN an invalid game name
+    test('starts a server for a valid config', async () => {
+      // GIVEN a valid game config
       // WHEN calling startServer
-      // THEN it rejects with an error mentioning the unknown game
-      await expect(startServer('unknown-game')).rejects.toThrow('Unknown game');
+      // THEN it resolves with a running server
+      const s = await startServer(TicTacToeServer, { port: 0 });
+      expect(s.port).toBeGreaterThan(0);
+      s.stop(true);
     });
   });
 

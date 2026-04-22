@@ -2,11 +2,12 @@
 
 export type JoinLobbyMessage = {
   readonly type: 'JOIN_LOBBY';
-  readonly payload: { readonly id: string };
+  readonly payload: { readonly id: string; readonly data?: unknown };
 };
 
 export type CreateLobbyMessage = {
   readonly type: 'CREATE_LOBBY';
+  readonly payload?: { readonly data?: unknown };
 };
 
 export type RequestStateMessage = {

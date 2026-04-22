@@ -6,6 +6,8 @@ export type LobbyId = string;
 export type Lobby = {
   readonly id: LobbyId;
   readonly players: ReadonlyArray<WebSocketId>;
+  /** Game-specific data submitted by each player when they created or joined the lobby. */
+  readonly playerData: ReadonlyMap<WebSocketId, unknown>;
 };
 
 /**
@@ -34,26 +36,34 @@ export class LobbyStore {
       id = generateLobbyId();
     } while (this._lobbies.has(id));
 
-    this._lobbies.set(id, { id, players: [] });
+    this._lobbies.set(id, { id, players: [], playerData: new Map() });
 
     return id;
   }
 
   /**
-   * Adds a player to an existing lobby.
+   * Adds a player to an existing lobby, optionally associating game-specific
+   * data (e.g. preferred symbol, custom deck) with that player.
    * Does nothing when the lobby does not exist.
    *
    * @param id       The id of the target lobby.
    * @param playerId The id of the player to add.
+   * @param data     Optional game-specific data submitted by the player.
    */
-  public joinLobby(id: LobbyId, playerId: WebSocketId): void {
+  public joinLobby(id: LobbyId, playerId: WebSocketId, data?: unknown): void {
     const lobby = this._lobbies.get(id);
 
     if (lobby === undefined) {
       return;
     }
 
-    this._lobbies.set(id, { ...lobby, players: [...lobby.players, playerId] });
+    const newPlayerData = new Map(lobby.playerData);
+    newPlayerData.set(playerId, data);
+    this._lobbies.set(id, {
+      ...lobby,
+      players: [...lobby.players, playerId],
+      playerData: newPlayerData,
+    });
   }
 
   /**
