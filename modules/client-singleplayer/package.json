@@ -1,5 +1,5 @@
 {
-  "name": "@my-engine/client",
+  "name": "@my-engine/client-singleplayer",
   "version": "0.0.0",
   "private": true,
   "type": "module",
