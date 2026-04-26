@@ -53,7 +53,9 @@ export class MultiplayerSession {
       ws.send(JSON.stringify({ type: 'JOIN', lobbyId }));
     });
     ws.addEventListener('message', (ev: MessageEvent<string>) => {
-      this._handleMessage(JSON.parse(ev.data) as { type: string; payload?: unknown });
+      this._handleMessage(
+        JSON.parse(ev.data) as { type: string; payload?: unknown },
+      );
     });
   }
 

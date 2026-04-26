@@ -236,7 +236,8 @@ export class EntityService
 
     for (const prototype of prototypes) {
       if (!this._entities.types.has(prototype as Class<Entity>)) {
-        this._logger.debug(`Creating new entity type set for type ${prototype?.name}.`,
+        this._logger.debug(
+          `Creating new entity type set for type ${prototype?.name}.`,
         );
         this._entities.types.set(prototype as Class<Entity>, new Set());
       }

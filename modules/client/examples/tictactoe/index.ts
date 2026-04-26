@@ -29,10 +29,17 @@ function showMenu(): void {
   const overlay = document.createElement('div');
   overlay.id = 'menu';
   Object.assign(overlay.style, {
-    position: 'fixed', inset: '0', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', gap: '1rem',
-    background: 'rgba(15,23,42,0.95)', zIndex: '1000',
-    color: '#f8fafc', fontFamily: 'system-ui, sans-serif',
+    position: 'fixed',
+    inset: '0',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '1rem',
+    background: 'rgba(15,23,42,0.95)',
+    zIndex: '1000',
+    color: '#f8fafc',
+    fontFamily: 'system-ui, sans-serif',
   });
 
   const title = document.createElement('h2');
@@ -49,11 +56,23 @@ function showMenu(): void {
     const btn = document.createElement('button');
     btn.textContent = name;
     Object.assign(btn.style, {
-      padding: '0.75rem 2.5rem', fontSize: '1.1rem', borderRadius: '8px',
-      border: 'none', background: '#38bdf8', color: '#0f172a',
-      fontWeight: '700', cursor: 'pointer',
+      padding: '0.75rem 2.5rem',
+      fontSize: '1.1rem',
+      borderRadius: '8px',
+      border: 'none',
+      background: '#38bdf8',
+      color: '#0f172a',
+      fontWeight: '700',
+      cursor: 'pointer',
     });
-    btn.addEventListener('click', () => { overlay.remove(); startGame(factory); }, { once: true });
+    btn.addEventListener(
+      'click',
+      () => {
+        overlay.remove();
+        startGame(factory);
+      },
+      { once: true },
+    );
     overlay.appendChild(btn);
   }
 
