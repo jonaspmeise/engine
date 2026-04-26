@@ -17,6 +17,12 @@
   "scripts": {
     "build": "tsc -b",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "example:tictactoe:server": "bun --hot examples/server.ts tictactoe",
+    "example:uno:server": "bun --hot examples/server.ts uno",
+    "example:uno:run": "bun --hot examples/uno/index.html"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.8.9"
   }
 }

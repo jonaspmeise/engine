@@ -1,90 +1,100 @@
-import { TicTacToeState, TicTacToeParameters, Mark } from './tictactoe.typed';
-import { Game } from '../../src/game';
+import { TicTacToeParameters, Mark } from './tictactoe.typed';
+import { Game } from '../../src/game/game';
 import { Entity } from '../../src/components/entity';
-import { Slot } from './slot';
-import { MarkAction } from './mark';
+import { TicTacToeMark } from './actions/mark';
 import { Action } from '../../src/components/action';
-import { TicTacToePlayer } from './player';
-import { VerticalLane } from './vertical-lane';
-import { QueryableRuntime } from '../../src/interfaces/queryable-runtime';
-import { HorizontalLane } from './horizontal-lane';
-import { DiagonalLane } from './diagonal-lane';
-import { NegativeRule } from '../../src/components/negative-rule';
-import { PositiveRule } from '../../src/components/positive-rule';
+import { DiagonalLane } from './entities/diagonal-lane';
+import { Class, EntityClass } from '../../src/game/game.types';
+import { HorizontalLane } from './entities/horizontal-lane';
+import { TicTacToePlayer } from './entities/player';
+import { Slot } from './entities/slot';
+import { VerticalLane } from './entities/vertical-lane';
+import { Graph } from '../../src/components/graph/graph';
+import { TicTacToeDraw } from './actions/draw';
+import { TicTacToeWin } from './actions/win';
+import { GraphRuntime } from '../../src/game/graph-runtime';
 
-export class TicTacToe extends Game<TicTacToeState, TicTacToeParameters> {
-  positiveRules(): Set<PositiveRule<TicTacToeState>> {
-    return new Set([
-      {
-        name: 'marking-slot-allowed-during-your-turn',
-        apply: (runtime) => {
-          const currentPlayer = runtime
-            .entities(TicTacToePlayer)
-            .filter((player) => player.isCurrentPlayer)[0]!;
+export class TicTacToe extends Game<TicTacToeParameters> {
+  public rawGraph(): Graph<'INITIAL'> {
+    return {
+      INITIAL: async (runtime: GraphRuntime) => {
+        const currentPlayer = runtime
+          .entities(TicTacToePlayer)
+          .find((player) => player.isCurrentPlayer)!;
 
-          // TODO: Make Choice instantiate the Action object itself...?
-          return runtime.entities(Slot).map((slot) => ({
-            action: MarkAction,
-            parameters: {
-              playerId: currentPlayer.id(),
-              x: slot.x,
-              y: slot.y,
-            },
-            player: currentPlayer,
-          }));
-        },
+        const freeSlots = runtime
+          .entities(Slot)
+          .filter((slot) => slot.isEmpty());
+
+        if (freeSlots.length === 0) {
+          await runtime.execute(new TicTacToeDraw());
+          return;
+        }
+
+        await runtime.execute(
+          await runtime.prompt(
+            currentPlayer,
+            freeSlots.map(
+              (slot) =>
+                new TicTacToeMark({
+                  slot: slot,
+                  player: currentPlayer,
+                }),
+            ),
+          ),
+        );
+
+        return 'INITIAL';
       },
+    };
+  }
+
+  entityClasses(): Set<EntityClass<Entity>> {
+    return new Set<EntityClass<Entity>>([
+      Slot,
+      TicTacToePlayer,
+      VerticalLane,
+      HorizontalLane,
+      DiagonalLane,
     ]);
   }
 
-  negativeRules(): void | Set<NegativeRule<TicTacToeState>> {
-    // No negative rules in this game.
-  }
-
-  actions(): Set<Action<TicTacToeState, any>> {
-    return new Set([new MarkAction()]);
+  actionClasses(): Set<Class<Action<string, any, any>>> {
+    return new Set([TicTacToeMark, TicTacToeDraw, TicTacToeWin]);
   }
 
   public readonly name: string = 'Tic-Tac-Toe';
 
-  *enrichen(
-    state: TicTacToeState,
-    _runtime: QueryableRuntime<TicTacToeState>,
-  ): Generator<Entity<TicTacToeState>, void, undefined> {
-    // Instead of hardcoding "3" here, we use the length of the board to determine its size.
-    // This is a little overmodeled for a default Tic-Tac-Toe game, but showcases the possibility.
-    const size = Math.sqrt(state.board.length);
+  initialize(parameters: TicTacToeParameters): Set<Entity> {
+    const entities = new Set<Entity>();
 
-    for (let x = 0; x < size; x++) {
-      for (let y = 0; y < size; y++) {
-        yield new Slot(x, y);
+    for (let x = 0; x < 3; x++) {
+      for (let y = 0; y < 3; y++) {
+        entities.add(new Slot(x, y));
       }
     }
 
     // Lanes.
-    for (let i = 0; i < size; i++) {
+    for (let i = 0; i < 3; i++) {
       // Horizontal.
-      yield new HorizontalLane(i);
+      entities.add(new HorizontalLane(i));
 
       // Vertical.
-      yield new VerticalLane(i);
+      entities.add(new VerticalLane(i));
     }
 
     // Diagonal lanes.
-    yield new DiagonalLane(0);
-    yield new DiagonalLane(1);
+    entities.add(new DiagonalLane(0));
+    entities.add(new DiagonalLane(1));
 
     // Players.
     const marks: Mark[] = ['X', 'O'];
     for (let i = 0; i < 2; i++) {
-      yield new TicTacToePlayer(marks[i]!, state.currentPlayer === marks[i]);
+      entities.add(
+        new TicTacToePlayer(marks[i]!, parameters.firstPlayer === marks[i]),
+      );
     }
-  }
 
-  initialize(parameters: TicTacToeParameters): TicTacToeState {
-    return {
-      board: Array(9).fill(null),
-      currentPlayer: parameters.firstPlayer,
-    };
+    return entities;
   }
 }

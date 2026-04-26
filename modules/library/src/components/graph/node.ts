@@ -1,0 +1,12 @@
+import { GraphRuntime } from '../../game/graph-runtime';
+import { NodeId } from './node.types';
+
+/**
+ * Describes a node in the graph, which encapsulates stateless logic that transform game state, queries players etc.
+ * If void is returned, the graph execution will stop. This should only be used for terminal nodes, e.g. end game nodes.
+ * // TODO: Test that throws an error if node is terminal but the game is not ended yet!
+ * @returns The id of the next node to execute.
+ */
+export type Node<NODES extends NodeId | void = void> = (
+  runtime: GraphRuntime,
+) => Promise<NODES> | NODES;

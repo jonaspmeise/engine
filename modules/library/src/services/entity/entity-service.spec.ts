@@ -7,55 +7,63 @@ import {
   beforeEach,
   mock,
 } from 'bun:test';
-import { Entity } from '../../components/entity';
-import { EntityID } from '../../components/entity.types';
+import { Entity, entityId } from '../../components/entity';
 import { EntityService } from './entity-service';
-import { NO_OP_LOGGER } from '../../game.types';
-import { EntityFlushCallback } from './entity-service.types';
+import { NO_OP_LOGGER } from '../../game/game.types';
+import { EntityFlushCallback, PlayerEntity } from './entity-service.types';
 import {
   playerId,
   PlayerInterface,
   playerInterfaceMarker,
+  handler,
 } from '../../interfaces/player-interface';
+import {
+  AfterAction,
+  BeforeAction,
+  CheckAction,
+} from '../../components/lifecyclehooks';
+import { ModifiableRuntime } from '../../game/modifiable-runtime';
+import { Action } from '../../components/action';
 
-class TestEntityA extends Entity<any> {
+class TestEntityA extends Entity {
+  public $type: string = 'TestEntityA';
   public volatileNumber: number = 0;
 
-  persist(_state: any): void {
-    // Do nothing...
+  constructor(readonly _id: number) {
+    super(`TestEntityA-${_id}`);
   }
-  protected generateId(): EntityID {
-    return `TestEntityA-${this._id}`;
-  }
-  constructor(protected readonly _id: number) {
-    super();
+  public toString(): string {
+    return `TestEntityA`;
   }
 }
 
-class TestEntityB extends Entity<any> {
-  persist(_state: any): void {
-    // Do nothing...
+class TestEntityB extends Entity {
+  public $type: string = 'TestEntityB';
+  constructor(readonly _id: number | string) {
+    super(typeof _id === 'number' ? `TestEntityB-${_id}` : _id);
   }
-  protected generateId(): EntityID {
-    return `TestEntityB-${this._id}`;
-  }
-  constructor(protected readonly _id: number) {
-    super();
+
+  public toString(): string {
+    return `TestEntityB`;
   }
 }
 
 class TestEntityC extends TestEntityB {
-  protected generateId(): EntityID {
-    return `TestEntityC-${this._id}`;
+  constructor(id: number) {
+    super(`TestEntityC-${id}`);
+  }
+
+  public toString(): string {
+    return `TestEntityC`;
   }
 }
 
-class TestPlayerEntity extends TestEntityA implements PlayerInterface<any> {
+class TestPlayerEntity extends TestEntityA implements PlayerInterface {
   [playerInterfaceMarker] = true as const;
 }
 
 describe('entityService', () => {
-  let service: EntityService<any>;
+  let service: EntityService;
   let callback: EntityFlushCallback;
 
   beforeEach(() => {
@@ -85,15 +93,17 @@ describe('entityService', () => {
       // THEN
       expect(service.entities()).toHaveLength(1);
       expect(service.entities(TestEntityA)).toHaveLength(1);
-      expect(service.entities(TestEntityA)[0]!.id()).toBe('TestEntityA-1');
+      expect(service.entities(TestEntityA)[0]![entityId]).toBe('TestEntityA-1');
     });
 
     test('when an entity is spawned, the flush callback is called. The engine needs to be notified of changes to entity state.', () => {
       // GIVEN / WHEN
-      service.create(new TestEntityA(1));
+      const entity = new TestEntityA(1);
+      service.create(entity);
 
       // THEN
       expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith(entity, 'created');
     });
 
     test('when the internal state of an entity is modified, the flush callback is called.', () => {
@@ -104,7 +114,9 @@ describe('entityService', () => {
       entity.volatileNumber = 42;
 
       // THEN
-      expect(callback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
+      expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
     });
 
     test('when the nested internal state of an entity is modified, the flush callback is called.', () => {
@@ -120,7 +132,9 @@ describe('entityService', () => {
       entity.nested.value = 42;
 
       // THEN
-      expect(callback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
+      expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
     });
 
     test('when a symbol property of an entity is modified, the flush callback is not called.', () => {
@@ -136,14 +150,15 @@ describe('entityService', () => {
       entity[symbolKey] = 42;
 
       // THEN
-      expect(callback).toHaveBeenCalledTimes(1); // Only the initial spawn, not the symbol property change
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
     });
 
     test('when a player entity is spawned, it receives an unique player ID.', () => {
       // GIVEN
       const playerEntity = service.create(
         new TestPlayerEntity(1),
-      ) as Entity<any> & PlayerInterface<any>;
+      ) as PlayerEntity;
 
       // THEN
       expect(playerEntity[playerId]).toBeDefined();
@@ -170,6 +185,19 @@ describe('entityService', () => {
 
       // WHEN / THEN
       expect(() => service.destroy(entity)).toThrowError();
+    });
+
+    test('when an entity is destroyed, it is flushed.', () => {
+      // GIVEN
+      const entity = new TestEntityA(1);
+      service.create(entity);
+
+      // WHEN
+      service.destroy(entity);
+
+      // THEN
+      expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
+      expect(callback).toHaveBeenNthCalledWith(2, entity, 'deleted');
     });
   });
 
@@ -234,6 +262,32 @@ describe('entityService', () => {
     });
   });
 
+  describe('entityById', () => {
+    test('returns the entity with the given ID.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+
+      // WHEN / THEN
+      expect(service.entityById('TestEntityA-1')).toBe(entity);
+    });
+
+    test('returns undefined if no entity with the given ID exists.', () => {
+      // WHEN / THEN
+      expect(service.entityById('does-not-exist')).toBeUndefined();
+    });
+
+    test('returns undefined after the entity with that ID is destroyed.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+
+      // WHEN
+      service.destroy(entity);
+
+      // THEN
+      expect(service.entityById('TestEntityA-1')).toBeUndefined();
+    });
+  });
+
   describe('players', () => {
     test('returns an empty array if no players are registered.', () => {
       // THEN
@@ -247,6 +301,303 @@ describe('entityService', () => {
 
       // THEN
       expect(service.players()).toHaveLength(2);
+    });
+  });
+
+  describe('getNonProxy', () => {
+    test('returns the original non-proxy object for a proxied entity.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+      const original = new TestEntityA(1);
+
+      // THEN
+      expect(entity).not.toBe(original);
+      expect(service.getNonProxy(entity)).toEqual(original);
+    });
+
+    test('returns undefined if the entity is not registered.', () => {
+      // GIVEN
+      const entity = new TestEntityA(1);
+
+      // THEN
+      expect(service.getNonProxy(entity)).toBeUndefined();
+    });
+  });
+
+  describe('clone', () => {
+    test('the cloned service contains the same entities as the original.', () => {
+      // GIVEN
+      service.create(new TestEntityA(1));
+      service.create(new TestEntityA(2));
+      service.create(new TestEntityB(1));
+
+      // WHEN
+      const cloneCallback = () => {};
+      const clone = service.clone(cloneCallback);
+
+      // THEN
+      expect(clone.entities(TestEntityA)).toHaveLength(2);
+      expect(clone.entities(TestEntityB)).toHaveLength(1);
+      expect(clone.entities()).toHaveLength(3);
+      expect(service.entities(TestEntityA)).toHaveLength(2);
+      expect(service.entities(TestEntityB)).toHaveLength(1);
+      expect(service.entities()).toHaveLength(3);
+    });
+
+    test('the cloned entities are independent copies — modifying one does not affect the other.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(1));
+
+      // WHEN
+      const clone = service.clone(() => {});
+      entity.volatileNumber = 42;
+
+      // THEN
+      expect(clone.entities(TestEntityA)[0]!.volatileNumber).toBe(0);
+      expect(service.entities(TestEntityA)[0]!.volatileNumber).toBe(42);
+    });
+
+    test('the cloned service preserves player entities.', () => {
+      // GIVEN
+      service.create(new TestPlayerEntity(1));
+      service.create(new TestPlayerEntity(2));
+
+      // WHEN
+      const clone = service.clone(() => {});
+
+      // THEN
+      expect(clone.players()).toHaveLength(2);
+      expect(service.players()).toHaveLength(2);
+    });
+
+    test('player handler callbacks are cleared on cloned entities.', () => {
+      // GIVEN
+      const player = service.create(new TestPlayerEntity(1)) as PlayerEntity;
+      const fakeCallback = { state: () => {}, prompt: () => {} };
+      player[handler] = fakeCallback;
+
+      // WHEN
+      const clone = service.clone(() => {});
+      const clonedPlayer = clone.players()[0]!;
+
+      // THEN
+      expect(clonedPlayer[handler]).toBeUndefined();
+      expect(player[handler]).toBeDefined();
+    });
+
+    test('the flush callback of the clone is called when a cloned entity is modified.', () => {
+      // GIVEN
+      service.create(new TestEntityA(1));
+      const cloneCallback = mock(() => {});
+      const clone = service.clone(cloneCallback);
+
+      // WHEN
+      clone.entities(TestEntityA)[0]!.volatileNumber = 99;
+
+      // THEN
+      expect(cloneCallback).toHaveBeenCalledTimes(2); // 1x for spawn + 1x for state change
+      expect(callback).toHaveBeenCalledTimes(1); // original flush not called again
+    });
+  });
+
+  // A minimal fake action object — only $type matters for hook lookup.
+  const markAction = { $type: 'mark' } as unknown as Action<'mark', any, any>;
+  const drawAction = { $type: 'draw' } as unknown as Action<'draw', any, any>;
+
+  class AfterMarkEntity
+    extends Entity
+    implements AfterAction<typeof markAction>
+  {
+    public $type = 'AfterMarkEntity';
+    afterMark(_runtime: ModifiableRuntime, _params: any): void {}
+    toString() {
+      return 'AfterMarkEntity';
+    }
+  }
+
+  class BeforeMarkEntity
+    extends Entity
+    implements BeforeAction<typeof markAction>
+  {
+    public $type = 'BeforeMarkEntity';
+    beforeMark(_runtime: ModifiableRuntime, _params: any): boolean | void {
+      return;
+    }
+    toString() {
+      return 'BeforeMarkEntity';
+    }
+  }
+
+  class CheckMarkEntity
+    extends Entity
+    implements CheckAction<typeof markAction>
+  {
+    public $type = 'CheckMarkEntity';
+    checkMark(_runtime: ModifiableRuntime, _params: any): boolean {
+      return true;
+    }
+    toString() {
+      return 'CheckMarkEntity';
+    }
+  }
+
+  class AfterDrawEntity
+    extends Entity
+    implements AfterAction<typeof drawAction>
+  {
+    public $type = 'AfterDrawEntity';
+    afterDraw(_runtime: ModifiableRuntime, _params: any): void {}
+    toString() {
+      return 'AfterDrawEntity';
+    }
+  }
+
+  class MultiHookEntity
+    extends Entity
+    implements AfterAction<typeof markAction>, BeforeAction<typeof markAction>
+  {
+    public $type = 'MultiHookEntity';
+    afterMark(_runtime: ModifiableRuntime, _params: any): void {}
+    beforeMark(_runtime: ModifiableRuntime, _params: any): boolean | void {
+      return;
+    }
+    toString() {
+      return 'MultiHookEntity';
+    }
+  }
+
+  describe('getHook', () => {
+    test('returns an entity that has an after-hook for the given action.', () => {
+      // GIVEN
+      const entity = service.create(new AfterMarkEntity('after-mark-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toContain(entity);
+      expect(service.getHook('after', markAction)).toHaveLength(1);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('returns an entity that has a before-hook for the given action.', () => {
+      // GIVEN
+      const entity = service.create(new BeforeMarkEntity('before-mark-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('before', markAction)).toContain(entity);
+      expect(service.getHook('before', markAction)).toHaveLength(1);
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('returns an entity that has a check-hook for the given action.', () => {
+      // GIVEN
+      const entity = service.create(new CheckMarkEntity('check-mark-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('check', markAction)).toContain(entity);
+      expect(service.getHook('check', markAction)).toHaveLength(1);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+    });
+
+    test('does not return an entity that has no hook for the given action.', () => {
+      // GIVEN
+      service.create(new TestEntityA(1));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('does not cross-pollinate action types — an afterDraw entity is not returned for afterMark.', () => {
+      // GIVEN
+      const afterMark = service.create(new AfterMarkEntity('after-mark-3'));
+      const afterDraw = service.create(new AfterDrawEntity('after-draw-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toContain(afterMark);
+      expect(service.getHook('after', markAction)).toHaveLength(1);
+      expect(service.getHook('after', drawAction)).toContain(afterDraw);
+      expect(service.getHook('after', drawAction)).toHaveLength(1);
+    });
+
+    test('returns multiple entities when several have the same hook.', () => {
+      // GIVEN
+      const e1 = service.create(new AfterMarkEntity('after-mark-4'));
+      const e2 = service.create(new AfterMarkEntity('after-mark-5'));
+
+      // WHEN
+      const result = service.getHook('after', markAction);
+
+      // THEN
+      expect(result).toContain(e1);
+      expect(result).toContain(e2);
+      expect(result).toHaveLength(2);
+    });
+
+    test('an entity with both after and before hooks for the same action appears in both maps.', () => {
+      // GIVEN
+      const entity = service.create(new MultiHookEntity('multi-1'));
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toContain(entity);
+      expect(service.getHook('before', markAction)).toContain(entity);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('a destroyed entity is no longer returned by getHook.', () => {
+      // GIVEN
+      const entity = service.create(new AfterMarkEntity('after-mark-6'));
+      expect(service.getHook('after', markAction)).toContain(entity);
+
+      // WHEN
+      service.destroy(entity);
+
+      // THEN
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+    });
+
+    test('returns an empty array for an action with no registered hooks.', () => {
+      // GIVEN — no entity with afterMark registered
+
+      // WHEN / THEN
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+    });
+
+    test('dynamically assigning a hook method on an entity registers it in the map.', () => {
+      // GIVEN
+      const entity = service.create(new TestEntityA(99));
+      expect(service.getHook('after', markAction)).toHaveLength(0);
+
+      // WHEN — simulate dynamic hook assignment via the proxy
+      (entity as any).afterMark = (
+        _runtime: ModifiableRuntime,
+        _params: any,
+      ): void => {};
+
+      // THEN
+      expect(service.getHook('after', markAction)).toContain(entity);
+      expect(service.getHook('before', markAction)).toHaveLength(0);
+      expect(service.getHook('check', markAction)).toHaveLength(0);
+    });
+
+    test('the cloned service has the same hook registrations as the original.', () => {
+      // GIVEN
+      const entity = service.create(new AfterMarkEntity('after-mark-7'));
+
+      // WHEN
+      const clone = service.clone(() => {});
+
+      // THEN
+      expect(clone.getHook('after', markAction)).toHaveLength(1);
+      expect(clone.getHook('after', markAction)[0]![entityId]).toBe(
+        entity[entityId],
+      );
+      expect(service.getHook('after', markAction)).toHaveLength(1);
+      expect(service.getHook('after', markAction)[0]![entityId]).toBe(
+        entity[entityId],
+      );
     });
   });
 });

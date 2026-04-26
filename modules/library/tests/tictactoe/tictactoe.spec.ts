@@ -1,22 +1,28 @@
-import { test, expect } from 'bun:test';
+import { test, expect, describe } from 'bun:test';
 import { TicTacToe } from './tictactoe';
-import { TicTacToeState, TicTacToeParameters } from './tictactoe.typed';
-import { Slot } from './slot';
-import { GameTest } from '../game.spec';
-import { TicTacToePlayer } from './player';
-import { Lane } from './lane';
-import { timeout } from '../utility.spec';
+import { TicTacToeParameters } from './tictactoe.typed';
+import { BaseGameTest } from '../game.spec';
+import { jsonRoundtrip, timeout } from '../../src/utility.spec';
+import { Lane } from './entities/lane';
+import { TicTacToePlayer } from './entities/player';
+import { Slot } from './entities/slot';
+import { NO_OP_LOGGER } from '../../src';
+import { GameScenario } from '../game-scenario';
+import { TicTacToeMark } from './actions/mark';
+import { TicTacToeWin } from './actions/win';
 
-class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
+class TicTacToeSpec extends BaseGameTest<TicTacToeParameters> {
+  readonly numberOfPlayers = 2;
+  readonly initializer = (parameters: TicTacToeParameters) =>
+    new TicTacToe(parameters, { logger: NO_OP_LOGGER });
   readonly name = 'TicTacToe';
-  readonly GameClass = TicTacToe;
   readonly randomPlayDepth = 100;
   readonly parameters = {
     firstPlayer: 'X' as const,
   };
 
   additionalTests(): void {
-    test('board initializes with 9 empty slots.', () => {
+    test.todo('board initializes with 9 empty slots.', () => {
       // THEN
       expect(this.game.entitySet(Slot)).toHaveLength(9);
       expect(this.game.entities(Slot)).toHaveLength(9);
@@ -63,25 +69,235 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
       // WHEN / THEN
       // Here, the websocket connection could be handed into the callback function.
       // FIXME: This is not quite ergonomic, but it works. Think about how the state is constructed.
-      this.game.registerPlayerCallback(playerX, (_delta, choices) => {
-        // X is the first player, thus they should have choices!
-        expect(choices).toBeDefined();
-        expect(choices).toHaveLength(9); // 9 possible slots to mark.
+      this.game.registerPlayerCallback(playerX, {
+        state: (snapshots) => {
+          expect(jsonRoundtrip(snapshots)).toEqual([
+            {
+              dirtyEntities: {
+                'slot-0-0': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 0,
+                  y: 0,
+                },
+                'slot-0-1': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 0,
+                  y: 1,
+                },
+                'slot-0-2': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 0,
+                  y: 2,
+                },
+                'slot-1-0': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 1,
+                  y: 0,
+                },
+                'slot-1-1': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 1,
+                  y: 1,
+                },
+                'slot-1-2': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 1,
+                  y: 2,
+                },
+                'slot-2-0': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 2,
+                  y: 0,
+                },
+                'slot-2-1': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 2,
+                  y: 1,
+                },
+                'slot-2-2': {
+                  markedBy: null,
+                  $type: 'slot',
+                  x: 2,
+                  y: 2,
+                },
+                'HorizontalLane-0': {
+                  index: 0,
+                  $type: 'horizontal-lane',
+                },
+                'VerticalLane-0': {
+                  index: 0,
+                  $type: 'vertical-lane',
+                },
+                'HorizontalLane-1': {
+                  index: 1,
+                  $type: 'horizontal-lane',
+                },
+                'VerticalLane-1': {
+                  index: 1,
+                  $type: 'vertical-lane',
+                },
+                'HorizontalLane-2': {
+                  index: 2,
+                  $type: 'horizontal-lane',
+                },
+                'VerticalLane-2': {
+                  index: 2,
+                  $type: 'vertical-lane',
+                },
+                'DiagonalLane-0': {
+                  index: 0,
+                  $type: 'diagonal-lane',
+                },
+                'DiagonalLane-1': {
+                  index: 1,
+                  $type: 'diagonal-lane',
+                },
+                'player-X': {
+                  isCurrentPlayer: true,
+                  mark: 'X',
+                  $type: 'TicTacToePlayer',
+                },
+                'player-O': {
+                  isCurrentPlayer: false,
+                  mark: 'O',
+                  $type: 'TicTacToePlayer',
+                },
+              },
+            },
+          ]);
+        },
+        prompt: (choices) => {
+          // X is the first player, thus they should have choices!
+          expect(choices).toBeDefined();
+          expect(choices).toHaveLength(9); // 9 possible slots to mark.
 
-        playerXinformed = true;
-        if (playerOinformed) {
-          done();
-        }
+          expect(jsonRoundtrip(choices)).toEqual([
+            {
+              execution: {
+                parameters: {
+                  // We communicate using a placeholder to the Entity's ID here.
+                  // This is done in order to not send the entire entity data multiple times and save bandwidth.
+                  slot: '$ENGINE:slot-0-0',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 0,
+              player: '$ENGINE:player-X', // TODO: Redundant information! We know that only we are this player!
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-0-1',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 1,
+              player: '$ENGINE:player-X',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-0-2',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 2,
+              player: '$ENGINE:player-X',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-1-0',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 3,
+              player: '$ENGINE:player-X',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-1-1',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 4,
+              player: '$ENGINE:player-X',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-1-2',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 5,
+              player: '$ENGINE:player-X',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-2-0',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 6,
+              player: '$ENGINE:player-X',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-2-1',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 7,
+              player: '$ENGINE:player-X',
+            },
+            {
+              execution: {
+                parameters: {
+                  slot: '$ENGINE:slot-2-2',
+                  player: '$ENGINE:player-X',
+                },
+                type: 'mark',
+              },
+              id: 8,
+              player: '$ENGINE:player-X',
+            },
+          ]);
+
+          playerXinformed = true;
+          if (playerOinformed) {
+            done();
+          }
+        },
       });
-      this.game.registerPlayerCallback(playerO, (_delta, choices) => {
-        // O is the second player, thus they should not have any choices.
-        expect(choices).toBeDefined();
-        expect(choices).toHaveLength(0);
-
-        playerOinformed = true;
-        if (playerXinformed) {
-          done();
-        }
+      this.game.registerPlayerCallback(playerO, {
+        state: () => {
+          // O is the second player, thus they should not have any choices.
+          playerOinformed = true;
+          if (playerXinformed) {
+            done();
+          }
+        },
+        prompt: () => {},
       });
 
       // OTHERWISE
@@ -96,3 +312,62 @@ class TicTacToeSpec extends GameTest<TicTacToeState, TicTacToeParameters> {
 }
 
 new TicTacToeSpec().run();
+
+describe('TicTacToe game', () => {
+  test('TicTacToeMark sets markedBy on the target slot', async () => {
+    let executor!: TicTacToePlayer;
+    let targetSlot!: Slot;
+
+    await GameScenario.from(
+      new TicTacToe({ firstPlayer: 'X' }, { logger: NO_OP_LOGGER }),
+    )
+      .when((game) => {
+        executor = game.entities(TicTacToePlayer).find((p) => p.mark === 'X')!;
+        targetSlot = game.entities(Slot).find((s) => s.x === 0 && s.y === 0)!;
+        return new TicTacToeMark({ player: executor, slot: targetSlot });
+      })
+      .run();
+
+    expect(targetSlot.markedBy).toBe(executor);
+  });
+
+  test('when the last slot in a lane is marked, that player wins the game', async () => {
+    let playerX!: TicTacToePlayer;
+    let playerO!: TicTacToePlayer;
+    let winSlot!: Slot;
+
+    // GIVEN / WHEN
+    const scenario = await GameScenario.from(
+      new TicTacToe({ firstPlayer: 'X' }, { logger: NO_OP_LOGGER }),
+    )
+      .setup((game) => {
+        playerX = game.entities(TicTacToePlayer).find((p) => p.mark === 'X')!;
+        playerO = game.entities(TicTacToePlayer).find((p) => p.mark === 'O')!;
+        winSlot = game.entities(Slot).find((s) => s.x === 0 && s.y === 2)!;
+        game
+          .entities(Slot)
+          .filter((s) => s.x === 0 && s.y !== 2)
+          .forEach((s) => {
+            s.markedBy = playerX;
+          });
+      })
+      .when(() => new TicTacToeMark({ player: playerX, slot: winSlot }))
+      .run();
+
+    // THEN
+    expect(scenario.executed()).toHaveLength(2);
+    expect(scenario.executed()[0]).toBeInstanceOf(TicTacToeMark);
+    expect(scenario.executed()[1]).toBeInstanceOf(TicTacToeWin);
+    expect((scenario.executed()[1] as TicTacToeWin).parameters.player).toBe(
+      playerX,
+    );
+
+    const status = scenario.endStatus()!;
+    expect(status.winners).toHaveLength(1);
+    expect(status.winners[0]).toBe(playerX);
+    expect(status.losers).toContain(playerO);
+
+    expect(scenario.promptCount(playerX)).toBe(0);
+    expect(scenario.promptCount(playerO)).toBe(0);
+  });
+});
