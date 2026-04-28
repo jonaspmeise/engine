@@ -12,6 +12,7 @@
     }
   },
   "dependencies": {
+    "@my-engine/client": "workspace:*",
     "@my-engine/library": "workspace:*"
   },
   "scripts": {

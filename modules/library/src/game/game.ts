@@ -77,7 +77,7 @@ export abstract class Game<
 
   /**
    * The method that initializes the game state by spawning all initial entities.
-   * This method should be called by the @link Runtime when the game is started.
+   * Called during construction to build the initial entity set.
    * @param parameters The parameters to initialize the game with.
    * @returns The initial game state.
    */
@@ -124,7 +124,7 @@ export abstract class Game<
     for (const entity of this.entityClasses()) {
       // Because we may use some of our "base entity classes" when representing hidden information,
       // we need to be able to register these abstract classes as well.
-      // @ts-expect-error entity may be abstract, but we only call it here to read $type
+      // @ts-expect-error entity may be abstract or have a protected constructor; runtime JS ignores these constraints
       const dummy: Entity = new entity(0 as any) as Entity;
 
       mapping[dummy.$type] = entity;

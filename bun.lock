@@ -29,6 +29,7 @@
       "name": "@my-engine/client-singleplayer",
       "version": "0.0.0",
       "dependencies": {
+        "@my-engine/client": "workspace:*",
         "@my-engine/library": "workspace:*",
       },
       "devDependencies": {

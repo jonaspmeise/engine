@@ -1,6 +1,6 @@
-import { Action, entityId, PlayerInterface } from '@my-engine/library';
-import { Client, ClientEntityHandler, ChoiceTypeMapping } from '../../../client/src';
-import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
+/// <reference lib="dom" />
+import { Action, EntityClassMapping, entityId } from '@my-engine/library';
+import { Client, ClientEntityHandler, ChoiceTypeMapping } from '@my-engine/client';
 import { HorizontalLane } from '../../../library/tests/tictactoe/entities/horizontal-lane';
 import { TicTacToeDraw } from '../../../library/tests/tictactoe/actions/draw';
 import { TicTacToeMark } from '../../../library/tests/tictactoe/actions/mark';
@@ -8,12 +8,10 @@ import { TicTacToeWin } from '../../../library/tests/tictactoe/actions/win';
 import { TicTacToePlayer } from '../../../library/tests/tictactoe/entities/player';
 
 export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
-  constructor(player: PlayerInterface) {
+  constructor(entityClassMapping: EntityClassMapping, player: TicTacToePlayer) {
     super(
       document.getElementById('tic-tac-toe-target') as HTMLDivElement,
-      new TicTacToe({
-        firstPlayer: 'X',
-      }).entityClassMapping(),
+      entityClassMapping,
       player,
     );
   }

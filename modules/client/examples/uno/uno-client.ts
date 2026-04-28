@@ -1,10 +1,9 @@
 import {
   Action,
-  QueryableRuntime,
   entityId,
   PlayerInterface,
 } from '@my-engine/library';
-import { Client } from '../../src/client';
+import { Client, ClientEntityHandler } from '../../../client/src';
 import { UnoCard } from '../../../library/tests/uno/entities/card';
 import { UnoDiscardPile } from '../../../library/tests/uno/entities/discard-pile';
 import { UnoDeck } from '../../../library/tests/uno/entities/deck';
@@ -15,7 +14,7 @@ import { UnoPlayCardAction } from '../../../library/tests/uno/actions/play-card'
 import { UnoDrawCardAction } from '../../../library/tests/uno/actions/draw-card';
 import { UnoPickColorAction } from '../../../library/tests/uno/actions/pick-color';
 import { UnoPassTurnAction } from '../../../library/tests/uno/actions/pass-turn';
-import { ChoiceTypeMapping } from '../../src/client.types';
+import { ChoiceTypeMapping } from '../../../client/src';
 
 type UnoActions =
   | UnoPlayCardAction
@@ -47,7 +46,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
   constructor(player: PlayerInterface, playerSize: number) {
     super(
       document.getElementById('uno-target') as HTMLDivElement,
-      new Uno({ playerSize }),
+      new Uno({ playerSize }).entityClassMapping(),
       player,
     );
   }
@@ -238,10 +237,13 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     return [...players.slice(idx), ...players.slice(0, idx)];
   }
 
-  protected render(target: HTMLDivElement, runtime: QueryableRuntime): void {
-    const deck = runtime.anyEntity(UnoDeck)!;
-    const discard = runtime.anyEntity(UnoDiscardPile)!;
-    const meta = runtime.anyEntity(UnoMeta);
+  protected render(
+    target: HTMLDivElement,
+    entityHandler: ClientEntityHandler,
+  ): void {
+    const deck = entityHandler.anyEntity(UnoDeck)!;
+    const discard = entityHandler.anyEntity(UnoDiscardPile)!;
+    const meta = entityHandler.anyEntity(UnoMeta);
     const currentId = meta?.currentPlayer()?.[entityId];
 
     // ── game table wrapper ────────────────────────────────────────────
@@ -268,9 +270,9 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       deckEl.classList.add('zone-card', 'deck-card');
       center.appendChild(deckEl);
     }
-    deckEl.dataset.count = runtime
+    deckEl.dataset.count = entityHandler
       .anyEntity(UnoDeck)!
-      .cards(runtime)
+      .cards(entityHandler)
       .length.toString();
 
     // Meta indicator – doubles as the draw-chain counter.
@@ -302,7 +304,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
       center.appendChild(discardEl);
     }
 
-    const topcard = discard.top(runtime);
+    const topcard = discard.top(entityHandler);
     console.log(`Top card of discard pile is:`, topcard);
     if (topcard === undefined) {
       delete discardEl.dataset.color;
@@ -317,7 +319,7 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     }
 
     // ── player boards ─────────────────────────────────────────────────
-    const sorted = this._sorted([...runtime.entities(UnoPlayer)]);
+    const sorted = this._sorted([...entityHandler.entities(UnoPlayer)]);
     table.style.setProperty('--n', String(sorted.length));
 
     for (const [i, player] of sorted.entries()) {
@@ -344,8 +346,8 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         board.appendChild(handEl);
       }
 
-      const hand = player.hand(runtime);
-      const handCards = hand.cards(runtime);
+      const hand = player.hand(entityHandler);
+      const handCards = hand.cards(entityHandler);
       handEl.style.setProperty('--cn', String(handCards.length));
 
       // Remove cards that left the hand.

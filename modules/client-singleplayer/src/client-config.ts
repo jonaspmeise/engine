@@ -1,7 +1,9 @@
 /// <reference lib="dom" />
 import type {
+  EntityClassMapping,
   Game,
   PlayerEntity,
+  PlayerInterface,
   PlayerInterfaceCallback,
 } from '@my-engine/library';
 import type { Client } from './client';
@@ -19,10 +21,13 @@ export type ClientConfig<
 
   /**
    * Factory that creates the HTML client for a given player slot.
-   * `playerIndex` is 0-based and refers to the slot returned by
-   * `game.players()[playerIndex]`.
+   * Receives the entity-class mapping (from `game.entityClassMapping()`) and
+   * the resolved `PlayerInterface` for the human slot.
    */
-  readonly createClient: (game: Game<any>, playerIndex: number) => TClient;
+  readonly createClient: (
+    entityClassMapping: EntityClassMapping,
+    player: PlayerInterface,
+  ) => TClient;
 
   /**
    * Index of the human player in `game.players()`. Defaults to `0`.
@@ -64,7 +69,7 @@ function startSingleplayerGame<TClient extends Client<HTMLElement, any>>(
 
   // Register the human player last (game starts once all players are connected).
   const humanPlayer = players[humanIndex]!;
-  const client = config.createClient(game, humanIndex);
+  const client = config.createClient(game.entityClassMapping(), humanPlayer);
   game.registerPlayerCallback(humanPlayer, {
     state: (snapshots) => client.feedSnapshots(snapshots),
     prompt: (choices, execute) => client.feedChoices(choices, execute),
@@ -145,7 +150,8 @@ export function startSingleplayer<TClient extends Client<HTMLElement, any>>(
       .onSetup((playerIndex) => {
         client?.clear();
         const game = config.createGame();
-        client = config.createClient(game, playerIndex);
+        const player = game.players()[playerIndex]!;
+        client = config.createClient(game.entityClassMapping(), player);
         client.onResultChoice = (result) => {
           if (result === 'restart') {
             session.playAgain();

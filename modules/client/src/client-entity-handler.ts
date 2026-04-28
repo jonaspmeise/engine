@@ -3,6 +3,7 @@ import {
   DEFAULT_LOGGER,
   Entity,
   EntityClassMapping,
+  EntityID,
   entityId,
   EntityService,
   GameStatus,
@@ -11,7 +12,6 @@ import {
   PlayerInterface,
   QueryableRuntime,
 } from '@my-engine/library';
-import { EntityID } from '../../library/src/components/entity.types';
 import { ClientEntity } from './client-entity-handler.types';
 
 export class ClientEntityHandler implements QueryableRuntime {
@@ -128,7 +128,7 @@ export class ClientEntityHandler implements QueryableRuntime {
 
     if (this._classMapping[newType] === undefined) {
       throw new Error(
-        `Unknown entity type: ${newType}. Make sure this type is registered in the entity handler's class mapping.`,
+        `Unknown entity type: "${newType}". Make sure this type is registered in the entity handler's class mapping.`,
       );
     }
 

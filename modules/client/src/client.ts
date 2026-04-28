@@ -4,7 +4,6 @@ import {
   Clearable,
   DEFAULT_GAME_CONFIG,
   EntityClassMapping,
-  Game,
   PlayerInterface,
   type Action,
   type ChoiceId,
@@ -13,7 +12,7 @@ import {
   type QueryableRuntime,
   type Snapshot,
 } from '@my-engine/library';
-import { ActionRenderFunction, ClientState } from './client.types';
+import { ChoiceTypeMapping, ClientState } from './client.types';
 import { ClientEntityHandler } from './client-entity-handler';
 import { DebugService } from './debug-service';
 /**
@@ -51,20 +50,19 @@ export abstract class Client<
   /**
    * Initializes a HTML5-based client for a game.
    * @param renderTarget The target element into which the game should be rendered.
-   * @param game The reference to the base game. The game is not instantiated, just used to access setup methods.
+   * @param entityClassMapping The entity class mapping produced by the game (via `game.entityClassMapping()`).
    * @param player The player interface that this client represents.
    * @param logger A custom logger that can be provided.
-   * @param debug When true, a toggleable debug panel showing snapshot data is rendered in the top-right corner.
    */
   constructor(
     private readonly renderTarget: TARGET_ELEMENT,
-    game: Game<any>,
+    entityClassMapping: EntityClassMapping,
     protected readonly player: PlayerInterface,
     logger?: Partial<Logger>,
   ) {
     Object.assign(this._logger, logger);
 
-    this._entityClassMapping = game.entityClassMapping();
+    this._entityClassMapping = entityClassMapping;
     this._state = {
       snapshots: [],
       entityHandler: new ClientEntityHandler(
@@ -104,9 +102,6 @@ export abstract class Client<
       choice: EnhancedChoice<Action<string, any, any>> | ChoiceId,
     ) => void,
   ): Promise<void> {
-    // Erase prior highlights!
-    await this.eraseHighlights();
-
     this._logger.debug(
       `Client is fed with ${choices.length} choices...`,
       choices,
@@ -134,11 +129,7 @@ export abstract class Client<
    * This should be populated with all known action types.
    * Each action is mapped to an unique rendering function.
    */
-  public abstract choiceTypeMapping: {
-    [K in ACTIONS['$type']]: ActionRenderFunction<
-      Extract<ACTIONS, { $type: K }>
-    >;
-  };
+  public abstract choiceTypeMapping: ChoiceTypeMapping<ACTIONS>;
 
   /**
    * Applies the updates from a callback to this client.
@@ -163,6 +154,9 @@ export abstract class Client<
 
   public async feedSnapshots(snapshots: Snapshot[]): Promise<void> {
     this._logger.debug('Client is fed with snapshots...', snapshots);
+
+    // Erase prior highlights!
+    await this.eraseHighlights();
 
     for (const snapshot of snapshots) {
       this._state.snapshots.push(snapshot);
@@ -237,7 +231,7 @@ export abstract class Client<
    */
   protected abstract render(
     renderTarget: TARGET_ELEMENT,
-    runtime: QueryableRuntime,
+    entityHandler: QueryableRuntime,
   ): void;
 
   /**

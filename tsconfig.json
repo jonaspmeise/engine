@@ -25,5 +25,9 @@
     "skipLibCheck": true
   },
   "files": [],
-  "references": [{ "path": "modules/library" }, { "path": "modules/client" }]
+  "references": [
+    { "path": "modules/library" },
+    { "path": "modules/client" },
+    { "path": "modules/client-singleplayer" }
+  ]
 }
