@@ -154,6 +154,37 @@ describe('entityService', () => {
       expect(callback).toHaveBeenNthCalledWith(1, entity, 'created');
     });
 
+    test('iterating over a Set property on a proxied entity does not throw.', () => {
+      // GIVEN
+      class TestEntityWithSet extends TestEntityA {
+        public readonly tags: Set<string> = new Set(['a', 'b', 'c']);
+      }
+
+      const entity = service.create(new TestEntityWithSet(1));
+
+      // WHEN / THEN
+      expect(() => Array.from(entity.tags)).not.toThrow();
+      expect(Array.from(entity.tags)).toEqual(['a', 'b', 'c']);
+      expect(entity.tags.size).toBe(3);
+    });
+
+    test('iterating over a Map property on a proxied entity does not throw.', () => {
+      // GIVEN
+      class TestEntityWithMap extends TestEntityA {
+        public readonly lookup: Map<string, number> = new Map([
+          ['x', 1],
+          ['y', 2],
+        ]);
+      }
+
+      const entity = service.create(new TestEntityWithMap(1));
+
+      // WHEN / THEN
+      expect(() => Array.from(entity.lookup.values())).not.toThrow();
+      expect(Array.from(entity.lookup.values())).toEqual([1, 2]);
+      expect(entity.lookup.size).toBe(2);
+    });
+
     test('when a player entity is spawned, it receives an unique player ID.', () => {
       // GIVEN
       const playerEntity = service.create(

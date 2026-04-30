@@ -336,9 +336,21 @@ export class EntityService
   ): any => {
     const handler: ProxyHandler<any> = {
       get: (target, prop, receiver) => {
-        const value = Reflect.get(target, prop, receiver);
+        // Built-in collections (Set, Map, Array, etc.) store data in internal slots
+        // that are inaccessible through a Proxy receiver. Both accessors (e.g.
+        // Set.prototype.size) and methods (e.g. Set.prototype.values) must operate
+        // with `this` bound to the real target, not the proxy.
+        if (
+          !(target instanceof Entity) &&
+          (target instanceof Set ||
+            target instanceof Map ||
+            target instanceof Array)
+        ) {
+          const value = Reflect.get(target, prop, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
 
-        // If the value is an object (and not null), wrap it in a proxy once.
+        const value = Reflect.get(target, prop, receiver);
         if (typeof value === 'object' && value !== null) {
           // If the value is an Entity (raw or proxy from any game instance), resolve it
           // to the canonical proxy registered in this game's entity service.
