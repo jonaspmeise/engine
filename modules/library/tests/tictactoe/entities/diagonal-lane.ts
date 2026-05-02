@@ -3,6 +3,7 @@ import { Lane } from './lane';
 import { Slot } from './slot';
 
 export class DiagonalLane extends Lane {
+  public static readonly $type: string = 'diagonal-lane';
   public toString(): string {
     return `Diagonal Lane ${this.index}`;
   }

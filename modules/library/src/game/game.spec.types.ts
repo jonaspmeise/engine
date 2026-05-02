@@ -11,6 +11,7 @@ import { NodeId } from '../components/graph/node.types';
 import { Graph } from '../components/graph/graph';
 
 export class TestEntityA extends Entity {
+  public static readonly $type: string = 'TestEntityA';
   public $type: string = 'TestEntityA';
   constructor(_id: number) {
     super(`testentityA-${_id}`);
@@ -21,6 +22,7 @@ export class TestEntityA extends Entity {
 }
 
 export class TestEntityB extends Entity {
+  public static readonly $type: string = 'TestEntityB';
   public $type: string = 'TestEntityB';
   constructor(id: number | string) {
     super(typeof id === 'number' ? `testentityB-${id}` : id);
@@ -31,6 +33,7 @@ export class TestEntityB extends Entity {
 }
 
 export class TestEntityC extends TestEntityB {
+  public static readonly $type: string = 'TestEntityC';
   public $type: string = 'TestEntityC';
   public volatileNumber: number = 0;
 
@@ -43,6 +46,7 @@ export class TestEntityC extends TestEntityB {
 }
 
 export class TestPlayerEntity extends Entity implements PlayerInterface {
+  public static readonly $type: string = 'TestPlayerEntity';
   public $type: string = 'TestPlayerEntity';
   constructor(_id: number) {
     super(`testPlayerEntity-${_id}`);

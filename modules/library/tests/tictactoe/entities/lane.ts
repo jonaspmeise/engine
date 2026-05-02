@@ -14,6 +14,7 @@ export abstract class Lane
   extends Entity
   implements AfterAction<TicTacToeMark>
 {
+  public static readonly $type: string = 'Lane';
   constructor(public readonly index: number) {
     super(`${new.target.name}-${index}`);
   }

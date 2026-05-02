@@ -3,6 +3,7 @@ import { Slot } from './slot';
 import { QueryableRuntime } from '@my-engine/library';
 
 export class HorizontalLane extends Lane {
+  public static readonly $type: string = 'horizontal-lane';
   public toString(): string {
     return `Horizontal Lane #${this.index}`;
   }

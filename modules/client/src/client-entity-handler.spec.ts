@@ -13,7 +13,7 @@ const render = mock(() => {});
 const element: HTMLElement = document.createElement('div');
 
 abstract class TestAbstractEntity extends Entity {
-  public $type: string = 'TestAbstractEntity';
+  public static readonly $type: string = 'TestAbstractEntity';
 }
 
 describe('Client Entity Handler', () => {
@@ -47,6 +47,7 @@ describe('Client Entity Handler', () => {
       [entityId]: id,
       $type: 'TestEntityA',
       name: 'Test Name',
+      visibility: expect.any(Function),
     };
 
     expect(service.anyEntity(Entity)).toEqual(expected);
@@ -74,6 +75,7 @@ describe('Client Entity Handler', () => {
         [entityId]: id,
         $type: 'TestEntityA',
         name: 'Modified Name',
+        visibility: expect.any(Function),
       };
 
       expect(service.anyEntity(Entity)).toEqual(expected);

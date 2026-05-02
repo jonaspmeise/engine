@@ -2,6 +2,7 @@ import { TicTacToePlayer } from './player';
 import { Entity } from '@my-engine/library';
 
 export class Slot extends Entity {
+  public static readonly $type: string = 'slot';
   public toString(): string {
     return `Slot (${this.x}, ${this.y})`;
   }

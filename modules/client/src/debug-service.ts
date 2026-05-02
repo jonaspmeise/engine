@@ -8,28 +8,25 @@ type HistoryEntry = {
   dirtyEntities: Record<string, string>;
 };
 
+type ChoiceEntry = {
+  id: string | number;
+  actionType: string;
+  parameters: string;
+};
+
 /**
  * Encapsulates all debug-mode functionality for the browser client.
  *
- * Activation: Ctrl+Shift+Space+D toggles debug mode.
- * In debug mode:
- *  - An action log panel appears in the top-right corner showing every
- *    snapshot that was fed into the client (newest first, collapsible).
- *  - Right-clicking any DOM element whose `id` matches a known entity shows
- *    a JSON tooltip for that entity.
+ * Activation: Ctrl+Shift+D toggles the debug panel.
  */
 export class DebugService {
   private _active = false;
   private _history: HistoryEntry[] = [];
-  private _pressedKeys = new Set<string>();
+  private _choices: ChoiceEntry[] = [];
   private _panel: HTMLElement | null = null;
   private _tooltip: HTMLElement | null = null;
 
-  /**
-   * @param getEntities A callback that returns the current live entity list.
-   *   Called on right-click so it always reflects the most recent state.
-   */
-  constructor(private readonly _getEntities: () => ReadonlyArray<object>) {
+  constructor(private readonly _entityProvider: () => ReadonlyArray<object>) {
     this._registerListeners();
   }
 
@@ -50,37 +47,54 @@ export class DebugService {
       actionType: snapshot.executed?.$type,
       dirtyEntities: dirty,
     });
-    if (this._active) this._refreshPanel();
+    
+    this._refreshPanel();
   }
 
-  /** Clears the history (e.g. on game reset) and refreshes the panel. */
+  /**
+   * Updates the list of available choices shown in the debug panel.
+   * Call with an empty array when choices are erased.
+   */
+  public updateChoices(
+    choices: ReadonlyArray<{
+      id: string | number;
+      execution: { $type: string; parameters?: Record<string, unknown> | null };
+    }>,
+  ): void {
+    this._choices = choices.map((c) => ({
+      id: c.id,
+      actionType: c.execution.$type,
+      parameters: c.execution.parameters
+        ? this._stringify(c.execution.parameters)
+        : '',
+    }));
+
+    this._refreshPanel();
+  }
+
+  /** Clears the history and choices (e.g. on game reset) and refreshes the panel. */
   public clear(): void {
     this._history = [];
-    if (this._active) this._refreshPanel();
+    this._choices = [];
+
+    this._refreshPanel();
   }
 
   // ── Listeners ─────────────────────────────────────────────────────────────
 
   private _registerListeners(): void {
     document.addEventListener('keydown', (e) => {
-      this._pressedKeys.add(e.code);
-      if (
-        e.ctrlKey &&
-        e.shiftKey &&
-        this._pressedKeys.has('Space') &&
-        this._pressedKeys.has('KeyD')
-      ) {
+      if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') {
         e.preventDefault();
         this._toggle();
       }
     });
 
-    document.addEventListener('keyup', (e) => {
-      this._pressedKeys.delete(e.code);
-    });
-
     document.addEventListener('contextmenu', (e) => {
-      if (!this._active) return;
+      if (!this._active) {
+        return;
+      }
+
       const entity = this._entityFromTarget(e.target as HTMLElement);
       if (entity) {
         e.preventDefault();
@@ -95,6 +109,7 @@ export class DebugService {
 
   private _toggle(): void {
     this._active = !this._active;
+
     if (this._active) {
       if (!this._panel) {
         this._panel = this._buildPanel();
@@ -108,44 +123,54 @@ export class DebugService {
     }
   }
 
+
   // ── Panel ─────────────────────────────────────────────────────────────────
 
   private _buildPanel(): HTMLElement {
     const panel = document.createElement('div');
-    Object.assign(panel.style, {
+    Object.assign (panel.style, {
       position: 'fixed',
+      top: '8px',
+      right: '8px',
+      width: '320px',
+      maxHeight: 'calc(100vh - 16px)',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
-      userSelect: 'none',
+      zIndex: '9000',
+      background: '#000',
+      color: '#fff',
+      font: '12px monospace',
     });
 
     const header = document.createElement('div');
-    Object.assign(header.style, {
-      display: 'flex',
-      alignItems: 'center',
-    });
+    Object.assign(header.style, { display: 'flex', flexShrink: '0' });
+    header.textContent = 'debug';
 
-    const headerTitle = document.createElement('span');
-    headerTitle.textContent = '⬡ Debug — Action Log';
-    header.appendChild(headerTitle);
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '[x]';
+    closeBtn.title = 'Close (Ctrl+Shift+D)';
+    Object.assign(closeBtn.style, { marginLeft: 'auto', cursor: 'pointer' });
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._toggle();
+    });
+    header.appendChild(closeBtn);
 
     const exportBtn = document.createElement('button');
-    exportBtn.textContent = 'Export JSON';
-    Object.assign(exportBtn.style, {
-      marginLeft: 'auto',
-      cursor: 'pointer',
-      letterSpacing: 'normal',
-      fontWeight: 'normal',
-      lineHeight: '1.6',
-    });
+    exportBtn.textContent = '[export]';
+    Object.assign(exportBtn.style, { cursor: 'pointer' });
     exportBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this._exportToClipboard(exportBtn);
     });
     header.appendChild(exportBtn);
-
     panel.appendChild(header);
+
+    const choicesSection = document.createElement('div');
+    choicesSection.dataset.debugChoices = '';
+    Object.assign(choicesSection.style, { flexShrink: '0' });
+    panel.appendChild(choicesSection);
 
     const log = document.createElement('div');
     log.dataset.debugLog = '';
@@ -156,79 +181,65 @@ export class DebugService {
   }
 
   private _refreshPanel(): void {
-    if (!this._panel) return;
-    const log = this._panel.querySelector<HTMLElement>('[data-debug-log]');
-    if (!log) return;
+    if(!this._active) {
+      return;
+    }
 
+    // Choices
+    const choicesSection = this._panel!.querySelector<HTMLElement>('[data-debug-choices]')!;
+  
+    choicesSection.innerHTML = '';
+
+    const label = document.createElement('div');
+    label.textContent = `choices (${this._choices.length})`;
+    choicesSection.appendChild(label);
+
+    if (this._choices.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = '—';
+      choicesSection.appendChild(empty);
+    } else {
+      for (const choice of this._choices) {
+        const row = document.createElement('div');
+        let text = choice.actionType;
+        if (choice.parameters) text += '  ' + choice.parameters.replace(/\s+/g, ' ').slice(0, 60);
+        row.textContent = text;
+        choicesSection.appendChild(row);
+      }
+    }
+
+    // History
+    const log = this._panel!.querySelector<HTMLElement>('[data-debug-log]')!;
     log.innerHTML = '';
+
+    const historyLabel = document.createElement('div');
+    historyLabel.textContent = 'history';
+    Object.assign(historyLabel.style, { position: 'sticky', top: '0' });
+    log.appendChild(historyLabel);
 
     for (let i = this._history.length - 1; i >= 0; i--) {
       const entry = this._history[i]!;
 
       const details = document.createElement('details');
-      Object.assign(details.style, {
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        userSelect: 'none',
-      });
 
       const summary = document.createElement('summary');
-      Object.assign(summary.style, {
-        cursor: 'pointer',
-        padding: '3px 10px',
-        color: entry.actionType ? '#6ee7b7' : '#64748b',
-        lineHeight: '1.7',
-        fontSize: '11px',
-        listStyle: 'none',
-        display: 'flex',
-        gap: '6px',
-        alignItems: 'center',
-      });
-      summary.textContent = entry.actionType ?? '(initial state)';
-
-      const badge = document.createElement('span');
-      Object.assign(badge.style, {
-        marginLeft: 'auto',
-        color: '#64748b',
-        fontSize: '10px',
-        flexShrink: '0',
-      });
-      badge.textContent = `Δ${Object.keys(entry.dirtyEntities).length}  ${new Date(entry.timestamp).toISOString().slice(11, 23)}`;
-      summary.appendChild(badge);
+      summary.style.cursor = 'pointer';
+      const ts = new Date(entry.timestamp).toISOString().slice(11, 23);
+      const delta = Object.keys(entry.dirtyEntities).length;
+      summary.textContent = `${entry.actionType ?? '(init)'}  Δ${delta}  ${ts}`;
       details.appendChild(summary);
-
-      const body = document.createElement('div');
-      Object.assign(body.style, {
-        padding: '2px 10px 6px 16px',
-        userSelect: 'text',
-      });
 
       for (const [id, json] of Object.entries(entry.dirtyEntities)) {
         const idEl = document.createElement('div');
-        Object.assign(idEl.style, {
-          color: '#94a3b8',
-          fontSize: '10px',
-          marginTop: '4px',
-          wordBreak: 'break-all',
-        });
         idEl.textContent = id;
-        body.appendChild(idEl);
+        details.appendChild(idEl);
 
         const pre = document.createElement('pre');
-        Object.assign(pre.style, {
-          margin: '1px 0 0',
-          color: '#e2e8f0',
-          fontSize: '10px',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-          background: 'rgba(255,255,255,0.03)',
-          borderRadius: '3px',
-          padding: '3px 5px',
-        });
+        Object.assign(pre.style, { whiteSpace: 'pre-wrap', wordBreak: 'break-all', userSelect: 'text' });
         pre.textContent = json;
-        body.appendChild(pre);
+        details.appendChild(pre);
       }
 
-      details.appendChild(body);
       log.appendChild(details);
     }
   }
@@ -238,7 +249,7 @@ export class DebugService {
   private _entityFromTarget(target: HTMLElement | null): object | null {
     while (target && target !== document.body) {
       if (target.id) {
-        for (const entity of this._getEntities()) {
+        for (const entity of this._entityProvider()) {
           if ((entity as any)[entityId] === target.id) return entity;
         }
       }
@@ -257,41 +268,24 @@ export class DebugService {
       top: `${Math.min(y + 8, window.innerHeight - 320)}px`,
       width: '26rem',
       maxHeight: '50vh',
-      background: 'rgba(8,8,12,0.96)',
-      color: '#d4d4d8',
-      fontFamily: 'ui-monospace, monospace',
-      fontSize: '11px',
-      borderRadius: '6px',
-      border: '1px solid rgba(255,255,255,0.12)',
-      boxShadow: '0 6px 32px rgba(0,0,0,0.7)',
-      zIndex: '9001',
       overflow: 'hidden',
+      zIndex: '9001',
+      background: '#000',
+      color: '#fff',
+      font: '12px monospace',
     });
 
     const header = document.createElement('div');
-    Object.assign(header.style, {
-      padding: '4px 10px',
-      background: 'rgba(110,231,183,0.1)',
-      borderBottom: '1px solid rgba(255,255,255,0.08)',
-      color: '#6ee7b7',
-      fontWeight: 'bold',
-      fontSize: '10px',
-      letterSpacing: '0.06em',
-      textTransform: 'uppercase',
-    });
-    header.textContent = `⬡ ${(entity as any).$type ?? 'Entity'}`;
+    header.textContent = (entity as any).$type ?? 'entity';
     tooltip.appendChild(header);
 
     const pre = document.createElement('pre');
     Object.assign(pre.style, {
-      margin: '0',
-      padding: '6px 10px',
       whiteSpace: 'pre-wrap',
       wordBreak: 'break-all',
       userSelect: 'text',
-      fontSize: '10px',
       overflowY: 'auto',
-      maxHeight: 'calc(50vh - 28px)',
+      maxHeight: 'calc(50vh - 1.5em)',
     });
     pre.textContent = this._stringify(entity);
     tooltip.appendChild(pre);
@@ -327,14 +321,8 @@ export class DebugService {
 
     navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
       const original = btn.textContent;
-      btn.textContent = 'Copied!';
-      btn.style.color = '#6ee7b7';
-      btn.style.borderColor = 'rgba(110,231,183,0.4)';
-      setTimeout(() => {
-        btn.textContent = original;
-        btn.style.color = '#a78bfa';
-        btn.style.borderColor = 'rgba(167,139,250,0.35)';
-      }, 1500);
+      btn.textContent = '[copied!]';
+      setTimeout(() => { btn.textContent = original; }, 1500);
     });
   }
 

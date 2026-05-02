@@ -4,6 +4,7 @@ import {
   Clearable,
   DEFAULT_GAME_CONFIG,
   EntityClassMapping,
+  PlayerEntity,
   PlayerInterface,
   type Action,
   type ChoiceId,
@@ -57,7 +58,7 @@ export abstract class Client<
   constructor(
     private readonly renderTarget: TARGET_ELEMENT,
     entityClassMapping: EntityClassMapping,
-    protected readonly player: PlayerInterface,
+    protected readonly player: PlayerEntity & PlayerInterface,
     logger?: Partial<Logger>,
   ) {
     Object.assign(this._logger, logger);
@@ -108,6 +109,7 @@ export abstract class Client<
     );
 
     this._choices = choices;
+    this._debug.updateChoices(choices);
 
     for (const choice of choices) {
       this._logger.debug(`Highlighting choice ${choice.id}...`, choice);
