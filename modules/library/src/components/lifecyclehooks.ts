@@ -107,6 +107,20 @@ export type AfterActionIndex = Record<
   (runtime: ModifiableRuntime, parameters: unknown, returnType: unknown) => void
 >;
 
+/**
+ * A generic after-hook that fires after _every_ action, regardless of its type.
+ * Unlike {@link AfterAction}, this hook receives the full immutable action object
+ * rather than the separated parameters and return type.
+ * After-any hooks may:
+ * - modify the runtime (e.g. by spawning or destroying entities, executing nested actions, ...).
+ */
+export interface AfterAnyAction {
+  after(
+    runtime: ModifiableRuntime,
+    action: Action<string, any, any>,
+  ): Promise<void> | void;
+}
+
 export type LifecycleType = 'before' | 'after' | 'check';
 
 export const hasActionLifecyclehook = (

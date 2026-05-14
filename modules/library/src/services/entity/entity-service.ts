@@ -12,7 +12,7 @@ import { Clearable } from '../../interfaces/clearable';
 import { Creator } from '../../interfaces/creator';
 import { Destroyer } from '../../interfaces/destroyer';
 import { Action } from '../../components/action';
-import { LifecycleType } from '../../components/lifecyclehooks';
+import { AfterAnyAction, LifecycleType } from '../../components/lifecyclehooks';
 
 /**
  * This class manages only the aspects that are related to entities.
@@ -36,6 +36,7 @@ export class EntityService
     this._hooksBefore = new Map();
     this._hooksAfter = new Map();
     this._hooksCheck = new Map();
+    this._hooksAfterAny = [];
   }
 
   private _entities = {
@@ -53,6 +54,13 @@ export class EntityService
   private _hooksBefore = new Map<string, Entity[]>();
   private _hooksAfter = new Map<string, Entity[]>();
   private _hooksCheck = new Map<string, Entity[]>();
+  private _hooksAfterAny: Entity[] = [];
+
+  // Hook method names that are reserved and must not be picked up by the
+  // prefix scan — they are handled via their own dedicated registries instead.
+  private static readonly _RESERVED_HOOK_NAMES = new Set<string>([
+    'after',
+  ]);
 
   private static readonly _HOOK_PREFIXES: readonly LifecycleType[] = [
     'before',
@@ -86,6 +94,8 @@ export class EntityService
       for (const key of Object.getOwnPropertyNames(proto)) {
         if (seen.has(key)) continue;
         seen.add(key);
+
+        if (EntityService._RESERVED_HOOK_NAMES.has(key)) continue;
 
         if (
           typeof (raw as unknown as Record<string, unknown>)[key] !== 'function'
@@ -128,6 +138,9 @@ export class EntityService
       }
       list.push(proxy);
     }
+    if (typeof (raw as Entity & AfterAnyAction).after === 'function') {
+      this._hooksAfterAny.push(proxy);
+    }
   }
 
   /**
@@ -141,6 +154,8 @@ export class EntityService
         if (idx !== -1) list.splice(idx, 1);
       }
     }
+    const anyIdx = this._hooksAfterAny.indexOf(proxy);
+    if (anyIdx !== -1) this._hooksAfterAny.splice(anyIdx, 1);
   }
 
   /**
@@ -153,7 +168,15 @@ export class EntityService
     value: unknown,
     proxy: Entity,
   ): void {
-    if (typeof value !== 'function') return;
+    if (prop === 'after' && typeof value === 'function') {
+      if (!this._hooksAfterAny.includes(proxy)) {
+        this._hooksAfterAny.push(proxy);
+      }
+      return;
+    }
+    if (typeof value !== 'function') {
+      return;
+    }
     for (const prefix of EntityService._HOOK_PREFIXES) {
       if (prop.length > prefix.length && prop.startsWith(prefix)) {
         const ch = prop[prefix.length]!;
@@ -179,6 +202,14 @@ export class EntityService
    * @param hookType  'before', 'after', or 'check'
    * @param action    The action whose hook registrations should be looked up.
    */
+  /**
+   * Returns all entity proxies that implement the {@link AfterAnyAction} interface.
+   * These are called after every executed action, regardless of action type.
+   */
+  public getAfterAnyHooks(): Entity[] {
+    return this._hooksAfterAny;
+  }
+
   public getHook(
     hookType: LifecycleType,
     action: Action<string, any, any>,
@@ -261,7 +292,8 @@ export class EntityService
       `Destroying entity ${entity.constructor.name} with ID ${id}.`,
     );
 
-    if (!this._entities.ids.has(id)) {
+    const proxy = this._entities.ids.get(id);
+    if (proxy === undefined) {
       throw new Error(
         `Entity with ID ${id} is not registered and thus can't be deleted!`,
       );
@@ -270,12 +302,12 @@ export class EntityService
     this._entities.ids.delete(id);
     for (const type of this._entities.types.values()) {
       // FIXME: Only access the types that this entity is actually part of, instead of looping through all types.
-      type.delete(entity);
+      type.delete(proxy);
     }
-    this._removeEntityFromHooks(entity);
+    this._removeEntityFromHooks(proxy);
 
     // Flush the entity, so that the clients know that this entity does not exist anymoore.
-    this._flushCallback(entity, 'deleted');
+    this._flushCallback(proxy, 'deleted');
   }
 
   public entities<TYPE extends Entity>(type: Class<TYPE>): ReadonlyArray<TYPE>;

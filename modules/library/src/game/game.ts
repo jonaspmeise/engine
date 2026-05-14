@@ -30,7 +30,7 @@ import { StateService } from '../services/state/state-service';
 import { GraphService } from '../services/graph/graph-service';
 import { ComplexGraph, Graph } from '../components/graph/graph';
 import { NodeId } from '../components/graph/node.types';
-import { getHook, LifecycleType } from '../components/lifecyclehooks';
+import { AfterAnyAction, getHook, LifecycleType } from '../components/lifecyclehooks';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -435,6 +435,27 @@ export abstract class Game<
         this,
         immutableAction.parameters,
         immutableAction.returned(),
+      );
+    }
+
+    // Find all entities that fire after _every_ action, regardless of action type.
+    let afterAnyEntities = this._entityService.getAfterAnyHooks();
+    if (afterAnyEntities.length > 1) {
+      afterAnyEntities = this.resolveTriggerOrder(
+        'after',
+        immutableAction,
+        afterAnyEntities,
+      );
+    }
+
+    // Call after-any hooks.
+    for (const entity of afterAnyEntities) {
+      this._logger.debug(
+        `Calling after-any hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
+      );
+      await (entity as unknown as AfterAnyAction).after(
+        this,
+        immutableAction,
       );
     }
 
