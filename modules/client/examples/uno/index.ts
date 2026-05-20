@@ -1,6 +1,8 @@
 import { DEFAULT_LOGGER, Players } from '@my-engine/library';
 import { UnoClient } from './uno-client';
 import { Uno } from '../../../library/tests/uno/uno';
+import { TicTacToePlayer } from '../../../library/tests/tictactoe/entities/player';
+import { UnoPlayer } from '../../../library/tests/uno/entities/player';
 
 const PLAYER_SIZE = 4;
 const HUMAN_PLAYER_INDEX = 1;
@@ -22,7 +24,7 @@ function startGame(): void {
   }
 
   // Register the human player last so the game starts once all players are connected.
-  const humanPlayer = game.players()![HUMAN_PLAYER_INDEX]!;
+  const humanPlayer = game.entities(UnoPlayer)![HUMAN_PLAYER_INDEX]!;
   const client = new UnoClient(humanPlayer, PLAYER_SIZE);
   game.registerPlayerCallback(humanPlayer, {
     state: (snapshots) => {

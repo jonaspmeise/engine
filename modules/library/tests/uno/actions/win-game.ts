@@ -2,7 +2,7 @@ import { Action, ModifiableRuntime } from '../../../src';
 import { UnoPlayer } from '../entities/player';
 
 export class UnoWinGameAction extends Action<
-  'WinGame',
+  'win_game',
   {
     player: UnoPlayer;
   }
@@ -16,5 +16,5 @@ export class UnoWinGameAction extends Action<
     });
   }
 
-  public $type: 'WinGame' = 'WinGame';
+  public $type: 'win_game' = 'win_game';
 }

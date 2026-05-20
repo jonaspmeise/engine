@@ -6,14 +6,20 @@ import { ClientEntityHandler } from './client-entity-handler';
  * The entire state is updated through the server / engine.
  */
 export type ClientState = {
-  // TODO: Snapshot[] vs. ClientSnapshotData[]? Is the past choice data really necessary...?
   snapshots: Snapshot[];
   entityHandler: ClientEntityHandler;
 };
 
+/**
+ * Models a function, which includes all information to render an executed action.
+ * It contains all important information for the HTML client to properly render each choice.
+ */
 export type ActionRenderFunction<ACTION extends Action<string, any, any>> = {
-  render: (choice: ACTION, execute: () => void) => Promise<void>;
-  erase: (choice: ACTION) => Promise<void>;
+  render?: (choice: ACTION, execute: () => void) => Promise<void>;
+  erase?: (choice: ACTION) => Promise<void>;
+  message?: (choice: ACTION) => string | string[];
+  animateBefore?: (choice: ACTION) => Promise<void>;
+  animateAfter?: (choice: ACTION) => Promise<void>;
 };
 
 export type ChoiceTypeMapping<ACTIONS extends Action<string, any, any>> = {

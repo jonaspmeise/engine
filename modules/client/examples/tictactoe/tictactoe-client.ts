@@ -7,8 +7,8 @@ import { TicTacToeMark } from '../../../library/tests/tictactoe/actions/mark';
 import { TicTacToeWin } from '../../../library/tests/tictactoe/actions/win';
 import { TicTacToePlayer } from '../../../library/tests/tictactoe/entities/player';
 
-export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
-  constructor(player: PlayerInterface) {
+export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark | TicTacToeWin | TicTacToeDraw> {
+  constructor(player: TicTacToePlayer) {
     super(
       document.getElementById('tic-tac-toe-target') as HTMLDivElement,
       new TicTacToe({
@@ -68,7 +68,7 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
 
   public choiceTypeMapping = {
     mark: {
-      render: async (choice, execute) => {
+      render: async (choice: TicTacToeMark, execute: () => void) => {
         // Highlight the slot in question and make it clickable.
         const element = document.getElementById(
           choice.parameters.slot[entityId],
@@ -81,7 +81,7 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
           execute();
         };
       },
-      erase: async (choice) => {
+      erase: async (choice: TicTacToeMark) => {
         // And remove the highlight again...
         const element = document.getElementById(
           choice.parameters.slot[entityId],
@@ -89,10 +89,48 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
         element.classList.remove('highlighted');
         element.onclick = null;
       },
+      animateAfter: async (choice: TicTacToeMark) => {
+        // We animate the move by having the mark of that current player "zoom in" slowly to its full size.
+        const slotId = choice.parameters!.slot[entityId];
+        const slotElement = document.getElementById(slotId);
+        if (slotElement) {
+          await slotElement.animate(
+            [
+              { transform: 'scale(0.1)', opacity: '0.5' },
+              { transform: 'scale(1)', opacity: '1' },
+            ],
+            {
+              duration: 300,
+              easing: 'ease-out',
+            },
+          ).finished;
+        }
+      }
     },
-  } satisfies ChoiceTypeMapping<TicTacToeMark>;
-
-  protected async animateBefore(_choice: Action<string, any>): Promise<void> {}
+    win: {
+      animateAfter: async (choice: TicTacToeWin) => {
+        const didWin =
+          choice.parameters!.player[entityId] ===
+          (this.player as unknown as TicTacToePlayer)[entityId];
+        const result = await this._showResult(didWin ? 'win' : 'lose');
+        if (this.onResultChoice) {
+          this.onResultChoice(result);
+        } else {
+          this.clear();
+        }
+      },
+    },
+    draw: {
+      animateAfter: async (choice: TicTacToeDraw) => {
+        const result = await this._showResult('draw');
+        if (this.onResultChoice) {
+          this.onResultChoice(result);
+        } else {
+          this.clear();
+        }
+      },
+    }
+  };
 
   private _launchFireworks(): void {
     const colors = [
@@ -183,50 +221,5 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
         { once: true },
       );
     });
-  }
-
-  protected async animateAfter(
-    choice: TicTacToeMark | TicTacToeWin | TicTacToeDraw,
-  ): Promise<void> {
-    switch (choice.$type) {
-      case 'win': {
-        const didWin =
-          choice.parameters!.player[entityId] ===
-          (this.player as unknown as TicTacToePlayer)[entityId];
-        const result = await this._showResult(didWin ? 'win' : 'lose');
-        if (this.onResultChoice) {
-          this.onResultChoice(result);
-        } else {
-          this.clear();
-        }
-        break;
-      }
-      case 'draw': {
-        const result = await this._showResult('draw');
-        if (this.onResultChoice) {
-          this.onResultChoice(result);
-        } else {
-          this.clear();
-        }
-        break;
-      }
-      case 'mark': {
-        // We animate the move by having the mark of that current player "zoom in" slowly to its full size.
-        const slotId = choice.parameters!.slot[entityId];
-        const slotElement = document.getElementById(slotId);
-        if (slotElement) {
-          await slotElement.animate(
-            [
-              { transform: 'scale(0.1)', opacity: '0.5' },
-              { transform: 'scale(1)', opacity: '1' },
-            ],
-            {
-              duration: 300,
-              easing: 'ease-out',
-            },
-          ).finished;
-        }
-      }
-    }
   }
 }

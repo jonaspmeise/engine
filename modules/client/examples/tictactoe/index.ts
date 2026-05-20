@@ -3,13 +3,14 @@ import { TicTacToe } from '../../../library/tests/tictactoe/tictactoe';
 import { Players } from '@my-engine/library';
 import { TicTacToeClient } from './tictactoe-client';
 import type { PlayerInterfaceCallback } from '@my-engine/library';
+import { TicTacToePlayer } from '../../../library/tests/tictactoe/entities/player';
 
 type AIFactory = (game: TicTacToe) => PlayerInterfaceCallback;
 
 function startGame(aiFactory: AIFactory): void {
   const game = new TicTacToe({ firstPlayer: 'X' });
-  const aiPlayer = game.players()[0]!;
-  const humanPlayer = game.players()[1]!;
+  const aiPlayer = game.entities(TicTacToePlayer)[0]!;
+  const humanPlayer = game.entities(TicTacToePlayer)[1]!;
 
   game.registerPlayerCallback(aiPlayer, aiFactory(game));
 

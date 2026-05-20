@@ -15,12 +15,16 @@ import { UnoDrawCardAction } from '../../../library/tests/uno/actions/draw-card'
 import { UnoPickColorAction } from '../../../library/tests/uno/actions/pick-color';
 import { UnoPassTurnAction } from '../../../library/tests/uno/actions/pass-turn';
 import { ChoiceTypeMapping } from '../../../client/src';
+import { UnoPutDiscardPileAction } from '../../../library/tests/uno/actions/put-discardpile';
+import { UnoWinGameAction } from '../../../library/tests/uno/actions/win-game';
 
 type UnoActions =
   | UnoPlayCardAction
   | UnoDrawCardAction
   | UnoPickColorAction
-  | UnoPassTurnAction;
+  | UnoPassTurnAction
+  | UnoPutDiscardPileAction
+  | UnoWinGameAction;
 
 // Short display labels for non-numeric values.
 const LABEL: Record<string, string> = {
@@ -31,7 +35,7 @@ const LABEL: Record<string, string> = {
   reverse: '↺',
 };
 
-export class UnoClient extends Client<HTMLDivElement, UnoActions> {
+export class UnoClient extends Client<HTMLDivElement, UnoActions, UnoPlayer> {
   private _flyFrom: DOMRect | null = null;
   private _flyMeta: {
     color?: string;
@@ -43,125 +47,12 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
     discardPrevLabel?: string;
   } = {};
 
-  constructor(player: PlayerInterface, playerSize: number) {
+  constructor(player: UnoPlayer, playerSize: number) {
     super(
       document.getElementById('uno-target') as HTMLDivElement,
       new Uno({ playerSize }).entityClassMapping(),
       player,
     );
-  }
-
-  protected async animateBefore(choice: Action<string, any>): Promise<void> {
-    const type = choice.$type;
-    const params = (choice as any).parameters;
-
-    if (type === 'put_discard_pile' && !this._flyFrom) {
-      // Capture card position for AI-played cards (human cards are captured at
-      // click time in the choiceTypeMapping render handler). This runs before
-      // render() so the card element still exists in the hand DOM.
-      const cardId: string | undefined = params?.card?.[entityId];
-      if (cardId) {
-        const cardEl = document.getElementById(cardId);
-        if (cardEl) {
-          const discardEl =
-            document.querySelector<HTMLElement>('.discard-card');
-          this._flyFrom = cardEl.getBoundingClientRect();
-          this._flyMeta = {
-            color: cardEl.dataset.color,
-            label: cardEl.dataset.label,
-            toRect: discardEl?.getBoundingClientRect(),
-            discardPrevColor: discardEl?.dataset.color,
-            discardPrevLabel: discardEl?.dataset.label,
-          };
-        }
-      }
-    } else if (type === 'drawdiscard_pile' && !this._flyFrom) {
-      // Capture card position for AI-played cards (human cards are captured at
-      // click time in the choiceTypeMapping render handler). This runs before
-      // render() so the card element still exists in the hand DOM.
-      const cardId: string | undefined = params?.card?.[entityId];
-      if (cardId) {
-        const cardEl = document.getElementById(cardId);
-        if (cardEl) {
-          const discardEl =
-            document.querySelector<HTMLElement>('.discard-card');
-          this._flyFrom = cardEl.getBoundingClientRect();
-          this._flyMeta = {
-            color: cardEl.dataset.color,
-            label: cardEl.dataset.label,
-            toRect: discardEl?.getBoundingClientRect(),
-            discardPrevColor: discardEl?.dataset.color,
-            discardPrevLabel: discardEl?.dataset.label,
-          };
-        }
-      }
-    } else if (type === 'draw_card') {
-      const deckEl = document.querySelector<HTMLElement>('.deck-card');
-      if (deckEl) {
-        const pid: string | undefined = params?.player?.[entityId];
-        this._flyFrom = deckEl.getBoundingClientRect();
-        this._flyMeta = {
-          faceDown: true,
-          toSelector: pid ? `#board-${pid} .hand` : undefined,
-        };
-      }
-    }
-  }
-
-  protected async animateAfter(choice: Action<string, any>): Promise<void> {
-    const type = choice.$type;
-
-    if (type === 'WinGame') {
-      const params = (choice as any).parameters;
-      const winnerEntityId: string | undefined = params?.player?.[entityId];
-      const didWin = winnerEntityId === (this.player as any)[entityId];
-      const result = await this._showResult(didWin ? 'win' : 'lose');
-      if (this.onResultChoice) {
-        this.onResultChoice(result);
-      } else {
-        this.clear();
-      }
-      return;
-    }
-
-    if (!this._flyFrom) return;
-    const from = this._flyFrom;
-    const meta = this._flyMeta;
-    this._flyFrom = null;
-    this._flyMeta = {};
-
-    if (type === 'play_card' || type === 'put_discard_pile') {
-      const discardEl = document.querySelector<HTMLElement>('.discard-card');
-      const toRect = meta.toRect ?? discardEl?.getBoundingClientRect();
-      if (discardEl && toRect) {
-        // Capture whatever render() already put on the discard element.
-        // This may differ from meta.color/meta.label when the played card was
-        // hidden (no data-color on the element), so we must not rely on meta.
-        const newColor = discardEl.dataset.color;
-        const newLabel = discardEl.dataset.label;
-        // Temporarily show the old top card so the destination doesn't flicker.
-        if (meta.discardPrevColor !== undefined)
-          discardEl.dataset.color = meta.discardPrevColor;
-        if (meta.discardPrevLabel !== undefined)
-          discardEl.dataset.label = meta.discardPrevLabel;
-        await this._flyAnimation(from, toRect, meta.color, meta.label);
-        // Restore the new top card using what render() set, not the played
-        // card's own color (which is undefined for hidden opponent cards).
-        if (newColor !== undefined) discardEl.dataset.color = newColor;
-        if (newLabel !== undefined) discardEl.dataset.label = newLabel;
-      }
-    } else if (type === 'draw_card' && meta.toSelector) {
-      const targetEl = document.querySelector<HTMLElement>(meta.toSelector);
-      if (targetEl) {
-        await this._flyAnimation(
-          from,
-          targetEl.getBoundingClientRect(),
-          undefined,
-          undefined,
-          true,
-        );
-      }
-    }
   }
 
   private _flyAnimation(
@@ -468,10 +359,37 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
           deckEl.onclick = null;
         }
       },
+      animateBefore: async (action: UnoDrawCardAction) => {
+        const deckEl = document.querySelector<HTMLElement>('.deck-card');
+      if (deckEl) {
+        const pid: string | undefined = action.parameters.player[entityId];
+        this._flyFrom = deckEl.getBoundingClientRect();
+        this._flyMeta = {
+          faceDown: true,
+          toSelector: pid ? `#board-${pid} .hand` : undefined,
+        };
+      }
+      },
+      animateAfter: async (action: UnoDrawCardAction) => {
+        if(this._flyMeta.toSelector === undefined || this._flyFrom === null) {
+          return;
+        }
+
+        const targetEl = document.querySelector<HTMLElement>(this._flyMeta.toSelector);
+      if (targetEl) {
+        await this._flyAnimation(
+          this._flyFrom,
+          targetEl.getBoundingClientRect(),
+          undefined,
+          undefined,
+          true,
+        );
+      }
+      }
     },
     pick_color: {
       // Intercepted by feedChoices override; these are never reached in normal flow.
-      render: async (choice, execute) => {
+      render: async (choice: UnoPickColorAction, execute: () => void) => {
         const pickElementButton = document.getElementById(
           `color-pick-${choice.parameters.color}`,
         )!;
@@ -521,7 +439,66 @@ export class UnoClient extends Client<HTMLDivElement, UnoActions> {
         document.getElementById('pass-turn-btn')?.remove();
       },
     },
-  } satisfies ChoiceTypeMapping<UnoActions>;
+    put_discard_pile: {
+      animateBefore: async (action: UnoPutDiscardPileAction) => {
+        // Capture card position for AI-played cards (human cards are captured at
+      // click time in the choiceTypeMapping render handler). This runs before
+      // render() so the card element still exists in the hand DOM.
+      const cardId: string | undefined = action.parameters.card?.[entityId];
+      if (cardId) {
+        const cardEl = document.getElementById(cardId);
+        if (cardEl) {
+          const discardEl =
+            document.querySelector<HTMLElement>('.discard-card');
+          this._flyFrom = cardEl.getBoundingClientRect();
+          this._flyMeta = {
+            color: cardEl.dataset.color,
+            label: cardEl.dataset.label,
+            toRect: discardEl?.getBoundingClientRect(),
+            discardPrevColor: discardEl?.dataset.color,
+            discardPrevLabel: discardEl?.dataset.label,
+          };
+        }
+      }
+    },
+      animateAfter: async (action: UnoPutDiscardPileAction) => {
+        
+      const discardEl = document.querySelector<HTMLElement>('.discard-card');
+      const toRect = this._flyMeta?.toRect ?? discardEl?.getBoundingClientRect();
+      if (discardEl && toRect && this._flyFrom) {
+        // Capture whatever render() already put on the discard element.
+        // This may differ from meta.color/meta.label when the played card was
+        // hidden (no data-color on the element), so we must not rely on meta.
+        const newColor = discardEl.dataset.color;
+        const newLabel = discardEl.dataset.label;
+        // Temporarily show the old top card so the destination doesn't flicker.
+        if (this._flyMeta?.discardPrevColor !== undefined)
+          discardEl.dataset.color = this._flyMeta.discardPrevColor;
+        if (this._flyMeta?.discardPrevLabel !== undefined)
+          discardEl.dataset.label = this._flyMeta.discardPrevLabel;
+        await this._flyAnimation(this._flyFrom, toRect, this._flyMeta?.color, this._flyMeta?.label);
+        // Restore the new top card using what render() set, not the played
+        // card's own color (which is undefined for hidden opponent cards).
+        if (newColor !== undefined) discardEl.dataset.color = newColor;
+        if (newLabel !== undefined) discardEl.dataset.label = newLabel;
+      }
+    }
+  },
+      win_game: {
+        animateAfter: async (action: UnoWinGameAction) => {
+          const params = (action as any).parameters;
+      const winnerEntityId: string | undefined = params?.player?.[entityId];
+      const didWin = winnerEntityId === (this.player as any)[entityId];
+      const result = await this._showResult(didWin ? 'win' : 'lose');
+      if (this.onResultChoice) {
+        this.onResultChoice(result);
+      } else {
+        this.clear();
+      }
+      return;
+        }
+      }
+  };
 
   private _launchFireworks(): void {
     const colors = [

@@ -3,6 +3,7 @@
 import {
   Clearable,
   DEFAULT_GAME_CONFIG,
+  Entity,
   EntityClassMapping,
   PlayerEntity,
   PlayerInterface,
@@ -25,6 +26,7 @@ import { DebugService } from './debug-service';
 export abstract class Client<
   TARGET_ELEMENT extends HTMLElement = HTMLElement,
   ACTIONS extends Action<string, any, any> = Action<string, any, any>,
+  PLAYER_TYPE extends PlayerEntity = PlayerEntity,
 > implements Clearable {
   // TODO: How to represent game state in the client? We only need Entities and Choices...
   private _state: ClientState;
@@ -58,7 +60,7 @@ export abstract class Client<
   constructor(
     private readonly renderTarget: TARGET_ELEMENT,
     entityClassMapping: EntityClassMapping,
-    protected readonly player: PlayerEntity & PlayerInterface,
+    protected readonly player: PLAYER_TYPE,
     logger?: Partial<Logger>,
   ) {
     Object.assign(this._logger, logger);
@@ -113,7 +115,7 @@ export abstract class Client<
 
     for (const choice of choices) {
       this._logger.debug(`Highlighting choice ${choice.id}...`, choice);
-      this.choiceTypeMapping[choice.execution.$type as ACTIONS['$type']].render(
+      this.choiceTypeMapping[choice.execution.$type as ACTIONS['$type']]?.render?.(
         choice.execution as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
         () => {
           this._logger.debug(`Player executes choice ${choice.id}...`, choice);
@@ -177,7 +179,10 @@ export abstract class Client<
           `Animating executed choice (before)...`,
           snapshot.executed,
         );
-        await this.animateBefore(snapshot.executed);
+        await this.choiceTypeMapping[snapshot.executed.$type as ACTIONS['$type']]?.animateBefore?.(
+          snapshot.executed as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
+        );
+        await this.animateBefore(snapshot.executed as ACTIONS);
       }
 
       this.render(this.renderTarget, this._state.entityHandler);
@@ -190,7 +195,10 @@ export abstract class Client<
         await new Promise<void>((resolve) =>
           requestAnimationFrame(() => resolve()),
         );
-        await this.animateAfter(snapshot.executed);
+        await this.choiceTypeMapping[snapshot.executed.$type as ACTIONS['$type']]?.animateAfter?.(
+          snapshot.executed as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
+        );
+        await this.animateAfter(snapshot.executed as ACTIONS);
       }
     }
   }
@@ -206,23 +214,28 @@ export abstract class Client<
       this._logger.debug(`Erasing choice ${prior.id}...`, prior);
       await this.choiceTypeMapping[
         prior.execution.$type as ACTIONS['$type']
-      ].erase(prior.execution as Extract<ACTIONS, { $type: ACTIONS['$type'] }>);
+      ]?.erase?.(prior.execution as Extract<ACTIONS, { $type: ACTIONS['$type'] }>);
     }
   }
 
   /**
    * Animates the game state before the UI is rendered.
-   * This is called before rendering the game state.
+   * This is called before rendering the game state and before animating the choice itself.
+   * It can be used for general render hooks.
+   * @parm choice The choice that is executed, which triggered the animation.
    * @returns A promise that resolves when the animation is complete.
    */
-  protected abstract animateBefore(choice: Action<string, any>): Promise<void>;
+  protected async animateBefore(_choice: ACTIONS): Promise<void> {};
 
   /**
    * Animates the game state after the UI is rendered.
    * This is called after rendering the game state.
+   * This is called before rendering the game state and before animating the choice itself.
+   * It can be used for general render hooks.
+   * @parm choice The choice that is executed, which triggered the animation.
    * @returns A promise that resolves when the animation is complete.
    */
-  protected abstract animateAfter(choice: Action<string, any>): Promise<void>;
+  protected async animateAfter(_choice: ACTIONS): Promise<void> {};
 
   /**
    * Renders the game state into the target element.
