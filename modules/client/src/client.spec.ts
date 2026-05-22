@@ -2,6 +2,7 @@
 import { describe, test, mock, beforeEach, jest, expect } from 'bun:test';
 import { Client } from './client';
 import {
+  TestAction,
   TestEntityA,
   TestEntityB,
   TestEntityC,
@@ -110,5 +111,43 @@ describe('client', () => {
     );
 
     // TODO: IMPORTANT: Write many tests for all other integrated components, including the UI (stuff like highlighting, ...)!
+
+    test('feedChoices erases highlights BEFORE running the chosen action', async () => {
+      // A choice can resolve + re-prompt synchronously; erasing afterwards would
+      // wipe the next prompt's freshly-rendered affordances. So erase must come
+      // first.
+      const order: string[] = [];
+      let runChoice: (() => void) | undefined;
+
+      class OrderClient extends DummyClient {
+        public choiceTypeMapping = {
+          TestAction: {
+            render: (_execution: TestAction, execute: () => void) => {
+              runChoice = execute;
+            },
+            erase: () => {},
+          },
+        };
+        protected async eraseHighlights(): Promise<void> {
+          order.push('erase');
+        }
+      }
+
+      const orderClient = new OrderClient(
+        element,
+        new TestGame(),
+        {} as PlayerEntity,
+      );
+      const choice = EnhancedChoice.fromAction(
+        new TestAction(),
+        {} as PlayerEntity,
+        0,
+      );
+
+      await orderClient.feedChoices([choice], () => order.push('execute'));
+      runChoice?.();
+
+      expect(order).toEqual(['erase', 'execute']);
+    });
   });
 });

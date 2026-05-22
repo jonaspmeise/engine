@@ -120,9 +120,13 @@ export abstract class Client<
         () => {
           this._logger.debug(`Player executes choice ${choice.id}...`, choice);
 
-          executeCallback(choice);
-          // Erase prior highlights!
+          // Erase the current affordances BEFORE running the choice. Executing a
+          // choice can resolve the prompt and re-prompt synchronously (rendering
+          // the next set of choices); erasing afterwards would wipe those
+          // freshly-rendered affordances. feedSnapshots also erases at render
+          // start, so erasing first here is consistent, not redundant work.
           this.eraseHighlights();
+          executeCallback(choice);
         },
       );
     }

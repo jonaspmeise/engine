@@ -203,9 +203,12 @@ export class StateService {
         choice: EnhancedChoice<Action<string, any>> | ChoiceId,
       ) => {
         const id = typeof choice === 'object' ? choice.id : choice;
+        // A stale callback (fired after the prompt already resolved) leaves no
+        // registered choices for the player; treat that like any other invalid
+        // choice rather than throwing on `.get(player)!`.
         const fetchedChoice = this._state.choices
-          .get(player)!
-          .find((c) => c.id === id);
+          .get(player)
+          ?.find((c) => c.id === id);
 
         if (fetchedChoice === undefined) {
           this._logger.error(
