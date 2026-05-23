@@ -44,12 +44,49 @@ export class StateService {
   private _status: GameStatus = 'setup';
   private _endParameters: GameEndParameters | undefined = undefined;
 
+  // The stack of actions currently being applied. A top-level action sits at the
+  // bottom; an action whose `doApply` calls `runtime.execute(...)` pushes the
+  // nested action on top while it runs. Used to:
+  //  - decide whether a new execution starts a fresh snapshot batch (top-level,
+  //    empty stack) or appends to the current batch (nested) — so a parent's
+  //    mutations made before nesting are preserved;
+  //  - re-label the parent's continuation snapshot when a nested action returns
+  //    control to it (see markDirty).
+  private _executionStack: Action<string, any, any>[] = [];
+
+  // How many snapshots of the current batch have already been emitted to each
+  // player. `informPlayer` sends only the snapshots appended since the player's
+  // last inform, so a nested execute and its enclosing parent never emit the same
+  // snapshot twice. Emitting incrementally (rather than deferring to when the
+  // top-level action settles) is essential: when a nested action prompts the
+  // player mid-execution, the snapshots accumulated so far must already have
+  // reached the client so the player sees the up-to-date state they are deciding
+  // on. Reset whenever a fresh top-level batch begins.
+  private _emittedSnapshotCounts: Map<PlayerEntity, number> = new Map();
+
   constructor(private readonly _logger: Logger) {}
 
   public markDirty(entity: Entity, type: EntityFlushCallbackType): void {
     this._logger.debug(
       `Marking entity ${entity.constructor.name} with ID ${entity[entityId]} as dirty.`,
     );
+
+    // The currently-applying action (top of the execution stack) records into a
+    // snapshot it owns. After a nested execute returns control to a parent, the
+    // latest snapshot belongs to the nested action; the parent's subsequent
+    // mutations must go into a fresh snapshot labelled with the parent so they
+    // stay correctly ordered (after the nested action) and attributed. We open
+    // that continuation snapshot lazily, only when the parent actually mutates
+    // again — keeping the batch free of empty snapshots.
+    const current = this._executionStack[this._executionStack.length - 1];
+    const latest =
+      this._state.currentSnapshots[this._state.currentSnapshots.length - 1]!;
+    if (current !== undefined && latest.executed !== current) {
+      this._state.currentSnapshots.push({
+        dirtyEntities: {},
+        executed: current,
+      });
+    }
 
     this._state.currentSnapshots[
       this._state.currentSnapshots.length - 1
@@ -272,18 +309,26 @@ export class StateService {
       `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
     );
 
+    // Send only the snapshots this player has not yet been informed about. A
+    // full-state request (e.g. reconnect) always sends the entire current batch.
+    // This keeps a nested `execute` and its enclosing parent from emitting the
+    // same snapshots twice: the inner inform sends the freshly appended ones; the
+    // outer inform then only sends what the parent appended after the nested call.
+    const alreadyEmitted = sendFullState
+      ? 0
+      : (this._emittedSnapshotCounts.get(player) ?? 0);
+    const pending = this._state.currentSnapshots.slice(alreadyEmitted);
+
     // We translate the internal snapshot data into a player-facing format and apply visibility...
-    const snapshots: Snapshot[] = this._state.currentSnapshots.map(
-      (snapshot) => ({
-        dirtyEntities: Object.fromEntries(
-          Object.entries(snapshot.dirtyEntities).map(([id, entity]) => [
-            id,
-            entity == null ? null : entity.visibility(player),
-          ]),
-        ),
-        executed: snapshot.executed,
-      }),
-    );
+    const snapshots: Snapshot[] = pending.map((snapshot) => ({
+      dirtyEntities: Object.fromEntries(
+        Object.entries(snapshot.dirtyEntities).map(([id, entity]) => [
+          id,
+          entity == null ? null : entity.visibility(player),
+        ]),
+      ),
+      executed: snapshot.executed,
+    }));
 
     if (player[handler] === undefined) {
       this._logger.error(
@@ -291,6 +336,11 @@ export class StateService {
       );
       return;
     }
+
+    this._emittedSnapshotCounts.set(
+      player,
+      this._state.currentSnapshots.length,
+    );
     player[handler].state(snapshots);
   }
 
@@ -307,15 +357,36 @@ export class StateService {
   ): Promise<Action<string, any, any>> {
     this._logger.info(`Executing action "${action.$type}"...`);
 
-    // Clear prior snapshot state and calculate the next one.
-    this._state.pastSnapshots.push(...this._state.currentSnapshots);
-    this._state.currentSnapshots = [
-      {
+    if (this._executionStack.length === 0) {
+      // A new top-level action: archive the prior batch and begin a fresh one.
+      this._state.pastSnapshots.push(...this._state.currentSnapshots);
+      this._state.currentSnapshots = [
+        {
+          dirtyEntities: {},
+          executed: action,
+        },
+      ];
+      // The fresh batch has not been emitted to anyone yet.
+      this._emittedSnapshotCounts.clear();
+    } else {
+      // A nested action invoked from within a parent's doApply. Append a new
+      // snapshot rather than discarding the parent's accumulated mutations, so
+      // the parent's pre-nest changes still reach the client (ordered before the
+      // nested action's own changes). The parent's post-nest mutations open a
+      // fresh continuation snapshot lazily in markDirty.
+      this._state.currentSnapshots.push({
         dirtyEntities: {},
         executed: action,
-      },
-    ];
-    await action.apply(runtime);
+      });
+    }
+
+    this._executionStack.push(action);
+
+    try {
+      await action.apply(runtime);
+    } finally {
+      this._executionStack.pop();
+    }
 
     return action;
   }
