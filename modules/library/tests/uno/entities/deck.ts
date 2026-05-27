@@ -11,6 +11,7 @@ export class UnoDeck
   extends UnoZone
   implements BeforeAction<UnoDrawCardAction>
 {
+  public static readonly $type: string = 'Deck';
   public $type: string = 'Deck';
 
   constructor() {

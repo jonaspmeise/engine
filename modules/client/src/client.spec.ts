@@ -1,13 +1,7 @@
 /// <reference lib="dom" />
 import { describe, test, mock, beforeEach, jest, expect } from 'bun:test';
 import { Client } from './client';
-import {
-  TestAction,
-  TestEntityA,
-  TestEntityB,
-  TestEntityC,
-  TestGame,
-} from '../../library/src/game/game.spec.types';
+import { TestAction, TestGame } from '../../library/src/game/game.spec.types';
 import {
   Action,
   EnhancedChoice,
@@ -15,7 +9,6 @@ import {
   QueryableRuntime,
   Snapshot,
 } from '@my-engine/library';
-import { ActionRenderFunction } from './client.types';
 
 const animateBefore = mock(() => Promise.resolve());
 const animateAfter = mock(() => Promise.resolve());
@@ -47,7 +40,11 @@ describe('client', () => {
   let client: Client;
 
   beforeEach(() => {
-    client = new DummyClient(element, new TestGame(), {} as PlayerEntity);
+    client = new DummyClient(
+      element,
+      new TestGame().entityClassMapping(),
+      {} as PlayerEntity,
+    );
     jest.clearAllMocks();
   });
 
@@ -135,7 +132,7 @@ describe('client', () => {
 
       const orderClient = new OrderClient(
         element,
-        new TestGame(),
+        new TestGame().entityClassMapping(),
         {} as PlayerEntity,
       );
       const choice = EnhancedChoice.fromAction(

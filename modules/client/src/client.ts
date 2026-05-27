@@ -3,10 +3,8 @@
 import {
   Clearable,
   DEFAULT_GAME_CONFIG,
-  Entity,
   EntityClassMapping,
   PlayerEntity,
-  PlayerInterface,
   type Action,
   type ChoiceId,
   type EnhancedChoice,
@@ -115,7 +113,9 @@ export abstract class Client<
 
     for (const choice of choices) {
       this._logger.debug(`Highlighting choice ${choice.id}...`, choice);
-      this.choiceTypeMapping[choice.execution.$type as ACTIONS['$type']]?.render?.(
+      this.choiceTypeMapping[
+        choice.execution.$type as ACTIONS['$type']
+      ]?.render?.(
         choice.execution as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
         () => {
           this._logger.debug(`Player executes choice ${choice.id}...`, choice);
@@ -183,7 +183,9 @@ export abstract class Client<
           `Animating executed choice (before)...`,
           snapshot.executed,
         );
-        await this.choiceTypeMapping[snapshot.executed.$type as ACTIONS['$type']]?.animateBefore?.(
+        await this.choiceTypeMapping[
+          snapshot.executed.$type as ACTIONS['$type']
+        ]?.animateBefore?.(
           snapshot.executed as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
         );
         await this.animateBefore(snapshot.executed as ACTIONS);
@@ -199,7 +201,9 @@ export abstract class Client<
         await new Promise<void>((resolve) =>
           requestAnimationFrame(() => resolve()),
         );
-        await this.choiceTypeMapping[snapshot.executed.$type as ACTIONS['$type']]?.animateAfter?.(
+        await this.choiceTypeMapping[
+          snapshot.executed.$type as ACTIONS['$type']
+        ]?.animateAfter?.(
           snapshot.executed as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
         );
         await this.animateAfter(snapshot.executed as ACTIONS);
@@ -218,7 +222,9 @@ export abstract class Client<
       this._logger.debug(`Erasing choice ${prior.id}...`, prior);
       await this.choiceTypeMapping[
         prior.execution.$type as ACTIONS['$type']
-      ]?.erase?.(prior.execution as Extract<ACTIONS, { $type: ACTIONS['$type'] }>);
+      ]?.erase?.(
+        prior.execution as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
+      );
     }
   }
 
@@ -229,7 +235,7 @@ export abstract class Client<
    * @parm choice The choice that is executed, which triggered the animation.
    * @returns A promise that resolves when the animation is complete.
    */
-  protected async animateBefore(_choice: ACTIONS): Promise<void> {};
+  protected async animateBefore(_choice: ACTIONS): Promise<void> {}
 
   /**
    * Animates the game state after the UI is rendered.
@@ -239,7 +245,7 @@ export abstract class Client<
    * @parm choice The choice that is executed, which triggered the animation.
    * @returns A promise that resolves when the animation is complete.
    */
-  protected async animateAfter(_choice: ACTIONS): Promise<void> {};
+  protected async animateAfter(_choice: ACTIONS): Promise<void> {}
 
   /**
    * Renders the game state into the target element.

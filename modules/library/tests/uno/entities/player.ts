@@ -11,6 +11,7 @@ import { UnoHand } from './hand';
 import { entityId } from '@my-engine/library';
 
 export class UnoPlayer extends Entity implements PlayerInterface {
+  public static readonly $type: string = 'UnoPlayer';
   public $type: string = 'UnoPlayer';
 
   [playerInterfaceMarker]: true = true as const;

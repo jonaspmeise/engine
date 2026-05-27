@@ -1,1 +1,1 @@
-export * from '../../client/src/client.types.ts';
+export * from '../../client/src/client.types';

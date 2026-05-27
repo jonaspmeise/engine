@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { describe, test, mock, beforeEach, jest, expect } from 'bun:test';
+import { describe, test, beforeEach, jest, expect } from 'bun:test';
 import { Entity, entityId } from '@my-engine/library';
 import { ClientEntityHandler } from './client-entity-handler';
 import { ClientEntity } from './client-entity-handler.types';
@@ -7,10 +7,6 @@ import {
   TestEntityA,
   TestEntityC,
 } from '../../library/src/game/game.spec.types';
-
-const animate = mock(() => Promise.resolve());
-const render = mock(() => {});
-const element: HTMLElement = document.createElement('div');
 
 abstract class TestAbstractEntity extends Entity {
   public static readonly $type: string = 'TestAbstractEntity';

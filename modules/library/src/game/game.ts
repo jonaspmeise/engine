@@ -30,7 +30,11 @@ import { StateService } from '../services/state/state-service';
 import { GraphService } from '../services/graph/graph-service';
 import { ComplexGraph, Graph } from '../components/graph/graph';
 import { NodeId } from '../components/graph/node.types';
-import { AfterAnyAction, getHook, LifecycleType } from '../components/lifecyclehooks';
+import {
+  AfterAnyAction,
+  getHook,
+  LifecycleType,
+} from '../components/lifecyclehooks';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -43,6 +47,13 @@ export abstract class Game<
   private _graphService!: GraphService<NodeId>;
   private readonly _stateService: StateService;
   private readonly _callbacks: Partial<GameLifecycle> = {};
+
+  // The accumulated source-entity ID chain for the currently-executing trigger.
+  // null means no trigger is active (direct execution). When a hook belonging to
+  // entity E fires and calls runtime.execute(action), this is set to
+  // [...parentAction.source, entityId(E)] so the new action records the full chain.
+  // Saved and restored around each hook call to support nested trigger chains.
+  private _triggerSources: string[] | null = null;
 
   // TODO: ... handle drivers (for MTCS / replays).
   // TODO: Should parameters be serialized within the game, or be discarded after initializing?
@@ -278,6 +289,15 @@ export abstract class Game<
     this._logger.debug(
       `Prompting player ${player[playerId]} with ${choices.length} choices...`,
     );
+
+    // Stamp the active trigger-source chain onto each choice so that the player
+    // callback can observe what caused these choices to be offered, even though
+    // the choices are not yet executed at this point.
+    const promptSource = this._triggerSources ?? [];
+    for (const choice of choices) {
+      choice.source = promptSource;
+    }
+
     const filteredChoices: ACTION[] = await Promise.all(
       choices.map(async (choice) => {
         if ((await this._actionPreventedBy(choice)) === undefined) {
@@ -341,6 +361,12 @@ export abstract class Game<
       return undefined;
     }
 
+    // Record which trigger chain (if any) caused this action to be executed.
+    // If we are inside a trigger hook, use the active chain; otherwise preserve any
+    // source already stamped by prompt() so that a player-selected choice retains
+    // the trigger context it was offered in.
+    action.source = this._triggerSources ?? action.source;
+
     this._stateService.setSettled(false);
     this._logger.debug(`Executing action ${action.$type}...`);
 
@@ -385,11 +411,14 @@ export abstract class Game<
         `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
       );
 
+      const savedSources = this._triggerSources;
+      this._triggerSources = [...action.source, entity[entityId]];
       const triggerResult = await getHook(
         entity,
         action,
         'before',
       )(this, action.parameters);
+      this._triggerSources = savedSources;
 
       if (triggerResult !== undefined && !triggerResult) {
         this._logger.debug(
@@ -431,11 +460,14 @@ export abstract class Game<
         `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
       );
 
+      const savedSources = this._triggerSources;
+      this._triggerSources = [...immutableAction.source, entity[entityId]];
       await getHook(entity, immutableAction, 'after')(
         this,
         immutableAction.parameters,
         immutableAction.returned(),
       );
+      this._triggerSources = savedSources;
     }
 
     // Find all entities that fire after _every_ action, regardless of action type.
@@ -453,10 +485,10 @@ export abstract class Game<
       this._logger.debug(
         `Calling after-any hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
       );
-      await (entity as unknown as AfterAnyAction).after(
-        this,
-        immutableAction,
-      );
+      const savedSources = this._triggerSources;
+      this._triggerSources = [...immutableAction.source, entity[entityId]];
+      await (entity as unknown as AfterAnyAction).after(this, immutableAction);
+      this._triggerSources = savedSources;
     }
 
     return action;

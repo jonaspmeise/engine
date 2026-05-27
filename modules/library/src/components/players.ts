@@ -193,8 +193,8 @@ export namespace Players {
     name?: string,
   ) => PlayerInterfaceCallback = (
     delay: () => number = () => 0,
-    logger: Logger = DEFAULT_LOGGER,
-    name?: string,
+    _logger: Logger = DEFAULT_LOGGER,
+    _name?: string,
   ) => ({
     // Chicken no need state!
     state: () => {},

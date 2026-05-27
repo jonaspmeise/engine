@@ -58,9 +58,7 @@ export class EntityService
 
   // Hook method names that are reserved and must not be picked up by the
   // prefix scan — they are handled via their own dedicated registries instead.
-  private static readonly _RESERVED_HOOK_NAMES = new Set<string>([
-    'after',
-  ]);
+  private static readonly _RESERVED_HOOK_NAMES = new Set<string>(['after']);
 
   private static readonly _HOOK_PREFIXES: readonly LifecycleType[] = [
     'before',
