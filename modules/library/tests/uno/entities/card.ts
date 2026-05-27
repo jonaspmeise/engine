@@ -9,6 +9,7 @@ export abstract class UnoCard
   extends Entity
   implements AfterAction<UnoPlayCardAction>
 {
+  public static readonly $type: string = 'UnoCard';
   public $type: string = 'UnoCard';
 
   // This flag exists on the entity, but is overwritten in the visibility function.

@@ -1,1 +1,1 @@
-export * from '../../client/src/debug-service.ts';
+export * from '../../client/src/debug-service';

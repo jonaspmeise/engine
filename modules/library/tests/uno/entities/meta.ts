@@ -9,18 +9,19 @@ import { UnoPlayer } from './player';
  * This entity only exists as a singleton.
  */
 export class UnoMeta extends Entity implements AfterAction<UnoPlayCardAction> {
-  public $type: string = 'Meta';
+  public static readonly $type: string = 'UnoMeta';
+  public $type: string = 'UnoMeta';
 
   public drawOverloads: number = 0;
   public currentPlayerIndex: number = 0;
   public direction: 1 | -1 = 1;
 
   constructor(public players: UnoPlayer[]) {
-    super('meta');
+    super('UnoMeta');
   }
 
   public toString(): string {
-    return `Meta`;
+    return `UnoMeta`;
   }
 
   public currentPlayer() {

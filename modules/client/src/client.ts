@@ -3,10 +3,8 @@
 import {
   Clearable,
   DEFAULT_GAME_CONFIG,
-  Entity,
   EntityClassMapping,
   PlayerEntity,
-  PlayerInterface,
   type Action,
   type ChoiceId,
   type EnhancedChoice,

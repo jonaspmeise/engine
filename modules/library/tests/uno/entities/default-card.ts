@@ -2,6 +2,7 @@ import { UnoCard } from './card';
 import { UnoZone } from './zone';
 
 export class UnoDefaultCard extends UnoCard {
+  public static readonly $type: string = 'DefaultCard';
   public drawCards: number | undefined = undefined;
   public $type: string = 'DefaultCard';
 

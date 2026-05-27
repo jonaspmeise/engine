@@ -4,6 +4,7 @@ import { UnoMeta } from './meta';
 import { UnoZone } from './zone';
 
 export class ActionCard extends UnoCard {
+  public static readonly $type: string = 'ActionCard';
   public $type: string = 'ActionCard';
   constructor(
     public readonly value: 'reverse' | 'skip' | 'draw-two',

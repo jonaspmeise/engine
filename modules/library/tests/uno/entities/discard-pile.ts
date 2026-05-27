@@ -3,6 +3,7 @@ import { UnoCard } from './card';
 import { UnoZone } from './zone';
 
 export class UnoDiscardPile extends UnoZone {
+  public static readonly $type: string = 'DiscardPile';
   public toString(): string {
     return 'Discard Pile';
   }

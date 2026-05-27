@@ -8,9 +8,9 @@ import {
   TestEntityC,
 } from '../../library/src/game/game.spec.types';
 
-const animate = mock(() => Promise.resolve());
-const render = mock(() => {});
-const element: HTMLElement = document.createElement('div');
+const _animate = mock(() => Promise.resolve());
+const _render = mock(() => {});
+const _element: HTMLElement = document.createElement('div');
 
 abstract class TestAbstractEntity extends Entity {
   public static readonly $type: string = 'TestAbstractEntity';

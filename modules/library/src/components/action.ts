@@ -62,7 +62,7 @@ export abstract class Action<
    * @param parameters The parameters to check, which are passed in the constructor of this Action.
    * @returns true if this Action can be applied to the given game state, false otherwise.
    */
-  public canApply(runtime: QueryableRuntime): boolean {
+  public canApply(_runtime: QueryableRuntime): boolean {
     return true;
   }
 
