@@ -17,11 +17,11 @@ export class UnoMeta extends Entity implements AfterAction<UnoPlayCardAction> {
   public direction: 1 | -1 = 1;
 
   constructor(public players: UnoPlayer[]) {
-    super('UnoMeta');
+    super('meta');
   }
 
   public toString(): string {
-    return `UnoMeta`;
+    return `meta`;
   }
 
   public currentPlayer() {
