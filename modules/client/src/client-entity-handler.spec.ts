@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { describe, test, mock, beforeEach, jest, expect } from 'bun:test';
+import { describe, test, beforeEach, jest, expect } from 'bun:test';
 import { Entity, entityId } from '@my-engine/library';
 import { ClientEntityHandler } from './client-entity-handler';
 import { ClientEntity } from './client-entity-handler.types';
