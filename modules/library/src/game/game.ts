@@ -30,7 +30,11 @@ import { StateService } from '../services/state/state-service';
 import { GraphService } from '../services/graph/graph-service';
 import { ComplexGraph, Graph } from '../components/graph/graph';
 import { NodeId } from '../components/graph/node.types';
-import { AfterAnyAction, getHook, LifecycleType } from '../components/lifecyclehooks';
+import {
+  AfterAnyAction,
+  getHook,
+  LifecycleType,
+} from '../components/lifecyclehooks';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -483,10 +487,7 @@ export abstract class Game<
       );
       const savedSources = this._triggerSources;
       this._triggerSources = [...immutableAction.source, entity[entityId]];
-      await (entity as unknown as AfterAnyAction).after(
-        this,
-        immutableAction,
-      );
+      await (entity as unknown as AfterAnyAction).after(this, immutableAction);
       this._triggerSources = savedSources;
     }
 
