@@ -1,8 +1,7 @@
 import { ActionParameters } from './action.types';
+import { EntityID } from './entity.types';
 import { ModifiableRuntime } from '../game/modifiable-runtime';
 import { QueryableRuntime } from '../game/queryable-runtime';
-import { PlayerEntity } from '../services/entity/entity-service.types';
-import { Entity } from './entity';
 
 /**
  * Models a single type of @see Action.
@@ -16,6 +15,14 @@ export abstract class Action<
 > {
   public readonly parameters: PARAMETERS;
   private returnInformation: RETURN_TYPE | undefined = undefined;
+
+  /**
+   * The entity IDs of every trigger (before/after hook entity) that caused this action to be executed,
+   * in the order they appear in the chain. Empty for actions executed directly (not via a trigger).
+   * Example: if entity A's after-hook triggers action X, and entity B's after-hook on X triggers action Y,
+   * then X.source = [entityId(A)] and Y.source = [entityId(A), entityId(B)].
+   */
+  public source: EntityID[] = [];
 
   constructor(
     ...args: PARAMETERS extends undefined ? [] : [parameters: PARAMETERS]
