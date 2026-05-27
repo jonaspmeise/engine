@@ -123,16 +123,19 @@ describe('StateService', () => {
       expect(service.status()).toBe('ended');
     });
 
-    test('the cloned service preserves the snapshot depth from the original.', () => {
-      // GIVEN — simulate depth by calling execute (which pushes to pastSnapshots)
+    test('the cloned service preserves the snapshot depth from the original.', async () => {
+      // GIVEN — simulate depth by calling execute (which pushes to pastSnapshots).
+      // Each top-level execute must settle (its apply must resolve and the action
+      // pop off the execution stack) before the next one starts, mirroring how the
+      // engine always awaits an execute before driving the next top-level action.
       const action: Action<string, any, any> = {
         $type: 'dummy',
-        apply: () => {},
+        apply: async () => {},
         parameters: {},
         returned: () => undefined,
       } as any;
-      service.execute(action, {} as ModifiableRuntime);
-      service.execute(action, {} as ModifiableRuntime);
+      await service.execute(action, {} as ModifiableRuntime);
+      await service.execute(action, {} as ModifiableRuntime);
 
       // WHEN
       const clone = service.clone();
