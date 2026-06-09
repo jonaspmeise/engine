@@ -135,6 +135,25 @@ describe('Client Entity Handler', () => {
     expect(service.anyEntity(TestEntityC)).toEqual(expected);
   });
 
+  test('a null delta destroys the entity, removing it from typed queries too', () => {
+    // GIVEN
+    service.apply('testentityC-0', {
+      $type: 'TestEntityC',
+    });
+    expect(service.entities(TestEntityC)).toHaveLength(1);
+
+    // WHEN
+    service.apply('testentityC-0', null);
+
+    // THEN
+    // The entity must vanish from the untyped AND the per-type queries —
+    // a destroyed entity lingering in entities(SomeType) would keep being
+    // rendered by clients even though the engine deleted it.
+    expect(service.entities()).toHaveLength(0);
+    expect(service.entities(TestEntityC)).toHaveLength(0);
+    expect(service.anyEntity(TestEntityC)).toBeNull();
+  });
+
   test.todo('can be spawned for an abstract class.', () => {
     // GIVEN / WHEN
     service.apply('TestAbstractEntity-1', {

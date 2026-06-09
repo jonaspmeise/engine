@@ -94,6 +94,19 @@ export class ClientEntityHandler implements QueryableRuntime {
           this._state.entities.findIndex((e) => e[entityId] === id),
           1,
         );
+        // Also remove the entity from every per-type list — typed queries
+        // (entities(SomeType), anyEntity) read from these, so a destroyed
+        // entity left behind here would still be returned (and rendered).
+        for (const prototype of EntityService.getPrototypes(existingEntity)) {
+          const typedEntities = this._state.entityByType.get(
+            prototype as Class<Entity>,
+          );
+          const index =
+            typedEntities?.findIndex((e) => e[entityId] === id) ?? -1;
+          if (index >= 0) {
+            typedEntities!.splice(index, 1);
+          }
+        }
         return;
       }
 
