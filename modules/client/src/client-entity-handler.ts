@@ -25,6 +25,11 @@ export class ClientEntityHandler implements QueryableRuntime {
     return 'running';
   }
 
+  depth(): Readonly<number> {
+    // The client never executes actions itself, so there is no execution depth.
+    return 0;
+  }
+
   private _state = {
     entityByType: new Map<Class<Entity>, Entity[]>(),
     entities: [] as Entity[],

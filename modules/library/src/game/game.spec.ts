@@ -2,7 +2,7 @@ import { jest, describe, test, expect, spyOn, afterEach, mock } from 'bun:test';
 import { Action } from '../components/action';
 import { ModifiableRuntime } from './modifiable-runtime';
 import { Entity, entityId } from '../components/entity';
-import { Logger } from './game.types';
+import { Class, Logger } from './game.types';
 import { jsonRoundtrip, timeout } from '../utility.spec';
 import {
   TestGame,
@@ -22,6 +22,7 @@ import {
   LifecycleType,
 } from '../components/lifecyclehooks';
 import { GraphRuntime } from './graph-runtime';
+import { QueryableRuntime } from './queryable-runtime';
 
 describe('game', () => {
   afterEach(() => {
@@ -169,6 +170,187 @@ describe('game', () => {
 
       // THEN
       expect(game.players()).toHaveLength(2);
+    });
+  });
+
+  describe('depth', () => {
+    test('returns 0 on a plain game where no action is being executed.', () => {
+      // GIVEN / WHEN
+      const game = new TestGame();
+
+      // THEN
+      expect(game.depth()).toBe(0);
+    });
+
+    test('returns 1 inside a player interface handler when a single action prompts the player.', (done) => {
+      // GIVEN
+      // An action that prompts its player mid-execution.
+      class PromptingAction extends Action<'PromptingAction'> {
+        public $type: 'PromptingAction' = 'PromptingAction';
+        async doApply(runtime: GraphRuntime): Promise<void> {
+          await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+            new TestAction(),
+          ]);
+        }
+      }
+
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1), new TestEntityC(1)]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              await runtime.execute(new PromptingAction());
+            },
+          };
+        }
+
+        actionClasses(): Set<Class<Action<string, any, any>>> {
+          return new Set([...super.actionClasses(), PromptingAction]);
+        }
+      }
+
+      const game = new DummyGame();
+
+      // WHEN
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        // Not relevant for this test.
+        state: () => {},
+        prompt: (choices) => {
+          if (choices.length === 0) {
+            return;
+          }
+
+          // THEN
+          // The prompt happens within the execution of a single action.
+          expect(game.depth()).toBe(1);
+          done();
+        },
+      });
+
+      timeout(done);
+    });
+
+    test('returns 1 inside before- and after-triggers of an entity for a single action.', (done) => {
+      // GIVEN
+      const observedDepths: number[] = [];
+
+      class DepthObservingEntity
+        extends Entity
+        implements BeforeAction<TestAction>, AfterAction<TestAction>
+      {
+        public $type: string = 'DepthObservingEntity';
+
+        beforeTestAction(runtime: ModifiableRuntime) {
+          observedDepths.push(runtime.depth());
+        }
+
+        afterTestAction(runtime: ModifiableRuntime) {
+          observedDepths.push(runtime.depth());
+        }
+
+        public toString(): string {
+          return `DepthObservingEntity`;
+        }
+      }
+
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([
+            new TestPlayerEntity(1),
+            new TestEntityC(1),
+            new DepthObservingEntity('depth-observing-entity'),
+          ]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              // WHEN
+              await runtime.execute(new TestAction());
+
+              // THEN
+              // Both triggers ran within the execution of a single action.
+              expect(observedDepths).toEqual([1, 1]);
+              done();
+            },
+          };
+        }
+      }
+
+      const game = new DummyGame();
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        // Not relevant for this test, game just needs to start.
+        state: () => {},
+        prompt: () => {},
+      });
+
+      timeout(done);
+    });
+
+    test('a nested action raises the depth to 2; the parent sees the same depth before and after the nested execute.', (done) => {
+      // GIVEN
+      const observedDepths: number[] = [];
+
+      class InnerDepthAction extends Action<'InnerDepthAction'> {
+        public $type: 'InnerDepthAction' = 'InnerDepthAction';
+        async doApply(runtime: QueryableRuntime): Promise<void> {
+          observedDepths.push(runtime.depth());
+        }
+      }
+
+      class OuterDepthAction extends Action<'OuterDepthAction'> {
+        public $type: 'OuterDepthAction' = 'OuterDepthAction';
+        async doApply(runtime: GraphRuntime): Promise<void> {
+          observedDepths.push(runtime.depth());
+          await runtime.execute(new InnerDepthAction());
+          observedDepths.push(runtime.depth());
+        }
+      }
+
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1), new TestEntityC(1)]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              // No action is being executed inside a plain graph node.
+              expect(runtime.depth()).toBe(0);
+
+              // WHEN
+              await runtime.execute(new OuterDepthAction());
+
+              // THEN
+              // The outer action ran at depth 1, the nested action at depth 2,
+              // and the outer action returned to depth 1 after the nested execute.
+              expect(observedDepths).toEqual([1, 2, 1]);
+              expect(runtime.depth()).toBe(0);
+              done();
+            },
+          };
+        }
+
+        actionClasses(): Set<Class<Action<string, any, any>>> {
+          return new Set([
+            ...super.actionClasses(),
+            OuterDepthAction,
+            InnerDepthAction,
+          ]);
+        }
+      }
+
+      const game = new DummyGame();
+      game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        // Not relevant for this test, game just needs to start.
+        state: () => {},
+        prompt: () => {},
+      });
+
+      timeout(done);
     });
   });
 
