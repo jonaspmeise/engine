@@ -160,7 +160,23 @@ export abstract class Client<
     await this.feedChoices(choices, execute);
   }
 
-  public async feedSnapshots(snapshots: Snapshot[]): Promise<void> {
+  // Serializes feedSnapshots calls: batches are processed strictly in arrival
+  // order. Animations inside a batch are awaited, so without this queue a
+  // second feed would apply and animate ahead of a still-animating earlier
+  // batch (e.g. an effect rendering before the card-play animation finishes).
+  private _snapshotQueue: Promise<void> = Promise.resolve();
+
+  public feedSnapshots(snapshots: Snapshot[]): Promise<void> {
+    const run = this._snapshotQueue.then(() =>
+      this._processSnapshots(snapshots),
+    );
+    // Keep the queue alive after a failed batch; the failure still reaches
+    // this call's own returned promise.
+    this._snapshotQueue = run.catch(() => {});
+    return run;
+  }
+
+  private async _processSnapshots(snapshots: Snapshot[]): Promise<void> {
     this._logger.debug('Client is fed with snapshots...', snapshots);
 
     // Erase prior highlights!
