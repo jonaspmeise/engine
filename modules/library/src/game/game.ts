@@ -414,15 +414,6 @@ export abstract class Game<
         'before',
         action,
       );
-
-      const savedSources = this._triggerSources;
-      this._triggerSources = [...action.source, entity[entityId]];
-      const triggerResult = await getHook(
-        entity,
-        action,
-        'before',
-      )(this, action.parameters);
-      this._triggerSources = savedSources;
       
       if (beforeEntities.length > 1) {
         beforeEntities = this.resolveTriggerOrder(
@@ -493,13 +484,6 @@ export abstract class Game<
         );
         this._triggerSources = savedSources;
     }
-
-        await getHook(entity, immutableAction, 'after')(
-          this,
-          immutableAction.parameters,
-          immutableAction.returned(),
-        );
-      }
 
       // Find all entities that fire after _every_ action, regardless of action type.
       let afterAnyEntities = this._entityService.getAfterAnyHooks();
