@@ -1,1 +1,1 @@
-export * from '../../client/src/client-entity-handler.ts';
+export * from '../../client/src/client-entity-handler';

@@ -47,7 +47,7 @@ export class DebugService {
       actionType: snapshot.executed?.$type,
       dirtyEntities: dirty,
     });
-    
+
     this._refreshPanel();
   }
 
@@ -123,12 +123,11 @@ export class DebugService {
     }
   }
 
-
   // ── Panel ─────────────────────────────────────────────────────────────────
 
   private _buildPanel(): HTMLElement {
     const panel = document.createElement('div');
-    Object.assign (panel.style, {
+    Object.assign(panel.style, {
       position: 'fixed',
       top: '8px',
       right: '8px',
@@ -181,13 +180,15 @@ export class DebugService {
   }
 
   private _refreshPanel(): void {
-    if(!this._active) {
+    if (!this._active) {
       return;
     }
 
     // Choices
-    const choicesSection = this._panel!.querySelector<HTMLElement>('[data-debug-choices]')!;
-  
+    const choicesSection = this._panel!.querySelector<HTMLElement>(
+      '[data-debug-choices]',
+    )!;
+
     choicesSection.innerHTML = '';
 
     const label = document.createElement('div');
@@ -202,7 +203,8 @@ export class DebugService {
       for (const choice of this._choices) {
         const row = document.createElement('div');
         let text = choice.actionType;
-        if (choice.parameters) text += '  ' + choice.parameters.replace(/\s+/g, ' ').slice(0, 60);
+        if (choice.parameters)
+          text += '  ' + choice.parameters.replace(/\s+/g, ' ').slice(0, 60);
         row.textContent = text;
         choicesSection.appendChild(row);
       }
@@ -235,7 +237,11 @@ export class DebugService {
         details.appendChild(idEl);
 
         const pre = document.createElement('pre');
-        Object.assign(pre.style, { whiteSpace: 'pre-wrap', wordBreak: 'break-all', userSelect: 'text' });
+        Object.assign(pre.style, {
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all',
+          userSelect: 'text',
+        });
         pre.textContent = json;
         details.appendChild(pre);
       }
@@ -322,7 +328,9 @@ export class DebugService {
     navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
       const original = btn.textContent;
       btn.textContent = '[copied!]';
-      setTimeout(() => { btn.textContent = original; }, 1500);
+      setTimeout(() => {
+        btn.textContent = original;
+      }, 1500);
     });
   }
 

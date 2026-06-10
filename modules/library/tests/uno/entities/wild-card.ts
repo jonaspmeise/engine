@@ -6,6 +6,7 @@ import { UnoMeta } from './meta';
 import { UnoZone } from './zone';
 
 export class UnoWildCard extends UnoCard {
+  public static readonly $type: string = 'WildCard';
   public $type: string = 'WildCard';
   public color: 'red' | 'yellow' | 'green' | 'blue' | 'black' = 'black';
   drawCards: number | undefined;
@@ -31,8 +32,10 @@ export class UnoWildCard extends UnoCard {
     const currentPlayer = meta.currentPlayer();
 
     switch (this.value) {
+      // @ts-ignore - intentional fallthrough
       case 'wild-draw-four':
         meta.drawOverloads += 4;
+      // falls through
       case 'wild':
         await runtime.execute(
           await runtime.prompt(

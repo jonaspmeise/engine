@@ -1,6 +1,10 @@
 /// <reference lib="dom" />
 import { Action, EntityClassMapping, entityId } from '@my-engine/library';
-import { Client, ClientEntityHandler, ChoiceTypeMapping } from '@my-engine/client';
+import {
+  Client,
+  ClientEntityHandler,
+  ChoiceTypeMapping,
+} from '@my-engine/client';
 import { HorizontalLane } from '../../../library/tests/tictactoe/entities/horizontal-lane';
 import { TicTacToeDraw } from '../../../library/tests/tictactoe/actions/draw';
 import { TicTacToeMark } from '../../../library/tests/tictactoe/actions/mark';
@@ -16,7 +20,10 @@ export class TicTacToeClient extends Client<HTMLDivElement, TicTacToeMark> {
     );
   }
 
-  render(renderTarget: HTMLDivElement, entityHandler: ClientEntityHandler): void {
+  render(
+    renderTarget: HTMLDivElement,
+    entityHandler: ClientEntityHandler,
+  ): void {
     // Render board.
     let board = renderTarget.querySelector('#board');
     if (board === null) {
