@@ -12,4 +12,10 @@ export interface QueryableRuntime {
   anyEntity<TYPE extends Entity>(type: Class<TYPE>): TYPE | null;
   players(): ReadonlyArray<PlayerEntity>;
   status(): Readonly<GameStatus>;
+  /**
+   * Returns the current depth of executed actions.
+   * 0 when no action is being executed, 1 within the execution of a single action
+   * (including its lifecycle triggers and player prompts), and one more for each nested execution.
+   */
+  depth(): Readonly<number>;
 }

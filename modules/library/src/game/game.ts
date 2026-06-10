@@ -48,6 +48,9 @@ export abstract class Game<
   private readonly _stateService: StateService;
   private readonly _callbacks: Partial<GameLifecycle> = {};
 
+  // The number of `execute` calls currently on the call stack. A top-level action raises it to 1;
+  // each nested `execute` (e.g. from within an action's apply or a lifecycle trigger) raises it further.
+  private _executionDepth: number = 0;
   // The accumulated source-entity ID chain for the currently-executing trigger.
   // null means no trigger is active (direct execution). When a hook belonging to
   // entity E fires and calls runtime.execute(action), this is set to
@@ -184,6 +187,16 @@ export abstract class Game<
    */
   public status(): Readonly<GameStatus> {
     return this._stateService.status();
+  }
+
+  /**
+   * Returns the current depth of executed actions.
+   * Note that this is unrelated to the snapshot depth guarded by @see maxDepth.
+   * @returns 0 when no action is being executed, 1 within the execution of a single action
+   * (including its lifecycle triggers and player prompts), and one more for each nested execution.
+   */
+  public depth(): Readonly<number> {
+    return this._executionDepth;
   }
 
   /**
@@ -370,45 +383,36 @@ export abstract class Game<
     this._stateService.setSettled(false);
     this._logger.debug(`Executing action ${action.$type}...`);
 
-    // The action should be registered within the engine, so that clients know abouts its potential existence.
-    // If it were not registered, clients might not know how to render it.
-    if (
-      !this.actionClasses().has(
-        action.constructor as Class<Action<string, any, any>>,
-      )
-    ) {
-      this._logger.error(
-        `The action type "${action.$type}" is not registered in the game ${this.constructor.name}. Please make sure to include it in the "actionClasses" method of your game, so that clients know how to reconstruct and render this action. Executing it anyway...`,
-      );
-    }
+    // Everything belonging to this action (its lifecycle triggers, its apply, prompts issued during it,
+    // and nested executions) runs one level deeper than the surrounding context.
+    this._executionDepth++;
 
-    // Are there any hooks that prevent this?
-    const preventedBy = await this._actionPreventedBy(action);
-    if (preventedBy !== undefined) {
-      this._logger.info(
-        `Action "${action.$type}" was prevented by entity "${preventedBy.$type}" with ID "${preventedBy[entityId]}". Preventing execution of this action...`,
-      );
-      return undefined;
-    }
+    try {
+      // The action should be registered within the engine, so that clients know abouts its potential existence.
+      // If it were not registered, clients might not know how to render it.
+      if (
+        !this.actionClasses().has(
+          action.constructor as Class<Action<string, any, any>>,
+        )
+      ) {
+        this._logger.error(
+          `The action type "${action.$type}" is not registered in the game ${this.constructor.name}. Please make sure to include it in the "actionClasses" method of your game, so that clients know how to reconstruct and render this action. Executing it anyway...`,
+        );
+      }
 
-    // Find all entities that should be called before this action is executed.
-    let beforeEntities: Entity[] = this._entityService.getHook(
-      'before',
-      action,
-    );
+      // Are there any hooks that prevent this?
+      const preventedBy = await this._actionPreventedBy(action);
+      if (preventedBy !== undefined) {
+        this._logger.info(
+          `Action "${action.$type}" was prevented by entity "${preventedBy.$type}" with ID "${preventedBy[entityId]}". Preventing execution of this action...`,
+        );
+        return undefined;
+      }
 
-    if (beforeEntities.length > 1) {
-      beforeEntities = this.resolveTriggerOrder(
+      // Find all entities that should be called before this action is executed.
+      let beforeEntities: Entity[] = this._entityService.getHook(
         'before',
         action,
-        beforeEntities,
-      );
-    }
-
-    // Call before hooks.
-    for (const entity of beforeEntities) {
-      this._logger.debug(
-        `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
       );
 
       const savedSources = this._triggerSources;
@@ -419,79 +423,110 @@ export abstract class Game<
         'before',
       )(this, action.parameters);
       this._triggerSources = savedSources;
-
-      if (triggerResult !== undefined && !triggerResult) {
-        this._logger.debug(
-          `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+      
+      if (beforeEntities.length > 1) {
+        beforeEntities = this.resolveTriggerOrder(
+          'before',
+          action,
+          beforeEntities,
         );
-        return undefined;
       }
-    }
 
-    await this._stateService.execute(action, this);
+      // Call before hooks.
+      for (const entity of beforeEntities) {
+        this._logger.debug(
+          `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
+        );
 
-    // Inform player about _this_ action, but before potential after-hooks are called.
-    for (const player of this._entityService.players()) {
-      this._stateService.informPlayer(player, false);
-    }
+        const triggerResult = await getHook(
+          entity,
+          action,
+          'before',
+        )(this, action.parameters);
 
-    // Action from this point on is immutable!
-    const immutableAction: typeof action = Object.assign({}, action);
-    Object.setPrototypeOf(immutableAction, Object.getPrototypeOf(action));
-    Object.freeze(immutableAction.parameters);
+        if (triggerResult !== undefined && !triggerResult) {
+          this._logger.debug(
+            `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+          );
+          return undefined;
+        }
+      }
 
-    // Find all entities that should be called after this action is executed.
-    let afterEntities: Entity[] = this._entityService.getHook(
-      'after',
-      immutableAction,
-    );
+      await this._stateService.execute(action, this);
 
-    if (afterEntities.length > 1) {
-      afterEntities = this.resolveTriggerOrder(
+      // Inform player about _this_ action, but before potential after-hooks are called.
+      for (const player of this._entityService.players()) {
+        this._stateService.informPlayer(player, false);
+      }
+
+      // Action from this point on is immutable!
+      const immutableAction: typeof action = Object.assign({}, action);
+      Object.setPrototypeOf(immutableAction, Object.getPrototypeOf(action));
+      Object.freeze(immutableAction.parameters);
+
+      // Find all entities that should be called after this action is executed.
+      let afterEntities: Entity[] = this._entityService.getHook(
         'after',
         immutableAction,
-        afterEntities,
       );
+
+      if (afterEntities.length > 1) {
+        afterEntities = this.resolveTriggerOrder(
+          'after',
+          immutableAction,
+          afterEntities,
+        );
+      }
+
+      // Call after hooks.
+      for (const entity of afterEntities) {
+        this._logger.debug(
+          `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
+        );
+
+        const savedSources = this._triggerSources;
+        this._triggerSources = [...immutableAction.source, entity[entityId]];
+        await getHook(entity, immutableAction, 'after')(
+          this,
+          immutableAction.parameters,
+          immutableAction.returned(),
+        );
+        this._triggerSources = savedSources;
     }
 
-    // Call after hooks.
-    for (const entity of afterEntities) {
-      this._logger.debug(
-        `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
-      );
+        await getHook(entity, immutableAction, 'after')(
+          this,
+          immutableAction.parameters,
+          immutableAction.returned(),
+        );
+      }
 
-      const savedSources = this._triggerSources;
-      this._triggerSources = [...immutableAction.source, entity[entityId]];
-      await getHook(entity, immutableAction, 'after')(
-        this,
-        immutableAction.parameters,
-        immutableAction.returned(),
-      );
-      this._triggerSources = savedSources;
+      // Find all entities that fire after _every_ action, regardless of action type.
+      let afterAnyEntities = this._entityService.getAfterAnyHooks();
+      if (afterAnyEntities.length > 1) {
+        afterAnyEntities = this.resolveTriggerOrder(
+          'after',
+          immutableAction,
+          afterAnyEntities,
+        );
+      }
+
+      // Call after-any hooks.
+      for (const entity of afterAnyEntities) {
+        this._logger.debug(
+          `Calling after-any hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
+        );
+
+        const savedSources = this._triggerSources;
+        this._triggerSources = [...immutableAction.source, entity[entityId]];
+        await (entity as unknown as AfterAnyAction).after(this, immutableAction);
+        this._triggerSources = savedSources;
+      }
+
+      return action;
+    } finally {
+      this._executionDepth--;
     }
-
-    // Find all entities that fire after _every_ action, regardless of action type.
-    let afterAnyEntities = this._entityService.getAfterAnyHooks();
-    if (afterAnyEntities.length > 1) {
-      afterAnyEntities = this.resolveTriggerOrder(
-        'after',
-        immutableAction,
-        afterAnyEntities,
-      );
-    }
-
-    // Call after-any hooks.
-    for (const entity of afterAnyEntities) {
-      this._logger.debug(
-        `Calling after-any hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
-      );
-      const savedSources = this._triggerSources;
-      this._triggerSources = [...immutableAction.source, entity[entityId]];
-      await (entity as unknown as AfterAnyAction).after(this, immutableAction);
-      this._triggerSources = savedSources;
-    }
-
-    return action;
   }
 
   /**
