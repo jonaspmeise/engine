@@ -8,4 +8,8 @@ export type ChoiceId = number;
  */
 export type Executable = (runtime: ModifiableRuntime) => void;
 
-export const dereferenceEntityID = (id: EntityID): string => `$ENGINE:${id}`;
+/** The wire prefix used to identify serialized entity references (e.g. "$ENGINE:some-id"). */
+export const ENGINE_ENTITY_PREFIX = '$ENGINE:';
+
+export const dereferenceEntityID = (id: EntityID): string =>
+  `${ENGINE_ENTITY_PREFIX}${id}`;

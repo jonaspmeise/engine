@@ -1,17 +1,22 @@
 /// <reference lib="dom" />
 import {
   entityId,
+  ENGINE_ENTITY_PREFIX,
   type Action,
   type ChoiceId,
   type EnhancedChoice,
   type Snapshot,
 } from '@my-engine/library';
 
-const ENGINE_REF_PREFIX = '$ENGINE:';
-
-function resolveParams(value: unknown): unknown {
-  if (typeof value === 'string' && value.startsWith(ENGINE_REF_PREFIX)) {
-    return { [entityId]: value.slice(ENGINE_REF_PREFIX.length) };
+export function resolveParams(value: unknown): unknown {
+  if (
+    typeof value === 'string' &&
+    value.startsWith(ENGINE_ENTITY_PREFIX)
+  ) {
+    return { [entityId]: value.slice(ENGINE_ENTITY_PREFIX.length) };
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveParams(item));
   }
   if (typeof value === 'object' && value !== null) {
     return Object.fromEntries(

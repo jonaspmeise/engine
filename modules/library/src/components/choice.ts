@@ -32,19 +32,20 @@ export class EnhancedChoice<ACTION extends Action<string, any>> {
     };
   }
 
-  protected static dereferenceEntity(
-    object: Record<string, unknown> | null | undefined,
-  ): Record<string, unknown> | null | undefined {
-    if (typeof object !== 'object' || object === null || object === undefined) {
+  protected static dereferenceEntity(object: unknown): unknown {
+    if (typeof object !== 'object' || object === null) {
       return object;
     }
-
+    if (object instanceof Entity) {
+      return dereferenceEntityID(object[entityId]);
+    }
+    if (Array.isArray(object)) {
+      return object.map((item) => EnhancedChoice.dereferenceEntity(item));
+    }
     return Object.fromEntries(
-      Object.entries(object).map(([key, value]) => [
+      Object.entries(object as Record<string, unknown>).map(([key, value]) => [
         key,
-        value instanceof Entity
-          ? dereferenceEntityID(value[entityId]) // TODO: Structurally define this somewhere as an utility function!
-          : EnhancedChoice.dereferenceEntity(value as Record<string, unknown>),
+        EnhancedChoice.dereferenceEntity(value),
       ]),
     );
   }
