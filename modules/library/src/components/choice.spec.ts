@@ -7,7 +7,7 @@ import type { PlayerEntity } from '../services/entity/entity-service.types';
 // Expose the protected static for testing via a subclass.
 class TestableChoice extends EnhancedChoice<Action<string, any>> {
   static dereference(obj: unknown): unknown {
-    return EnhancedChoice.dereferenceEntity(obj as Record<string, unknown>);
+    return EnhancedChoice.dereferenceEntity(obj);
   }
 }
 
@@ -72,6 +72,20 @@ describe('EnhancedChoice.dereferenceEntity', () => {
     // THEN
     expect(Array.isArray(result['coords'])).toBe(true);
     expect(result['coords']).toEqual([{ x: 1 }, { x: 2 }]);
+  });
+
+  test('an array of plain objects with entity refs is dereferenced', () => {
+    // GIVEN
+    const entityA = new DummyEntity('entity-a');
+
+    // WHEN
+    const result = TestableChoice.dereference({
+      targets: [{ target: entityA }],
+    }) as Record<string, unknown>;
+
+    // THEN — array is preserved and entity ref inside the object is dereferenced
+    expect(Array.isArray(result['targets'])).toBe(true);
+    expect(result['targets']).toEqual([{ target: '$ENGINE:entity-a' }]);
   });
 
   test('existing non-array object parameters are still handled correctly', () => {
