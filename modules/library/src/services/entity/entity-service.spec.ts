@@ -714,4 +714,183 @@ describe('entityService', () => {
       expect(snapshot).toHaveLength(2);
     });
   });
+
+  // C3: mutating collection methods (Array/Set/Map) reached through the proxy
+  // must flush (mark the root entity dirty) exactly like a direct property set,
+  // read-only methods and iteration must not, and element reads must resolve to
+  // canonical/proxied values just like object-property reads do.
+  describe('reactive collection mutations (C3)', () => {
+    class EntityWithArray extends TestEntityA {
+      public list: number[] = [];
+    }
+
+    class EntityWithEntities extends TestEntityA {
+      public refs: Entity[] = [];
+    }
+
+    class EntityWithCollections extends TestEntityA {
+      public readonly arr: number[] = [1, 2, 3];
+      public readonly tags: Set<string> = new Set(['a', 'b']);
+      public readonly lookup: Map<string, number> = new Map([['x', 1]]);
+    }
+
+    describe('mutating methods mark the root entity dirty', () => {
+      test('Array.push flushes through the proxy.', () => {
+        // GIVEN
+        const entity = service.create(new EntityWithArray(1));
+
+        // WHEN
+        entity.list.push(5);
+
+        // THEN
+        expect(entity.list).toEqual([5]);
+        expect(callback).toHaveBeenCalledTimes(2);
+        expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
+      });
+
+      test('Array.splice flushes through the proxy.', () => {
+        // GIVEN
+        class E extends TestEntityA {
+          public list: number[] = [1, 2, 3];
+        }
+        const entity = service.create(new E(1));
+
+        // WHEN
+        entity.list.splice(1, 1);
+
+        // THEN
+        expect(entity.list).toEqual([1, 3]);
+        expect(callback).toHaveBeenCalledTimes(2);
+        expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
+      });
+
+      test('Set.add and Set.delete flush through the proxy.', () => {
+        // GIVEN
+        class E extends TestEntityA {
+          public tags: Set<string> = new Set();
+        }
+        const entity = service.create(new E(1));
+
+        // WHEN / THEN
+        entity.tags.add('x');
+        expect(entity.tags.has('x')).toBe(true);
+        expect(callback).toHaveBeenCalledTimes(2);
+        expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
+
+        entity.tags.delete('x');
+        expect(entity.tags.has('x')).toBe(false);
+        expect(callback).toHaveBeenCalledTimes(3);
+        expect(callback).toHaveBeenNthCalledWith(3, entity, 'updated');
+      });
+
+      test('Map.set and Map.delete flush through the proxy.', () => {
+        // GIVEN
+        class E extends TestEntityA {
+          public lookup: Map<string, number> = new Map();
+        }
+        const entity = service.create(new E(1));
+
+        // WHEN / THEN
+        entity.lookup.set('k', 1);
+        expect(entity.lookup.get('k')).toBe(1);
+        expect(callback).toHaveBeenCalledTimes(2);
+        expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
+
+        entity.lookup.delete('k');
+        expect(entity.lookup.has('k')).toBe(false);
+        expect(callback).toHaveBeenCalledTimes(3);
+        expect(callback).toHaveBeenNthCalledWith(3, entity, 'updated');
+      });
+    });
+
+    test('read-only collection methods and iteration do NOT mark the entity dirty.', () => {
+      // GIVEN
+      const entity = service.create(new EntityWithCollections(1));
+      expect(callback).toHaveBeenCalledTimes(1); // 'created' only
+
+      // WHEN — a broad sweep of read-only access across all three collections.
+      entity.arr.indexOf(2);
+      entity.arr.includes(1);
+      entity.arr.slice(0, 1);
+      entity.arr.map((n) => n * 2);
+      void entity.arr.length;
+      void [...entity.arr];
+      for (const _ of entity.arr) {
+        void _;
+      }
+
+      entity.tags.has('a');
+      void entity.tags.size;
+      Array.from(entity.tags);
+
+      entity.lookup.get('x');
+      entity.lookup.has('x');
+      void entity.lookup.size;
+      Array.from(entity.lookup.entries());
+
+      // THEN — no additional flush beyond the original 'created'.
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    test('reading an array element resolves the raw entity to its canonical proxy.', () => {
+      // GIVEN
+      const referenced = service.create(new TestEntityB(5)) as Entity;
+      const raw = service.getNonProxy(referenced)!;
+      const entity = service.create(new EntityWithEntities(1));
+
+      // WHEN — store the RAW (non-proxy) entity, then read it back.
+      entity.refs.push(raw);
+      const read = entity.refs[0]!;
+
+      // THEN — the element read is remapped to the canonical registered proxy.
+      expect(read).toBe(referenced);
+      expect(read).not.toBe(raw);
+      expect(read[entityId]).toBe(referenced[entityId]);
+    });
+
+    test('reading a nested plain-object array element returns a reactive proxy that flushes on mutation.', () => {
+      // GIVEN
+      class E extends TestEntityA {
+        public rows: Array<{ value: number }> = [{ value: 0 }];
+      }
+      const entity = service.create(new E(1));
+
+      // WHEN — element read must return a proxy so the nested set is observed.
+      const row = entity.rows[0]!;
+      row.value = 42;
+
+      // THEN
+      expect(entity.rows[0]!.value).toBe(42);
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
+    });
+
+    test('regression: instanceof, spread, length, iteration, JSON, has/get/size all keep working.', () => {
+      // GIVEN
+      const entity = service.create(new EntityWithCollections(1));
+
+      // THEN — the proxy must be transparent for all of these operations.
+      expect(entity.arr instanceof Array).toBe(true);
+      expect(entity.tags instanceof Set).toBe(true);
+      expect(entity.lookup instanceof Map).toBe(true);
+
+      expect([...entity.arr]).toEqual([1, 2, 3]);
+      expect(entity.arr.length).toBe(3);
+
+      const collected: number[] = [];
+      for (const n of entity.arr) collected.push(n);
+      expect(collected).toEqual([1, 2, 3]);
+
+      expect(entity.tags.has('a')).toBe(true);
+      expect(entity.tags.size).toBe(2);
+      expect([...entity.tags]).toEqual(['a', 'b']);
+
+      expect(entity.lookup.get('x')).toBe(1);
+      expect(entity.lookup.has('x')).toBe(true);
+      expect(entity.lookup.size).toBe(1);
+
+      expect(JSON.stringify({ arr: entity.arr })).toBe('{"arr":[1,2,3]}');
+      expect(() => JSON.stringify(entity)).not.toThrow();
+    });
+  });
 });

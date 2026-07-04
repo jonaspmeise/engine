@@ -60,6 +60,33 @@ export class EntityService
   // prefix scan — they are handled via their own dedicated registries instead.
   private static readonly _RESERVED_HOOK_NAMES = new Set<string>(['after']);
 
+  // Collection methods that mutate their receiver in place. When invoked through
+  // the reactive proxy they must flush the root entity (mark it dirty) just like
+  // a direct property assignment does; read-only methods stay bound without any
+  // flush. Keyed by collection kind so a member named 'delete' on Set/Map is not
+  // confused with anything on Array, etc.
+  private static readonly _MUTATING_ARRAY_METHODS = new Set<string>([
+    'push',
+    'pop',
+    'shift',
+    'unshift',
+    'splice',
+    'sort',
+    'reverse',
+    'fill',
+    'copyWithin',
+  ]);
+  private static readonly _MUTATING_SET_METHODS = new Set<string>([
+    'add',
+    'delete',
+    'clear',
+  ]);
+  private static readonly _MUTATING_MAP_METHODS = new Set<string>([
+    'set',
+    'delete',
+    'clear',
+  ]);
+
   private static readonly _HOOK_PREFIXES: readonly LifecycleType[] = [
     'before',
     'after',
@@ -371,6 +398,31 @@ export class EntityService
     ids?: Map<EntityID, Entity>,
     onHookSet?: (prop: string, value: unknown, root: Entity) => void,
   ): any => {
+    // Resolves an object-valued read to what the caller should actually see:
+    // an Entity (raw or a proxy from any game instance) is remapped to the
+    // canonical proxy registered in this game's entity service — this keeps
+    // cross-game entity references (e.g. live proxies stored in a cloned
+    // entity's properties) transparently pointing at the local proxy — while
+    // any other nested object is wrapped in its own recursive proxy so that
+    // mutating it flushes the root entity.
+    const resolveObjectValue = (value: object, root: any): any => {
+      if (entityId in value) {
+        if (ids !== undefined) {
+          const canonical = ids.get((value as Entity)[entityId]);
+          if (canonical !== undefined) return canonical;
+        }
+        return value;
+      }
+
+      return EntityService._createRecursiveProxy(
+        value,
+        callback,
+        root,
+        ids,
+        onHookSet,
+      );
+    };
+
     const handler: ProxyHandler<any> = {
       get: (target, prop, receiver) => {
         // Built-in collections (Set, Map, Array, etc.) store data in internal slots
@@ -384,30 +436,50 @@ export class EntityService
             target instanceof Array)
         ) {
           const value = Reflect.get(target, prop, target);
-          return typeof value === 'function' ? value.bind(target) : value;
+
+          if (typeof value === 'function') {
+            // Mutating methods (push, add, set, delete, ...) change the entity's
+            // state, so they must flush the root entity the same way a direct
+            // property set does. Read-only methods and iteration stay bound with
+            // no flush.
+            const isMutating =
+              typeof prop === 'string' &&
+              ((target instanceof Array &&
+                EntityService._MUTATING_ARRAY_METHODS.has(prop)) ||
+                (target instanceof Set &&
+                  EntityService._MUTATING_SET_METHODS.has(prop)) ||
+                (target instanceof Map &&
+                  EntityService._MUTATING_MAP_METHODS.has(prop)));
+
+            if (!isMutating) {
+              return value.bind(target);
+            }
+
+            // Invoke the underlying method on the RAW target — so its internal
+            // property reads don't re-enter this trap and recurse — then flush
+            // the root entity via the same callback path the set trap uses.
+            const method = value;
+            const root = rootProxy || receiver;
+            return (...args: unknown[]): unknown => {
+              const result = method.apply(target, args);
+              callback(root, 'updated');
+              return result;
+            };
+          }
+
+          // Non-function reads (e.g. array element access) resolve entities to
+          // their canonical proxy and wrap nested objects, exactly like the
+          // object-property reads below.
+          if (typeof value === 'object' && value !== null) {
+            return resolveObjectValue(value, rootProxy || receiver);
+          }
+
+          return value;
         }
 
         const value = Reflect.get(target, prop, receiver);
         if (typeof value === 'object' && value !== null) {
-          // If the value is an Entity (raw or proxy from any game instance), resolve it
-          // to the canonical proxy registered in this game's entity service.
-          // This ensures cross-game entity references (e.g. live proxies stored in a
-          // cloned entity's properties) are transparently remapped to the local proxy.
-          if (entityId in value) {
-            if (ids !== undefined) {
-              const canonical = ids.get((value as Entity)[entityId]);
-              if (canonical !== undefined) return canonical;
-            }
-            return value;
-          }
-
-          return EntityService._createRecursiveProxy(
-            value,
-            callback,
-            rootProxy || receiver,
-            ids,
-            onHookSet,
-          );
+          return resolveObjectValue(value, rootProxy || receiver);
         }
 
         return value;
