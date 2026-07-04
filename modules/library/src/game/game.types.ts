@@ -25,6 +25,12 @@ export type LoggerMethod = (...message: unknown[]) => void;
 export type GameConfig = {
   logger?: Partial<Logger>;
   /**
+   * Maximum number of nested execute() calls allowed within a single game action.
+   * When exceeded the engine throws a friendly infinite-loop error instead of a raw
+   * stack overflow. Defaults to {@link DEFAULT_GAME_CONFIG.maxExecutionDepth}.
+   */
+  maxExecutionDepth?: number;
+  /**
    * Pre-built services to inject. When provided, these replace the services that the Game constructor
    * would normally create. Intended for use by Game.clone() to transfer cloned service state without
    * relying on private field access.
@@ -46,6 +52,7 @@ export type Logger = {
 
 export type ResolvedGameConfig = {
   logger: Logger;
+  maxExecutionDepth: number;
 };
 
 export const DEFAULT_LOGGER_METHOD = (
@@ -87,6 +94,7 @@ export const DEFAULT_LOGGER: Logger = {
 
 export const DEFAULT_GAME_CONFIG: ResolvedGameConfig = {
   logger: DEFAULT_LOGGER,
+  maxExecutionDepth: 500,
 };
 
 export type DeepReadonly<T> = Partial<{

@@ -78,6 +78,8 @@ export abstract class Game<
       ...DEFAULT_GAME_CONFIG.logger,
       ...config.logger,
     };
+    this.maxExecutionDepth =
+      config.maxExecutionDepth ?? DEFAULT_GAME_CONFIG.maxExecutionDepth;
 
     this._entityService =
       config.services?.entityService ??
@@ -104,6 +106,14 @@ export abstract class Game<
    * // TODO: This should maybe be passed in the constructor...? It's kinda hidden since it's not abstract here. But overwriting it is only necessarily sparingly.
    */
   public maxDepth: number = 10000;
+
+  /**
+   * The maximum depth of the execution call stack (number of nested execute() calls).
+   * When exceeded the engine throws a friendly error instead of a raw stack overflow.
+   * Sourced from {@link GameConfig.maxExecutionDepth}; defaults to
+   * {@link DEFAULT_GAME_CONFIG.maxExecutionDepth}.
+   */
+  public maxExecutionDepth: number;
 
   /**
    * The name of the game.
@@ -388,6 +398,12 @@ export abstract class Game<
     this._executionDepth++;
 
     try {
+      if (this._executionDepth > this.maxExecutionDepth) {
+        throw new Error(
+          `Maximum execution depth of ${this.maxExecutionDepth} exceeded! This likely means there is an infinite loop in your triggers. Please check your triggers and increase the maximum execution depth (${this.maxExecutionDepth}) if necessary.`,
+        );
+      }
+
       // The action should be registered within the engine, so that clients know abouts its potential existence.
       // If it were not registered, clients might not know how to render it.
       if (

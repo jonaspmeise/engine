@@ -736,6 +736,58 @@ describe('game', () => {
       timeout(done, 100);
     });
 
+    test('throws a friendly error when execute() enters an infinite trigger loop (recursion guard).', async () => {
+      // GIVEN: a cheap no-op action that re-triggers itself via an after-hook — unbounded recursion.
+      class LoopAction extends Action<'LoopAction'> {
+        public $type: 'LoopAction' = 'LoopAction';
+        async doApply(_runtime: ModifiableRuntime): Promise<void> {}
+      }
+
+      class LoopEntity extends Entity implements AfterAction<LoopAction> {
+        public $type: string = 'LoopEntity';
+        constructor() {
+          super('loop-entity');
+        }
+        async afterLoopAction(runtime: ModifiableRuntime): Promise<void> {
+          await runtime.execute(new LoopAction());
+        }
+        public toString() {
+          return 'LoopEntity';
+        }
+      }
+
+      class LoopGame extends TestGame {
+        // Low bound: detect the loop well before the real call stack overflows.
+        public override maxExecutionDepth = 10;
+
+        initialize() {
+          return new Set<Entity>([new TestPlayerEntity(1), new LoopEntity()]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              await runtime.execute(new LoopAction());
+            },
+          };
+        }
+
+        actionClasses(): Set<Class<Action<string, any, any>>> {
+          return new Set([...super.actionClasses(), LoopAction]);
+        }
+      }
+
+      const game = new LoopGame();
+
+      // WHEN / THEN: must throw a friendly error, not a raw RangeError stack overflow.
+      await expect(
+        game.registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+          state: () => {},
+          prompt: () => {},
+        }),
+      ).rejects.toThrow(/maximum execution depth/i);
+    });
+
     test('throws an error after a given max. state depth has reached.', async () => {
       // GIVEN
       class DummyGame extends TestGame {
