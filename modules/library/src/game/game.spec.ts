@@ -459,6 +459,115 @@ describe('game', () => {
       timeout(done, 20);
     });
 
+    test('when a player reconnects after actions have been executed, the full state snapshot includes all live entities (not just recently modified ones).', (done) => {
+      // GIVEN — a game where the graph executes an action (modifying entityC) BEFORE prompting.
+      // After the action, currentSnapshots holds only the entityC delta.  A reconnecting player
+      // must still receive ALL live entities, not just the last delta batch.
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([
+            new TestPlayerEntity(1),
+            new TestEntityC(1),
+          ]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              const player = runtime.entities(TestPlayerEntity)[0]!;
+              // Execute an action first — this archives the initial snapshot batch and
+              // starts a fresh one containing only entityC's delta.
+              await runtime.execute(new TestAction());
+              // Then prompt the player — the game is now waiting here.
+              await runtime.prompt(player, [new TestAction()]);
+            },
+          };
+        }
+
+        actionClasses(): Set<Class<Action<string, any, any>>> {
+          return new Set([...super.actionClasses(), TestAction]);
+        }
+      }
+
+      const game = new DummyGame();
+      const reconnectingPlayer = game.entities(TestPlayerEntity)[0]!;
+
+      game.registerPlayerCallback(reconnectingPlayer, {
+        state: () => {},
+        prompt: () => {}, // does not respond — keeps game waiting
+      });
+
+      setTimeout(() => {
+        game.registerPlayerCallback(reconnectingPlayer, {
+          state: (snapshots) => {
+            // THEN — exactly one snapshot with ALL live entities (player + entityC)
+            expect(snapshots).toHaveLength(1);
+            expect(Object.keys(snapshots[0]!.dirtyEntities)).toHaveLength(2);
+            done();
+          },
+          prompt: () => {},
+        });
+      }, 10);
+    });
+
+    test('destroyed entities are absent from the full-state resend on reconnect.', (done) => {
+      // GIVEN — a game that destroys entityC before prompting
+      class DestroyEntityCAction extends Action<'DestroyEntityCAction'> {
+        public $type: 'DestroyEntityCAction' = 'DestroyEntityCAction';
+        async doApply(r: ModifiableRuntime): Promise<void> {
+          const c = r.anyEntity(TestEntityC)!;
+          r.destroyEntity(c);
+        }
+      }
+
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([
+            new TestPlayerEntity(1),
+            new TestEntityC(1),
+          ]);
+        }
+
+        rawGraph(): Graph<'INITIAL'> {
+          return {
+            INITIAL: async (runtime) => {
+              const player = runtime.entities(TestPlayerEntity)[0]!;
+              // Execute an action that destroys entityC
+              await runtime.execute(new DestroyEntityCAction());
+              await runtime.prompt(player, [new TestAction()]);
+            },
+          };
+        }
+
+        actionClasses(): Set<Class<Action<string, any, any>>> {
+          return new Set([...super.actionClasses(), TestAction, DestroyEntityCAction]);
+        }
+      }
+
+      const game = new DummyGame();
+      const reconnectingPlayer = game.entities(TestPlayerEntity)[0]!;
+
+      game.registerPlayerCallback(reconnectingPlayer, {
+        state: () => {},
+        prompt: () => {},
+      });
+
+      setTimeout(() => {
+        game.registerPlayerCallback(reconnectingPlayer, {
+          state: (snapshots) => {
+            // THEN — only the player entity remains; destroyed entityC must be absent
+            expect(snapshots).toHaveLength(1);
+            const ids = Object.keys(snapshots[0]!.dirtyEntities);
+            expect(ids).toHaveLength(1);
+            // The surviving entity must be the player, not entityC
+            expect(ids.every((id) => id.startsWith('testPlayerEntity'))).toBe(true);
+            done();
+          },
+          prompt: () => {},
+        });
+      }, 10);
+    });
+
     test('issues a warning if a callback is registered when another callback is already registered.', () => {
       // GIVEN
       const game = new TestGame(undefined, { logger });

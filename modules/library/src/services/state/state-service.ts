@@ -286,15 +286,31 @@ export class StateService {
   }
 
   /**
+   * Applies player-specific visibility to a single entity entry from a snapshot.
+   * Null (deleted) entries pass through unchanged.
+   */
+  private _applyVisibility(
+    entity: Entity | null,
+    player: PlayerEntity,
+  ): ReturnType<Entity['visibility']> | null {
+    return entity === null ? null : entity.visibility(player);
+  }
+
+  /**
    * Sends the current, modified state to a player.
    * @param player The player to inform about their state.
    * @param sendFullState Whether to send the full state to the player, or only a diff.
    * For example, if a player disconnected and reconnected, they should be informed about their full state.
    * Normally, only the diff is sent.
+   * @param allEntities When sendFullState is true and this is provided, a single synthetic
+   * snapshot is built from every live entity rather than replaying the current batch.
+   * Pass entityService.entities() here on reconnect to guarantee every live entity
+   * (including ones not touched in the current batch) reaches the client.
    */
   public informPlayer(
     player: PlayerEntity,
-    sendFullState: boolean = false, // TODO: Implement!
+    sendFullState: boolean = false,
+    allEntities?: readonly Entity[],
   ): void {
     this._logger.debug(
       `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
@@ -307,11 +323,37 @@ export class StateService {
       return;
     }
 
+    if (sendFullState && allEntities !== undefined) {
+      // Synthesise a complete snapshot from every currently-live entity.
+      // Visibility is applied identically to the incremental path below so
+      // redaction logic is not duplicated.
+      const fullSnapshot: Snapshot = {
+        dirtyEntities: Object.fromEntries(
+          allEntities.map((entity) => [
+            entity[entityId],
+            this._applyVisibility(entity, player),
+          ]),
+        ),
+        executed: undefined,
+      };
+      // Mark the player as fully caught-up with the current batch so that
+      // subsequent incremental calls only deliver snapshots added after this
+      // reconnect — not the same batch a second time.
+      this._emittedSnapshotCounts.set(
+        player,
+        this._state.currentSnapshots.length,
+      );
+      player[handler].state([fullSnapshot]);
+      return;
+    }
+
     // Send only the snapshots this player has not yet been informed about. A
-    // full-state request (e.g. reconnect) always sends the entire current batch.
-    // This keeps a nested `execute` and its enclosing parent from emitting the
-    // same snapshots twice: the inner inform sends the freshly appended ones; the
-    // outer inform then only sends what the parent appended after the nested call.
+    // full-state request without allEntities (e.g. the initial _start() call
+    // where the full batch is already in currentSnapshots) always sends from
+    // index 0. This keeps a nested `execute` and its enclosing parent from
+    // emitting the same snapshots twice: the inner inform sends the freshly
+    // appended ones; the outer inform then only sends what the parent appended
+    // after the nested call.
     const alreadyEmitted = sendFullState
       ? 0
       : (this._emittedSnapshotCounts.get(player) ?? 0);
@@ -321,7 +363,7 @@ export class StateService {
       dirtyEntities: Object.fromEntries(
         Object.entries(snapshot.dirtyEntities).map(([id, entity]) => [
           id,
-          entity == null ? null : entity.visibility(player),
+          this._applyVisibility(entity, player),
         ]),
       ),
       executed: snapshot.executed,

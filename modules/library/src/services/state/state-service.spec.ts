@@ -286,4 +286,70 @@ describe('StateService', () => {
       );
     });
   });
+
+  describe('full-state resend (sendFullState + allEntities)', () => {
+    const makePlayer = (id: string): PlayerEntity => ({
+      ...player,
+      [playerId]: id,
+      [handler]: { state: mock(() => {}), prompt: () => {} },
+      visibility: () => ({}),
+    });
+
+    test('sends exactly one synthetic snapshot containing all provided entities.', () => {
+      // GIVEN — two entities that were never markDirty (simulating entities created in a prior batch)
+      const p = makePlayer('p-full-1');
+      const entityA = new TestEntityA(1);
+      const entityB = new TestEntityA(2);
+
+      // WHEN — full-state resend with the live entity list
+      service.informPlayer(p, true, [entityA, entityB]);
+
+      // THEN
+      expect(p[handler]!.state).toHaveBeenCalledTimes(1);
+      const [snapshots] = (p[handler]!.state as ReturnType<typeof mock>).mock.calls[0]!;
+      expect(snapshots).toHaveLength(1);
+      expect(Object.keys(snapshots[0].dirtyEntities)).toHaveLength(2);
+      expect(snapshots[0].dirtyEntities[entityA[entityId]]).toBeDefined();
+      expect(snapshots[0].dirtyEntities[entityB[entityId]]).toBeDefined();
+    });
+
+    test('applies visibility() to each entity in the synthetic snapshot.', () => {
+      // GIVEN — an entity that masks a field from this player
+      class RedactedEntity extends TestEntityA {
+        public readonly secret: string = 'hidden';
+        public override visibility(_p: PlayerEntity): Partial<this> {
+          // Omit the 'secret' field for all players
+          const { secret: _secret, ...visible } = this as this & { secret: string };
+          return visible as Partial<this>;
+        }
+      }
+
+      const p = makePlayer('p-full-2');
+      const entity = new RedactedEntity(1);
+
+      // WHEN
+      service.informPlayer(p, true, [entity]);
+
+      // THEN — the secret field must not appear in the delivered snapshot
+      const [snapshots] = (p[handler]!.state as ReturnType<typeof mock>).mock.calls[0]!;
+      expect(snapshots[0].dirtyEntities[entity[entityId]]).not.toHaveProperty('secret');
+    });
+
+    test('marks the player as fully caught-up so subsequent incremental inform only delivers newly added snapshots.', () => {
+      // GIVEN — one snapshot already in currentSnapshots
+      const p = makePlayer('p-full-3');
+      const existing = new TestEntityA(1);
+      service.markDirty(existing, 'created');
+
+      // WHEN — full-state resend advances alreadyEmitted to currentSnapshots.length (1)
+      service.informPlayer(p, true, [existing]);
+      (p[handler]!.state as ReturnType<typeof mock>).mockClear();
+
+      // Incremental inform with nothing new must send an empty batch (not re-send the full state)
+      service.informPlayer(p, false);
+
+      // THEN
+      expect(p[handler]!.state).toHaveBeenCalledWith([]);
+    });
+  });
 });

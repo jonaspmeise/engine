@@ -678,7 +678,11 @@ export abstract class Game<
             `Player interface with ID ${player[playerId]} reconnected. Informing them about their state...`,
         );
 
-        this._stateService.informPlayer(player, true);
+        this._stateService.informPlayer(
+          player,
+          true,
+          this._entityService.entities(),
+        );
         this._stateService.repromptPlayer(player);
       }
     }
