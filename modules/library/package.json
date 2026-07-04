@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "test": "bun test",
+    "test": "bun test ./src ./tests",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

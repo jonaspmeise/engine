@@ -429,11 +429,18 @@ export abstract class Game<
           `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
         );
 
-        const triggerResult = await getHook(
-          entity,
-          action,
-          'before',
-        )(this, action.parameters);
+        const savedSources = this._triggerSources;
+        this._triggerSources = [...action.source, entity[entityId]];
+        let triggerResult;
+        try {
+          triggerResult = await getHook(
+            entity,
+            action,
+            'before',
+          )(this, action.parameters);
+        } finally {
+          this._triggerSources = savedSources;
+        }
 
         if (triggerResult !== undefined && !triggerResult) {
           this._logger.debug(
@@ -477,13 +484,16 @@ export abstract class Game<
 
         const savedSources = this._triggerSources;
         this._triggerSources = [...immutableAction.source, entity[entityId]];
-        await getHook(entity, immutableAction, 'after')(
-          this,
-          immutableAction.parameters,
-          immutableAction.returned(),
-        );
-        this._triggerSources = savedSources;
-    }
+        try {
+          await getHook(entity, immutableAction, 'after')(
+            this,
+            immutableAction.parameters,
+            immutableAction.returned(),
+          );
+        } finally {
+          this._triggerSources = savedSources;
+        }
+      }
 
       // Find all entities that fire after _every_ action, regardless of action type.
       let afterAnyEntities = this._entityService.getAfterAnyHooks();
@@ -503,8 +513,11 @@ export abstract class Game<
 
         const savedSources = this._triggerSources;
         this._triggerSources = [...immutableAction.source, entity[entityId]];
-        await (entity as unknown as AfterAnyAction).after(this, immutableAction);
-        this._triggerSources = savedSources;
+        try {
+          await (entity as unknown as AfterAnyAction).after(this, immutableAction);
+        } finally {
+          this._triggerSources = savedSources;
+        }
       }
 
       return action;
