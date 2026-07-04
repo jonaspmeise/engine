@@ -205,7 +205,10 @@ export class EntityService
    * These are called after every executed action, regardless of action type.
    */
   public getAfterAnyHooks(): Entity[] {
-    return this._hooksAfterAny;
+    // Return a snapshot copy so that spawning or destroying entities inside a
+    // trigger handler (mid-iteration in game.ts) cannot corrupt the in-progress
+    // for..of loop.
+    return [...this._hooksAfterAny];
   }
 
   public getHook(
@@ -215,7 +218,11 @@ export class EntityService
     // Hook methods are named ${hookType}${Capitalize<$type>}, so the map key
     // is the capitalized form of the action's $type.
     const key = action.$type.charAt(0).toUpperCase() + action.$type.slice(1);
-    return this._hooksForType(hookType).get(key) ?? [];
+    // Return a snapshot copy so that spawning or destroying entities inside a
+    // trigger handler (mid-iteration in game.ts) cannot corrupt the in-progress
+    // for..of loop.
+    const list = this._hooksForType(hookType).get(key);
+    return list !== undefined ? [...list] : [];
   }
 
   /**

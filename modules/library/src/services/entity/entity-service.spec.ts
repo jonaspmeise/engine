@@ -19,6 +19,7 @@ import {
 } from '../../interfaces/player-interface';
 import {
   AfterAction,
+  AfterAnyAction,
   BeforeAction,
   CheckAction,
 } from '../../components/lifecyclehooks';
@@ -483,6 +484,14 @@ describe('entityService', () => {
     }
   }
 
+  class AfterAnyEntity extends Entity implements AfterAnyAction {
+    public $type = 'AfterAnyEntity';
+    after(_runtime: ModifiableRuntime, _action: Action<string, any, any>): void {}
+    toString() {
+      return 'AfterAnyEntity';
+    }
+  }
+
   class MultiHookEntity
     extends Entity
     implements AfterAction<typeof markAction>, BeforeAction<typeof markAction>
@@ -629,6 +638,80 @@ describe('entityService', () => {
       expect(service.getHook('after', markAction)[0]![entityId]).toBe(
         entity[entityId],
       );
+    });
+  });
+
+  // H4: hook-dispatch iteration safety — getHook / getAfterAnyHooks must return
+  // snapshot copies so that spawning or destroying hooked entities mid-iteration
+  // (i.e. inside a trigger handler) does not corrupt the in-progress for..of loop.
+  describe('getHook — iteration safety (H4)', () => {
+    test('spawning a new entity with the same after-hook does not modify the snapshot already returned by getHook.', () => {
+      // GIVEN — two entities with afterMark registered
+      service.create(new AfterMarkEntity('after-mark-h4-spawn-1'));
+      service.create(new AfterMarkEntity('after-mark-h4-spawn-2'));
+
+      // WHEN — grab the snapshot (simulates what game.ts does before iterating)
+      const snapshot = service.getHook('after', markAction);
+      expect(snapshot).toHaveLength(2);
+
+      // Simulate a hook handler spawning a new entity with the same hook type
+      // mid-iteration.
+      service.create(new AfterMarkEntity('after-mark-h4-spawn-3'));
+
+      // THEN — the snapshot must still be length 2; the new entity must not bleed
+      // into a loop that started before it existed.
+      expect(snapshot).toHaveLength(2);
+    });
+
+    test('destroying a fellow-hooked entity does not modify the snapshot already returned by getHook.', () => {
+      // GIVEN — two entities with afterMark registered
+      const e1 = service.create(new AfterMarkEntity('after-mark-h4-destroy-1'));
+      service.create(new AfterMarkEntity('after-mark-h4-destroy-2'));
+
+      // WHEN — grab the snapshot
+      const snapshot = service.getHook('after', markAction);
+      expect(snapshot).toHaveLength(2);
+
+      // Simulate a hook handler destroying a fellow-hooked entity mid-iteration.
+      service.destroy(e1);
+
+      // THEN — the snapshot must still be length 2; the destroy must not cause
+      // the loop to skip the entity that followed the destroyed one.
+      expect(snapshot).toHaveLength(2);
+    });
+  });
+
+  describe('getAfterAnyHooks — iteration safety (H4)', () => {
+    test('spawning a new AfterAny entity does not modify the snapshot already returned by getAfterAnyHooks.', () => {
+      // GIVEN — two entities implementing AfterAnyAction
+      service.create(new AfterAnyEntity('after-any-h4-spawn-1'));
+      service.create(new AfterAnyEntity('after-any-h4-spawn-2'));
+
+      // WHEN — grab the snapshot
+      const snapshot = service.getAfterAnyHooks();
+      expect(snapshot).toHaveLength(2);
+
+      // Simulate mid-iteration spawn of a new AfterAny entity
+      service.create(new AfterAnyEntity('after-any-h4-spawn-3'));
+
+      // THEN — snapshot must not have grown
+      expect(snapshot).toHaveLength(2);
+    });
+
+    test('destroying a fellow AfterAny entity does not modify the snapshot already returned by getAfterAnyHooks.', () => {
+      // GIVEN — two entities implementing AfterAnyAction
+      const e1 = service.create(new AfterAnyEntity('after-any-h4-destroy-1'));
+      service.create(new AfterAnyEntity('after-any-h4-destroy-2'));
+
+      // WHEN — grab the snapshot
+      const snapshot = service.getAfterAnyHooks();
+      expect(snapshot).toHaveLength(2);
+
+      // Simulate mid-iteration destroy
+      service.destroy(e1);
+
+      // THEN — snapshot must still be length 2
+      expect(snapshot).toHaveLength(2);
     });
   });
 });
