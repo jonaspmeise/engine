@@ -865,6 +865,25 @@ describe('entityService', () => {
       expect(callback).toHaveBeenNthCalledWith(2, entity, 'updated');
     });
 
+    test('Array.sort() returns the proxy so that chained mutations still flush.', () => {
+      // GIVEN
+      class EntityWithSortableArray extends TestEntityA {
+        public arr: number[] = [3, 1, 2];
+      }
+      const entity = service.create(new EntityWithSortableArray(1));
+      // 'created' flush already occurred (call #1)
+
+      // WHEN — sort() mutates in place and flushes (call #2); the returned
+      // value must be the proxy so that push() on it also flushes (call #3).
+      const sorted = entity.arr.sort();
+      sorted.push(99);
+
+      // THEN — push on the sort result flushed the root entity.
+      expect(entity.arr).toContain(99);
+      expect(callback).toHaveBeenCalledTimes(3);
+      expect(callback).toHaveBeenNthCalledWith(3, entity, 'updated');
+    });
+
     test('regression: instanceof, spread, length, iteration, JSON, has/get/size all keep working.', () => {
       // GIVEN
       const entity = service.create(new EntityWithCollections(1));

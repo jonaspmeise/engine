@@ -458,12 +458,17 @@ export class EntityService
             // Invoke the underlying method on the RAW target — so its internal
             // property reads don't re-enter this trap and recurse — then flush
             // the root entity via the same callback path the set trap uses.
+            // Methods such as sort/reverse/fill/copyWithin return `this` (the raw
+            // target). Returning the raw target would break chained mutations
+            // because subsequent calls would bypass the proxy. When the raw
+            // result is the target itself, return the proxy (receiver) instead so
+            // the caller always holds a reactive reference.
             const method = value;
             const root = rootProxy || receiver;
             return (...args: unknown[]): unknown => {
               const result = method.apply(target, args);
               callback(root, 'updated');
-              return result;
+              return result === target ? receiver : result;
             };
           }
 

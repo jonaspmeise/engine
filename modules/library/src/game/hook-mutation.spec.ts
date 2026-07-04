@@ -176,6 +176,76 @@ describe('direct hook mutations reach the client (C4)', () => {
     timeout(done, 50);
   });
 
+  test('a destroyEntity call made in a top-level action AFTER-hook reaches the client as null.', (done) => {
+    // GIVEN — an entity whose after-hook destroys another entity.
+    class AfterDestroyer extends Entity implements AfterAction<TestAction> {
+      public $type = 'AfterDestroyer';
+      public toString() {
+        return 'AfterDestroyer';
+      }
+      afterTestAction(runtime: ModifiableRuntime): void {
+        const target = runtime
+          .entities(TestEntityC)
+          .find((e) => e[entityId] === 'testentityC-5')!;
+        runtime.destroyEntity(target);
+      }
+    }
+
+    const emitted: Array<Record<string, { volatileNumber?: number } | null>> =
+      [];
+    let initialSeen = false;
+
+    class DummyGame extends TestGame {
+      initialize(): Set<Entity> {
+        return new Set<Entity>([
+          new TestPlayerEntity(1),
+          new TestEntityC(1),
+          new TestEntityC(5),
+          new AfterDestroyer('after-destroyer'),
+        ]);
+      }
+
+      rawGraph(): Graph<'INITIAL'> {
+        return {
+          INITIAL: async (runtime) => {
+            // WHEN — a top-level action fires; its after-hook destroys c5.
+            await runtime.execute(new TestAction());
+
+            setTimeout(() => {
+              // THEN — the destroy reaches the client as a null entry.
+              const flat = emitted.flatMap((snapshot) =>
+                Object.entries(snapshot).map(
+                  ([id, e]) =>
+                    [id, e] as [string, { volatileNumber?: number } | null],
+                ),
+              );
+              expect(flat).toContainEqual(['testentityC-5', null]);
+              done();
+            }, 5);
+          },
+        };
+      }
+    }
+
+    const game = new DummyGame();
+    game
+      .registerPlayerCallback(game.entities(TestPlayerEntity)[0]!, {
+        prompt: () => {},
+        state: (snapshots) => {
+          for (const snapshot of snapshots) {
+            if (!initialSeen) {
+              initialSeen = true;
+              continue;
+            }
+            emitted.push(jsonRoundtrip(snapshot.dirtyEntities));
+          }
+        },
+      })
+      .catch(done);
+
+    timeout(done, 50);
+  });
+
   test('a nested-execute mutation from an after-hook is still delivered exactly once (no duplicate).', (done) => {
     // GIVEN — an after-hook that mutates via a nested execute (the working path).
     class NestedAfterExecutor extends Entity implements AfterAction<TestAction> {

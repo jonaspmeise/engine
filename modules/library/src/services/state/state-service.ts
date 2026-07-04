@@ -297,15 +297,34 @@ export class StateService {
   }
 
   /**
-   * Sends the current, modified state to a player.
-   * @param player The player to inform about their state.
-   * @param sendFullState Whether to send the full state to the player, or only a diff.
-   * For example, if a player disconnected and reconnected, they should be informed about their full state.
-   * Normally, only the diff is sent.
-   * @param allEntities When sendFullState is true and this is provided, a single synthetic
-   * snapshot is built from every live entity rather than replaying the current batch.
-   * Pass entityService.entities() here on reconnect to guarantee every live entity
-   * (including ones not touched in the current batch) reaches the client.
+   * Sends the current game state to a player.
+   *
+   * **Three calling modes — choose carefully:**
+   *
+   * **`sendFullState=true` WITH `allEntities`** — synthesized reconnect snapshot.
+   * Builds a single synthetic snapshot from every live entity, guaranteeing the
+   * client receives the complete board state regardless of which entities were
+   * dirtied in the current batch. Use this on reconnect. After the call the
+   * player's emitted count is advanced to the current batch length so subsequent
+   * incremental calls deliver only newer snapshots.
+   *
+   * **`sendFullState=false`** (default) — incremental delta.
+   * Sends only the snapshots in the current batch that this player has not yet
+   * been informed about. This is the correct mode during normal execution.
+   *
+   * **`sendFullState=true` WITHOUT `allEntities`** — replay-from-0 of the current
+   * batch. Forces re-delivery of all snapshots in `currentSnapshots` from index 0.
+   * Only correct during setup / `_start()`, where the full initial snapshot batch
+   * is already in `currentSnapshots` and must be delivered in its entirety to a
+   * newly registered player. Calling this mode after setup (when the batch only
+   * contains an in-progress action's snapshots) may silently under-deliver state:
+   * any live entities not touched in the current batch will not reach the client.
+   *
+   * @param player The player to inform.
+   * @param sendFullState When true, overrides the emitted-count tracking for this call.
+   * @param allEntities When provided alongside `sendFullState=true`, synthesises a
+   * complete snapshot from every live entity (reconnect path). Pass
+   * `entityService.entities()` here on reconnect.
    */
   public informPlayer(
     player: PlayerEntity,
@@ -315,6 +334,30 @@ export class StateService {
     this._logger.debug(
       `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
     );
+
+    // Calling sendFullState=true without allEntities during an active game
+    // replays only the current batch from index 0. Entities not touched in this
+    // batch are silently omitted — the caller almost certainly wants the reconnect
+    // path (sendFullState=true WITH allEntities) instead.
+    //
+    // Note: _status becomes 'running' at the very start of _start(), before the
+    // initial informPlayer calls that broadcast the setup batch. Those calls are
+    // intentional (replay-from-0 of the first batch) and must not trigger this
+    // warning. pastSnapshots.length === 0 while _start() is broadcasting, so
+    // we only warn once the game has actually processed at least one top-level
+    // action (pastSnapshots non-empty).
+    if (
+      sendFullState &&
+      allEntities === undefined &&
+      this._status !== 'setup' &&
+      this._state.pastSnapshots.length > 0
+    ) {
+      this._logger.warn(
+        `informPlayer called with sendFullState=true but no allEntities while the game is already running ` +
+          `(status: "${this._status}"). Only snapshots in the current batch will be delivered; any live entity ` +
+          `not touched in this batch will not reach the client. Pass allEntities for a guaranteed complete state snapshot.`,
+      );
+    }
 
     if (player[handler] === undefined) {
       this._logger.error(
