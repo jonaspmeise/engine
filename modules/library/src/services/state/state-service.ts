@@ -52,7 +52,7 @@ export class StateService {
   // currentSnapshots only when the action's doApply completes, ensuring that
   // deeper-nested actions' snapshots always precede their ancestor's snapshot.
   private _executionStack: Array<{
-    action: Action<string, any, any>;
+    action?: Action<string, any, any>;
     ownSnapshot: InternalSnapshot;
   }> = [];
 
@@ -332,6 +332,46 @@ export class StateService {
       this._state.currentSnapshots.length,
     );
     player[handler].state(snapshots);
+  }
+
+  /**
+   * Runs a lifecycle-hook phase (before/check or after/after-any) whose direct
+   * mutations would otherwise be lost. Direct mutations made by hooks of a
+   * top-level action happen while the execution stack is empty: before-/check-
+   * hook mutations land in the prior, already-emitted batch (which is then
+   * archived), and after-hook mutations land in the action's already-emitted
+   * snapshot whose emitted-count was already advanced. Neither is ever sent.
+   *
+   * Wrapping the phase pushes a dedicated snapshot frame so hook mutations
+   * accumulate into their own snapshot, appended to the current batch in the
+   * correct position (before the action for before-hooks, after it for
+   * after-hooks). Nested `runtime.execute(...)` calls made inside the phase see
+   * a non-empty stack and therefore join the current batch and emit themselves
+   * as before.
+   * @param callback The hook phase to run.
+   * @returns true if the phase produced at least one direct mutation (a snapshot
+   * was appended and should be emitted); false otherwise.
+   */
+  public async captureHookMutations(
+    callback: () => Promise<void>,
+  ): Promise<boolean> {
+    const ownSnapshot: InternalSnapshot = { dirtyEntities: {} };
+    this._executionStack.push({ ownSnapshot });
+
+    try {
+      await callback();
+    } finally {
+      this._executionStack.pop();
+    }
+
+    // Only append (and thus emit) when the phase actually mutated something, so
+    // hook-free actions produce no extra, empty snapshots or client updates.
+    if (Object.keys(ownSnapshot.dirtyEntities).length === 0) {
+      return false;
+    }
+
+    this._state.currentSnapshots.push(ownSnapshot);
+    return true;
   }
 
   /**

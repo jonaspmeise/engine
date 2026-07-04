@@ -416,54 +416,86 @@ export abstract class Game<
         );
       }
 
-      // Are there any hooks that prevent this?
-      const preventedBy = await this._actionPreventedBy(action);
-      if (preventedBy !== undefined) {
-        this._logger.info(
-          `Action "${action.$type}" was prevented by entity "${preventedBy.$type}" with ID "${preventedBy[entityId]}". Preventing execution of this action...`,
-        );
-        return undefined;
-      }
+      // Only a genuine top-level action wraps its hook phases in a capture frame
+      // so their direct mutations reach clients. Nested actions keep their hook
+      // mutations on the enclosing frame exactly as before.
+      const isTopLevel = this._executionDepth === 1;
 
-      // Find all entities that should be called before this action is executed.
-      let beforeEntities: Entity[] = this._entityService.getHook(
-        'before',
-        action,
-      );
-      
-      if (beforeEntities.length > 1) {
-        beforeEntities = this.resolveTriggerOrder(
+      // Whether the action was prevented by a check- or before-hook. Set from
+      // within the before-phase so the phase can still capture any mutations a
+      // preventing hook made before short-circuiting.
+      let prevented = false;
+
+      // The check-hooks and before-hooks that run before the action is applied.
+      // Their direct mutations must reach clients ordered before the action.
+      const runBeforePhase = async (): Promise<void> => {
+        // Are there any hooks that prevent this?
+        const preventedBy = await this._actionPreventedBy(action);
+        if (preventedBy !== undefined) {
+          this._logger.info(
+            `Action "${action.$type}" was prevented by entity "${preventedBy.$type}" with ID "${preventedBy[entityId]}". Preventing execution of this action...`,
+          );
+          prevented = true;
+          return;
+        }
+
+        // Find all entities that should be called before this action is executed.
+        let beforeEntities: Entity[] = this._entityService.getHook(
           'before',
           action,
-          beforeEntities,
         );
+
+        if (beforeEntities.length > 1) {
+          beforeEntities = this.resolveTriggerOrder(
+            'before',
+            action,
+            beforeEntities,
+          );
+        }
+
+        // Call before hooks.
+        for (const entity of beforeEntities) {
+          this._logger.debug(
+            `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
+          );
+
+          const savedSources = this._triggerSources;
+          this._triggerSources = [...action.source, entity[entityId]];
+          let triggerResult;
+          try {
+            triggerResult = await getHook(
+              entity,
+              action,
+              'before',
+            )(this, action.parameters);
+          } finally {
+            this._triggerSources = savedSources;
+          }
+
+          if (triggerResult !== undefined && !triggerResult) {
+            this._logger.debug(
+              `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+            );
+            prevented = true;
+            return;
+          }
+        }
+      };
+
+      if (isTopLevel) {
+        const appended =
+          await this._stateService.captureHookMutations(runBeforePhase);
+        if (appended) {
+          for (const player of this._entityService.players()) {
+            this._stateService.informPlayer(player, false);
+          }
+        }
+      } else {
+        await runBeforePhase();
       }
 
-      // Call before hooks.
-      for (const entity of beforeEntities) {
-        this._logger.debug(
-          `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
-        );
-
-        const savedSources = this._triggerSources;
-        this._triggerSources = [...action.source, entity[entityId]];
-        let triggerResult;
-        try {
-          triggerResult = await getHook(
-            entity,
-            action,
-            'before',
-          )(this, action.parameters);
-        } finally {
-          this._triggerSources = savedSources;
-        }
-
-        if (triggerResult !== undefined && !triggerResult) {
-          this._logger.debug(
-            `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
-          );
-          return undefined;
-        }
+      if (prevented) {
+        return undefined;
       }
 
       await this._stateService.execute(action, this);
@@ -478,62 +510,82 @@ export abstract class Game<
       Object.setPrototypeOf(immutableAction, Object.getPrototypeOf(action));
       Object.freeze(immutableAction.parameters);
 
-      // Find all entities that should be called after this action is executed.
-      let afterEntities: Entity[] = this._entityService.getHook(
-        'after',
-        immutableAction,
-      );
-
-      if (afterEntities.length > 1) {
-        afterEntities = this.resolveTriggerOrder(
+      // The after-hooks and after-any-hooks that run once the action has been
+      // applied. Their direct mutations (including spawn/destroy) must reach
+      // clients ordered after the action.
+      const runAfterPhase = async (): Promise<void> => {
+        // Find all entities that should be called after this action is executed.
+        let afterEntities: Entity[] = this._entityService.getHook(
           'after',
           immutableAction,
-          afterEntities,
-        );
-      }
-
-      // Call after hooks.
-      for (const entity of afterEntities) {
-        this._logger.debug(
-          `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
         );
 
-        const savedSources = this._triggerSources;
-        this._triggerSources = [...immutableAction.source, entity[entityId]];
-        try {
-          await getHook(entity, immutableAction, 'after')(
-            this,
-            immutableAction.parameters,
-            immutableAction.returned(),
+        if (afterEntities.length > 1) {
+          afterEntities = this.resolveTriggerOrder(
+            'after',
+            immutableAction,
+            afterEntities,
           );
-        } finally {
-          this._triggerSources = savedSources;
         }
-      }
 
-      // Find all entities that fire after _every_ action, regardless of action type.
-      let afterAnyEntities = this._entityService.getAfterAnyHooks();
-      if (afterAnyEntities.length > 1) {
-        afterAnyEntities = this.resolveTriggerOrder(
-          'after',
-          immutableAction,
-          afterAnyEntities,
-        );
-      }
+        // Call after hooks.
+        for (const entity of afterEntities) {
+          this._logger.debug(
+            `Calling after hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
+          );
 
-      // Call after-any hooks.
-      for (const entity of afterAnyEntities) {
-        this._logger.debug(
-          `Calling after-any hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
-        );
-
-        const savedSources = this._triggerSources;
-        this._triggerSources = [...immutableAction.source, entity[entityId]];
-        try {
-          await (entity as unknown as AfterAnyAction).after(this, immutableAction);
-        } finally {
-          this._triggerSources = savedSources;
+          const savedSources = this._triggerSources;
+          this._triggerSources = [...immutableAction.source, entity[entityId]];
+          try {
+            await getHook(entity, immutableAction, 'after')(
+              this,
+              immutableAction.parameters,
+              immutableAction.returned(),
+            );
+          } finally {
+            this._triggerSources = savedSources;
+          }
         }
+
+        // Find all entities that fire after _every_ action, regardless of action type.
+        let afterAnyEntities = this._entityService.getAfterAnyHooks();
+        if (afterAnyEntities.length > 1) {
+          afterAnyEntities = this.resolveTriggerOrder(
+            'after',
+            immutableAction,
+            afterAnyEntities,
+          );
+        }
+
+        // Call after-any hooks.
+        for (const entity of afterAnyEntities) {
+          this._logger.debug(
+            `Calling after-any hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${immutableAction.$type}"...`,
+          );
+
+          const savedSources = this._triggerSources;
+          this._triggerSources = [...immutableAction.source, entity[entityId]];
+          try {
+            await (entity as unknown as AfterAnyAction).after(
+              this,
+              immutableAction,
+            );
+          } finally {
+            this._triggerSources = savedSources;
+          }
+        }
+      };
+
+      if (isTopLevel) {
+        const appended =
+          await this._stateService.captureHookMutations(runAfterPhase);
+        if (appended) {
+          for (const player of this._entityService.players()) {
+            this._stateService.informPlayer(player, false);
+          }
+        }
+      } else {
+        await runAfterPhase();
       }
 
       return action;
