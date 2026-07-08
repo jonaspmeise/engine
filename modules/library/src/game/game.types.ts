@@ -22,6 +22,21 @@ export type EntityClassMapping = Record<string, EntityClass<Entity>>;
 
 export type LoggerMethod = (...message: unknown[]) => void;
 
+/**
+ * Thrown by execute() when the nested-execution depth exceeds the configured
+ * maximum — the engine's infinite-trigger-loop guard. This is an engine-integrity
+ * signal, NOT a card-ability failure, so the after-/after-any-hook catch that
+ * swallows ordinary ability errors must re-throw it and let it propagate.
+ */
+export class MaxExecutionDepthError extends Error {
+  constructor(maxExecutionDepth: number) {
+    super(
+      `Maximum execution depth of ${maxExecutionDepth} exceeded! This likely means there is an infinite loop in your triggers. Please check your triggers and increase the maximum execution depth (${maxExecutionDepth}) if necessary.`,
+    );
+    this.name = 'MaxExecutionDepthError';
+  }
+}
+
 export type GameConfig = {
   logger?: Partial<Logger>;
   /**

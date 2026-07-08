@@ -10,6 +10,7 @@ import {
   GameParameters,
   GameStatus,
   Logger,
+  MaxExecutionDepthError,
   NO_OP_LOGGER,
   PlayerInterfaceCallback,
 } from './game.types';
@@ -399,9 +400,7 @@ export abstract class Game<
 
     try {
       if (this._executionDepth > this.maxExecutionDepth) {
-        throw new Error(
-          `Maximum execution depth of ${this.maxExecutionDepth} exceeded! This likely means there is an infinite loop in your triggers. Please check your triggers and increase the maximum execution depth (${this.maxExecutionDepth}) if necessary.`,
-        );
+        throw new MaxExecutionDepthError(this.maxExecutionDepth);
       }
 
       // The action should be registered within the engine, so that clients know abouts its potential existence.
@@ -542,6 +541,19 @@ export abstract class Game<
               immutableAction.parameters,
               immutableAction.returned(),
             );
+          } catch (error) {
+            // The infinite-loop guard is engine integrity, not an ability failure:
+            // let it propagate so a runaway trigger chain still aborts loudly.
+            if (error instanceof MaxExecutionDepthError) {
+              throw error;
+            }
+            // A throwing after-hook is a post-apply triggered ability: the action
+            // already committed. Swallow one card's error and keep the match alive
+            // instead of tearing down the whole game.
+            this._logger.error(
+              `after-hook of ${entity.$type} (${entity[entityId]}) for action ${immutableAction.$type} threw; continuing:`,
+              error,
+            );
           } finally {
             this._triggerSources = savedSources;
           }
@@ -569,6 +581,19 @@ export abstract class Game<
             await (entity as unknown as AfterAnyAction).after(
               this,
               immutableAction,
+            );
+          } catch (error) {
+            // The infinite-loop guard is engine integrity, not an ability failure:
+            // let it propagate so a runaway trigger chain still aborts loudly.
+            if (error instanceof MaxExecutionDepthError) {
+              throw error;
+            }
+            // A throwing after-any-hook is a post-apply triggered ability: the
+            // action already committed. Swallow one card's error and keep the
+            // match alive instead of tearing down the whole game.
+            this._logger.error(
+              `after-any-hook of ${entity.$type} (${entity[entityId]}) for action ${immutableAction.$type} threw; continuing:`,
+              error,
             );
           } finally {
             this._triggerSources = savedSources;
