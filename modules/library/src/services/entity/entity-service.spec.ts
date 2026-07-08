@@ -645,24 +645,10 @@ describe('entityService', () => {
   // snapshot copies so that spawning or destroying hooked entities mid-iteration
   // (i.e. inside a trigger handler) does not corrupt the in-progress for..of loop.
   describe('getHook — iteration safety (H4)', () => {
-    test('spawning a new entity with the same after-hook does not modify the snapshot already returned by getHook.', () => {
-      // GIVEN — two entities with afterMark registered
-      service.create(new AfterMarkEntity('after-mark-h4-spawn-1'));
-      service.create(new AfterMarkEntity('after-mark-h4-spawn-2'));
-
-      // WHEN — grab the snapshot (simulates what game.ts does before iterating)
-      const snapshot = service.getHook('after', markAction);
-      expect(snapshot).toHaveLength(2);
-
-      // Simulate a hook handler spawning a new entity with the same hook type
-      // mid-iteration.
-      service.create(new AfterMarkEntity('after-mark-h4-spawn-3'));
-
-      // THEN — the snapshot must still be length 2; the new entity must not bleed
-      // into a loop that started before it existed.
-      expect(snapshot).toHaveLength(2);
-    });
-
+    // The spawn-during-dispatch scenario is covered by an observable, real-loop
+    // test in src/game/hook-dispatch-loop.spec.ts (a listener spawned mid-dispatch
+    // must not double-fire). This block keeps only the destroy snapshot-identity
+    // guard, which the real-loop test does not exercise directly.
     test('destroying a fellow-hooked entity does not modify the snapshot already returned by getHook.', () => {
       // GIVEN — two entities with afterMark registered
       const e1 = service.create(new AfterMarkEntity('after-mark-h4-destroy-1'));
