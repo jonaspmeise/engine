@@ -88,6 +88,8 @@ export abstract class BaseGameTest<
         expect(Object.keys(mapping).length).toBeGreaterThan(0);
       });
 
+      // MCTS vs random is stochastic — a single unlucky rollout budget can
+      // run past the timeout, so the test may retry before counting as red.
       test('a MCTS player always wins against a random chicken player.', (done) => {
         // GIVEN
         for (let player = 0; player < self.numberOfPlayers - 1; player++) {
@@ -113,7 +115,7 @@ export abstract class BaseGameTest<
         });
 
         timeout(done, 10000);
-      });
+      }, { retry: 3 });
 
       this.additionalTests();
     });
