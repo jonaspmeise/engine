@@ -292,10 +292,11 @@ export class StateService {
    * For example, if a player disconnected and reconnected, they should be informed about their full state.
    * Normally, only the diff is sent.
    */
-  public informPlayer(
+  public async informPlayer(
     player: PlayerEntity,
     sendFullState: boolean = false, // TODO: Implement!
-  ): void {
+    includeInFlight: boolean = false,
+  ): Promise<void> {
     this._logger.debug(
       `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
     );
@@ -317,34 +318,42 @@ export class StateService {
       : (this._emittedSnapshotCounts.get(player) ?? 0);
     const pending = this._state.currentSnapshots.slice(alreadyEmitted);
 
-    const snapshots: Snapshot[] = pending.map((snapshot) => ({
+    // A prompt can be issued while its enclosing actions are still awaiting
+    // their doApply calls. Their snapshots are not appended until those calls
+    // finish, but the client must receive their entity state before it renders
+    // the prompt. Send these as state-only checkpoints; the normal action
+    // snapshots are still emitted once their actions complete.
+    const inFlight = includeInFlight
+      ? this._executionStack
+          .map(({ ownSnapshot }) => ownSnapshot)
+          .filter(
+            (snapshot) => Object.keys(snapshot.dirtyEntities).length > 0,
+          )
+      : [];
+
+    if (pending.length === 0 && inFlight.length === 0) {
+      return;
+    }
+
+    const snapshots: Snapshot[] = [...pending, ...inFlight].map((snapshot) => ({
       dirtyEntities: Object.fromEntries(
         Object.entries(snapshot.dirtyEntities).map(([id, entity]) => [
           id,
           entity == null ? null : entity.visibility(player),
         ]),
       ),
-      executed: snapshot.executed,
+      executed: inFlight.includes(snapshot) ? undefined : snapshot.executed,
     }));
 
     this._emittedSnapshotCounts.set(
       player,
       this._state.currentSnapshots.length,
     );
-    player[handler].state(snapshots);
+    await player[handler].state(snapshots);
   }
 
-  /**
-   * Executes an action and thus modifies the game state.
-   * @param action The action to execute.
-   * @param runtime The runtime to execute the action in.
-   * @returns A promise that resolves to the executed action. This may not be the same object as the passed in action,
-   * since some properties (or even its complete type!) may be modified during execution due to triggers.
-   */
-  public async execute(
-    action: Action<string, any, any>,
-    runtime: ModifiableRuntime, // TODO: Modifiable vs. Queryable?
-  ): Promise<Action<string, any, any>> {
+  /** Starts recording mutations for an action. */
+  public beginAction(action: Action<string, any, any>): void {
     this._logger.info(`Executing action "${action.$type}"...`);
 
     if (this._executionStack.length === 0) {
@@ -363,12 +372,33 @@ export class StateService {
       executed: action,
     };
     this._executionStack.push({ action, ownSnapshot });
+  }
 
+  /** Finishes the action currently being recorded. */
+  public finishAction(action: Action<string, any, any>): void {
+    const entry = this._executionStack.pop();
+    if (entry?.action !== action) {
+      throw new Error(`Action snapshots must finish in execution order.`);
+    }
+
+    this._state.currentSnapshots.push(entry.ownSnapshot);
+  }
+
+  /**
+   * Executes an action and thus modifies the game state.
+   * @param action The action to execute.
+   * @param runtime The runtime to execute the action in.
+   * @returns A promise that resolves to the executed action. This may not be the same object as the passed in action.
+   */
+  public async execute(
+    action: Action<string, any, any>,
+    runtime: ModifiableRuntime, // TODO: Modifiable vs. Queryable?
+  ): Promise<Action<string, any, any>> {
+    this.beginAction(action);
     try {
       await action.apply(runtime);
     } finally {
-      this._state.currentSnapshots.push(ownSnapshot);
-      this._executionStack.pop();
+      this.finishAction(action);
     }
 
     return action;

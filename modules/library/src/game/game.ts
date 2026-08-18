@@ -326,6 +326,11 @@ export abstract class Game<
       `Will prompt player ${player[playerId]} with ${filteredChoices.length} (original: ${choices.length}) choices...`,
     );
 
+    // The prompt may be nested inside actions that have mutated entities but
+    // have not completed yet. Publish those dirty entities before the client
+    // receives its choices so it renders the prompt against current state.
+    await this._stateService.informPlayer(player, false, true);
+
     return this._stateService.promptPlayer(player, filteredChoices);
   }
 
@@ -423,31 +428,36 @@ export abstract class Game<
         );
       }
 
-      // Call before hooks.
-      for (const entity of beforeEntities) {
-        this._logger.debug(
-          `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
-        );
-
-        const triggerResult = await getHook(
-          entity,
-          action,
-          'before',
-        )(this, action.parameters);
-
-        if (triggerResult !== undefined && !triggerResult) {
+      this._stateService.beginAction(action);
+      try {
+        // Call before hooks.
+        for (const entity of beforeEntities) {
           this._logger.debug(
-            `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+            `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
           );
-          return undefined;
-        }
-      }
 
-      await this._stateService.execute(action, this);
+          const triggerResult = await getHook(
+            entity,
+            action,
+            'before',
+          )(this, action.parameters);
+
+          if (triggerResult !== undefined && !triggerResult) {
+            this._logger.debug(
+              `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+            );
+            return undefined;
+          }
+        }
+
+        await action.apply(this);
+      } finally {
+        this._stateService.finishAction(action);
+      }
 
       // Inform player about _this_ action, but before potential after-hooks are called.
       for (const player of this._entityService.players()) {
-        this._stateService.informPlayer(player, false);
+        await this._stateService.informPlayer(player, false);
       }
 
       // Action from this point on is immutable!
@@ -597,7 +607,7 @@ export abstract class Game<
             `Player interface with ID ${player[playerId]} reconnected. Informing them about their state...`,
         );
 
-        this._stateService.informPlayer(player, true);
+        await this._stateService.informPlayer(player, true);
         this._stateService.repromptPlayer(player);
       }
     }
@@ -619,7 +629,7 @@ export abstract class Game<
 
     this._logger.debug(`Informing players about initial state...`);
     for (const player of this._entityService.players()) {
-      this._stateService.informPlayer(player, true);
+      await this._stateService.informPlayer(player, true);
     }
 
     // Calculate first node.

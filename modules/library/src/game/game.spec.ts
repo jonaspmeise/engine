@@ -916,6 +916,83 @@ describe('game', () => {
       timeout(done);
     });
 
+    test('sends an outer action\'s dirty state before a nested prompt.', (done) => {
+      // GIVEN
+      class PromptingAction extends Action<'PromptingAction'> {
+        public $type: 'PromptingAction' = 'PromptingAction';
+
+        protected async doApply(runtime: GraphRuntime): Promise<void> {
+          await runtime.prompt(runtime.anyEntity(TestPlayerEntity)!, [
+            new TestAction(),
+          ]);
+        }
+      }
+
+      class MutatingAction extends Action<'MutatingAction'> {
+        public $type: 'MutatingAction' = 'MutatingAction';
+
+        protected async doApply(runtime: ModifiableRuntime): Promise<void> {
+          await runtime.execute(new PromptingAction());
+        }
+      }
+
+      class BeforeMutatingEntity
+        extends TestEntityC
+        implements BeforeAction<MutatingAction>
+      {
+        beforeMutatingAction(): void {
+          this.volatileNumber = 1;
+        }
+      }
+
+      class DummyGame extends TestGame {
+        initialize() {
+          return new Set<Entity>([
+            new BeforeMutatingEntity(1),
+            new TestPlayerEntity(1),
+          ]);
+        }
+
+        rawGraph(): Graph<NodeId> {
+          return {
+            INITIAL: async (runtime) => {
+              await runtime.execute(new MutatingAction());
+            },
+          };
+        }
+
+        actionClasses(): Set<Class<Action<string, any, any>>> {
+          return new Set([
+            ...super.actionClasses(),
+            MutatingAction,
+            PromptingAction,
+          ]);
+        }
+      }
+
+      const game = new DummyGame();
+      let receivedMutation = false;
+
+      // WHEN
+      game.registerPlayerCallback(game.anyEntity(TestPlayerEntity)!, {
+        state: async (snapshots) => {
+          await Promise.resolve();
+          receivedMutation ||= snapshots.some(
+            (snapshot) =>
+              snapshot.dirtyEntities['testentityC-1']?.volatileNumber === 1,
+          );
+        },
+        prompt: (choices, execute) => {
+          // THEN
+          expect(receivedMutation).toBe(true);
+          execute(choices[0]!);
+          done();
+        },
+      });
+
+      timeout(done);
+    });
+
     test('sends only modified entities of the state to the player after a choice is picked. choices reset.', (done) => {
       // GIVEN
       class DummyGame extends TestGame {

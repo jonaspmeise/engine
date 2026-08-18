@@ -101,7 +101,7 @@ export type PlayerInterfaceCallback = {
   state: (
     // The snapshots that were modified since the last inform.
     snapshots: Snapshot[],
-  ) => void;
+  ) => void | Promise<void>;
   prompt: <T extends EnhancedChoice<Action<string, any, any>>>(
     choices: T[],
     execute: (choice: EnhancedChoice<Action<string, any>> | ChoiceId) => void, // TODO: We probably also need to pass other callbacks - force complete snapshot data, ....
