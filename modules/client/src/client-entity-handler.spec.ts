@@ -81,6 +81,21 @@ describe('Client Entity Handler', () => {
     },
   );
 
+  test('an update without $type does not wipe the type or reject', () => {
+    service.apply('entity-1', { $type: 'TestEntityA', name: 'Test Name' });
+    expect(() =>
+      service.apply('entity-1', { name: 'Modified Name' }),
+    ).not.toThrow();
+    const entity = service.anyEntity(TestEntityA);
+    expect(entity?.$type).toBe('TestEntityA');
+    expect(Reflect.get(entity ?? {}, 'name')).toBe('Modified Name');
+  });
+
+  test('a new entity without $type is skipped', () => {
+    expect(() => service.apply('bare', { name: 'No Type' })).not.toThrow();
+    expect(service.entities()).toHaveLength(0);
+  });
+
   test.todo(
     'throws an error if the delta contains an unknown entity type',
     async () => {

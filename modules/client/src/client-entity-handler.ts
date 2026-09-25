@@ -110,6 +110,16 @@ export class ClientEntityHandler implements QueryableRuntime {
         return;
       }
 
+      const incomingType = (entityDelta as Entity).$type;
+      if (typeof incomingType !== 'string') {
+        // A partial view must not wipe the type the client already has.
+        // Assigning `$type: undefined` is what rejects the snapshot batch.
+        const rest: Partial<ClientEntity> = { ...entityDelta };
+        delete rest.$type;
+        Object.assign(existingEntity, rest);
+        return;
+      }
+
       Object.assign(existingEntity, entityDelta);
 
       // We re-update the prototype here, because it might have changed in the delta!
@@ -124,6 +134,12 @@ export class ClientEntityHandler implements QueryableRuntime {
     }
 
     const entity: Entity = { [entityId]: id, ...entityDelta } as Entity;
+    if (typeof entity.$type !== 'string') {
+      this._logger.error(
+        `Skipping entity ${id}: snapshot arrived without a $type.`,
+      );
+      return;
+    }
     this._changeEntityType(entity, entity.$type);
 
     this._state.entityById.set(id, entity);
