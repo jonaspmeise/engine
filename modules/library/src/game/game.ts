@@ -419,7 +419,7 @@ export abstract class Game<
         'before',
         action,
       );
-      
+
       if (beforeEntities.length > 1) {
         beforeEntities = this.resolveTriggerOrder(
           'before',
@@ -436,17 +436,22 @@ export abstract class Game<
             `Calling before hook of entity "${entity.$type}" with ID "${entity[entityId]}" for action "${action.$type}"...`,
           );
 
-          const triggerResult = await getHook(
-            entity,
-            action,
-            'before',
-          )(this, action.parameters);
-
-          if (triggerResult !== undefined && !triggerResult) {
-            this._logger.debug(
-              `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
-            );
-            return undefined;
+          const savedSources = this._triggerSources;
+          this._triggerSources = [...action.source, entity[entityId]];
+          try {
+            const triggerResult = await getHook(
+              entity,
+              action,
+              'before',
+            )(this, action.parameters);
+            if (triggerResult !== undefined && !triggerResult) {
+              this._logger.debug(
+                `Action "${action.$type}" was prevented by before hook of entity "${entity.$type}" with ID "${entity[entityId]}". Preventing execution of this action...`,
+              );
+              return undefined;
+            }
+          } finally {
+            this._triggerSources = savedSources;
           }
         }
 
@@ -493,7 +498,7 @@ export abstract class Game<
           immutableAction.returned(),
         );
         this._triggerSources = savedSources;
-    }
+      }
 
       // Find all entities that fire after _every_ action, regardless of action type.
       let afterAnyEntities = this._entityService.getAfterAnyHooks();
@@ -513,7 +518,10 @@ export abstract class Game<
 
         const savedSources = this._triggerSources;
         this._triggerSources = [...immutableAction.source, entity[entityId]];
-        await (entity as unknown as AfterAnyAction).after(this, immutableAction);
+        await (entity as unknown as AfterAnyAction).after(
+          this,
+          immutableAction,
+        );
         this._triggerSources = savedSources;
       }
 

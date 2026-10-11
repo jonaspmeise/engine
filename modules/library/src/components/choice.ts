@@ -6,7 +6,7 @@ import { Entity, entityId } from './entity';
 /**
  * This enhanced version of the Choice class is issued by the engine and communicated to the player.
  */
-export class EnhancedChoice<ACTION extends Action<string, any>> {
+export class EnhancedChoice<ACTION extends Action<string, any, any>> {
   constructor(
     public readonly id: ChoiceId,
     public readonly execution: ACTION,
@@ -49,7 +49,7 @@ export class EnhancedChoice<ACTION extends Action<string, any>> {
     );
   }
 
-  static fromAction<ACTION extends Action<string, any>>(
+  static fromAction<ACTION extends Action<string, any, any>>(
     action: ACTION,
     player: PlayerEntity,
     id: ChoiceId,

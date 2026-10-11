@@ -416,6 +416,45 @@ describe('entityService', () => {
       expect(player[handler]).toBeDefined();
     });
 
+    test('players reached through a cloned array do not retain live callbacks', () => {
+      class Roster extends TestEntityB {
+        constructor(public players: PlayerEntity[]) {
+          super('roster');
+        }
+      }
+      const player: TestPlayerEntity & PlayerInterface = service.create(
+        new TestPlayerEntity(1),
+      );
+      player[handler] = { state: () => {}, prompt: () => {} };
+      service.create(new Roster([player]));
+
+      const clone = service.clone(() => {});
+      const clonedRoster = clone.entities(Roster)[0]!;
+      expect(clonedRoster.players[0]![handler]).toBeUndefined();
+      expect(player[handler]).toBeDefined();
+    });
+
+    test('array iteration resolves entities in the clone and leaves live state untouched', () => {
+      class Group extends TestEntityB {
+        constructor(public members: TestEntityA[]) {
+          super('group');
+        }
+      }
+      const member = service.create(new TestEntityA(1));
+      service.create(new Group([member]));
+      const clone = service.clone(() => {});
+      const clonedGroup = clone.entities(Group)[0]!;
+
+      for (const item of clonedGroup.members) item.volatileNumber = 7;
+      expect(clone.entities(TestEntityA)[0]!.volatileNumber).toBe(7);
+      expect(member.volatileNumber).toBe(0);
+      clonedGroup.members.forEach((item) => {
+        item.volatileNumber = 9;
+      });
+      expect(clone.entities(TestEntityA)[0]!.volatileNumber).toBe(9);
+      expect(member.volatileNumber).toBe(0);
+    });
+
     test('the flush callback of the clone is called when a cloned entity is modified.', () => {
       // GIVEN
       service.create(new TestEntityA(1));

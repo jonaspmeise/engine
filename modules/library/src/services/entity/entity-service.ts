@@ -366,20 +366,22 @@ export class EntityService
   ): any => {
     const handler: ProxyHandler<any> = {
       get: (target, prop, receiver) => {
-        // Built-in collections (Set, Map, Array, etc.) store data in internal slots
+        // Set and Map store data in internal slots
         // that are inaccessible through a Proxy receiver. Both accessors (e.g.
         // Set.prototype.size) and methods (e.g. Set.prototype.values) must operate
         // with `this` bound to the real target, not the proxy.
         if (
           !(target instanceof Entity) &&
-          (target instanceof Set ||
-            target instanceof Map ||
-            target instanceof Array)
+          (target instanceof Set || target instanceof Map)
         ) {
           const value = Reflect.get(target, prop, target);
           return typeof value === 'function' ? value.bind(target) : value;
         }
 
+        // Arrays use ordinary indexed properties: keep their receiver proxied
+        // so indexing and iteration resolve entity references in this game.
+        // Binding their methods to the raw array would leak live entities
+        // (including player callbacks) into cloned simulations.
         const value = Reflect.get(target, prop, receiver);
         if (typeof value === 'object' && value !== null) {
           // If the value is an Entity (raw or proxy from any game instance), resolve it

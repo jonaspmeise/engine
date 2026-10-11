@@ -114,8 +114,7 @@ export class ClientEntityHandler implements QueryableRuntime {
       if (typeof incomingType !== 'string') {
         // A partial view must not wipe the type the client already has.
         // Assigning `$type: undefined` is what rejects the snapshot batch.
-        const rest: Partial<ClientEntity> = { ...entityDelta };
-        delete rest.$type;
+        const { $type: ignoredType, ...rest } = entityDelta;
         Object.assign(existingEntity, rest);
         return;
       }

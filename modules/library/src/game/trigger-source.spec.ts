@@ -284,6 +284,38 @@ describe('trigger source', () => {
     timeout(done, 50);
   });
 
+  test('a failing before hook restores the source for subsequent direct actions', async () => {
+    const nested = new ParameterizedTestAction({ value: 1 });
+    class ThrowingEntity extends Entity implements BeforeAction<TestAction> {
+      public $type = 'ThrowingEntity';
+      public toString() {
+        return this.$type;
+      }
+      async beforeTestAction(runtime: ModifiableRuntime): Promise<void> {
+        await runtime.execute(nested);
+        throw new Error('before hook failed');
+      }
+    }
+    class DummyGame extends TestGame {
+      initialize(): Set<Entity> {
+        return new Set<Entity>([
+          new TestEntityC(1),
+          new TestPlayerEntity(1),
+          new ThrowingEntity('thrower'),
+        ]);
+      }
+    }
+    const game = new DummyGame();
+    const root = new TestAction();
+    root.source = ['outer'];
+    await expect(game.execute(root)).rejects.toThrow('before hook failed');
+    expect(nested.source).toEqual(['outer', 'thrower']);
+
+    const unrelated = new ParameterizedTestAction({ value: 2 });
+    await game.execute(unrelated);
+    expect(unrelated.source).toEqual([]);
+  });
+
   test('an entity observing action A via before and after hooks correctly sources choices prompted when action A issues action C in its doApply.', (done) => {
     // GIVEN:
     // ActionA's doApply executes ParameterizedTestAction (action C).
