@@ -288,17 +288,16 @@ export class StateService {
   /**
    * Sends the current, modified state to a player.
    * @param player The player to inform about their state.
-   * @param sendFullState Whether to send the full state to the player, or only a diff.
-   * For example, if a player disconnected and reconnected, they should be informed about their full state.
-   * Normally, only the diff is sent.
+   * @param fullState Current live entities for an initial or reconnect checkpoint.
+   * Omit to send only new action snapshots.
    */
   public async informPlayer(
     player: PlayerEntity,
-    sendFullState: boolean = false, // TODO: Implement!
+    fullState?: Iterable<Entity>,
     includeInFlight: boolean = false,
   ): Promise<void> {
     this._logger.debug(
-      `Informing player ${player[playerId]} about their state. Sending full state? ${sendFullState}.`,
+      `Informing player ${player[playerId]} about their state. Sending full state? ${fullState !== undefined}.`,
     );
 
     if (player[handler] === undefined) {
@@ -308,14 +307,28 @@ export class StateService {
       return;
     }
 
-    // Send only the snapshots this player has not yet been informed about. A
-    // full-state request (e.g. reconnect) always sends the entire current batch.
+    // A reconnect must include unchanged entities and mutations in suspended
+    // actions, without replaying old actions or exposing another player's data.
+    if (fullState !== undefined) {
+      const checkpoint: Snapshot = {
+        dirtyEntities: Object.fromEntries(
+          Array.from(fullState, (entity) => [
+            entity[entityId],
+            entity.visibility(player),
+          ]),
+        ),
+        executed: undefined,
+      };
+      this._emittedSnapshotCounts.set(player, this._state.currentSnapshots.length);
+      await player[handler].state([checkpoint]);
+      return;
+    }
+
+    // Send only the snapshots this player has not yet been informed about.
     // This keeps a nested `execute` and its enclosing parent from emitting the
     // same snapshots twice: the inner inform sends the freshly appended ones; the
     // outer inform then only sends what the parent appended after the nested call.
-    const alreadyEmitted = sendFullState
-      ? 0
-      : (this._emittedSnapshotCounts.get(player) ?? 0);
+    const alreadyEmitted = this._emittedSnapshotCounts.get(player) ?? 0;
     const pending = this._state.currentSnapshots.slice(alreadyEmitted);
 
     // A prompt can be issued while its enclosing actions are still awaiting

@@ -329,7 +329,7 @@ export abstract class Game<
     // The prompt may be nested inside actions that have mutated entities but
     // have not completed yet. Publish those dirty entities before the client
     // receives its choices so it renders the prompt against current state.
-    await this._stateService.informPlayer(player, false, true);
+    await this._stateService.informPlayer(player, undefined, true);
 
     return this._stateService.promptPlayer(player, filteredChoices);
   }
@@ -462,7 +462,7 @@ export abstract class Game<
 
       // Inform player about _this_ action, but before potential after-hooks are called.
       for (const player of this._entityService.players()) {
-        await this._stateService.informPlayer(player, false);
+        await this._stateService.informPlayer(player);
       }
 
       // Action from this point on is immutable!
@@ -615,7 +615,7 @@ export abstract class Game<
             `Player interface with ID ${player[playerId]} reconnected. Informing them about their state...`,
         );
 
-        await this._stateService.informPlayer(player, true);
+        await this._stateService.informPlayer(player, this.entities(Entity));
         this._stateService.repromptPlayer(player);
       }
     }
@@ -637,7 +637,7 @@ export abstract class Game<
 
     this._logger.debug(`Informing players about initial state...`);
     for (const player of this._entityService.players()) {
-      await this._stateService.informPlayer(player, true);
+      await this._stateService.informPlayer(player, this.entities(Entity));
     }
 
     // Calculate first node.

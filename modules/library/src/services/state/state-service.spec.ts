@@ -56,6 +56,22 @@ describe('StateService', () => {
     });
   });
 
+  test('a full checkpoint includes unchanged live entities and applies viewer visibility', async () => {
+    const entity = new TestEntityA(1);
+    const visible = { $type: entity.$type };
+    const visibility = jest.spyOn(entity, 'visibility').mockReturnValue(visible);
+    const receive = jest.spyOn(player[handler]!, 'state');
+
+    // Nothing is dirty: the snapshot must come from live entities, not the
+    // current action batch. It is state-only so reconnect does not replay effects.
+    await service.informPlayer(player, [entity]);
+
+    expect(visibility).toHaveBeenCalledWith(player);
+    expect(receive).toHaveBeenLastCalledWith([
+      { dirtyEntities: { [entity[entityId]]: visible }, executed: undefined },
+    ]);
+  });
+
   describe('clone', () => {
     test('the cloned service has the same initial status as the original.', () => {
       // GIVEN / WHEN
