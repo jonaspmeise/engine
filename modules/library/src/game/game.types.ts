@@ -8,6 +8,7 @@ import { PlayerEntity } from '../services/entity/entity-service.types';
 import type { EntityService } from '../services/entity/entity-service';
 import type { GraphService } from '../services/graph/graph-service';
 import type { StateService } from '../services/state/state-service';
+import type { SeededRng } from './seeded-rng';
 
 export type GameParameters = Record<string, unknown>;
 
@@ -24,6 +25,9 @@ export type LoggerMethod = (...message: unknown[]) => void;
 
 export type GameConfig = {
   logger?: Partial<Logger>;
+  /** Seed for rules randomness; clones continue from the current RNG state. */
+  seed?: number;
+  rng?: SeededRng;
   /**
    * Pre-built services to inject. When provided, these replace the services that the Game constructor
    * would normally create. Intended for use by Game.clone() to transfer cloned service state without
@@ -98,6 +102,8 @@ export type DeepReadonly<T> = Partial<{
 type AnyEntity = Record<string, unknown> & Entity;
 
 export type PlayerInterfaceCallback = {
+  /** Trusted local replay viewer: receive unredacted snapshot entities. */
+  omniscient?: boolean;
   state: (
     // The snapshots that were modified since the last inform.
     snapshots: Snapshot[],

@@ -12,7 +12,7 @@ import { StateService } from './state-service';
 import { PlayerEntity } from '../entity/entity-service.types';
 import { ModifiableRuntime } from '../../game/modifiable-runtime';
 import { Action } from '../../components/action';
-import { TestEntityA } from '../../game/game.spec.types';
+import { TestEntityA, TestEntityC } from '../../game/game.spec.types';
 import { entityId } from '../../components/entity';
 import { handler, playerId, playerInterfaceMarker } from '../..';
 
@@ -70,6 +70,29 @@ describe('StateService', () => {
     expect(receive).toHaveBeenLastCalledWith([
       { dirtyEntities: { [entity[entityId]]: visible }, executed: undefined },
     ]);
+  });
+
+  test('a trusted omniscient replay gets a complete checkpoint without retaining live entity properties', async () => {
+    const entity = new TestEntityC(1);
+    entity.volatileNumber = 7;
+    const visibility = jest.spyOn(entity, 'visibility').mockReturnValue({
+      $type: entity.$type,
+    });
+    const receive = mock(() => {});
+    const replayPlayer: PlayerEntity = {
+      ...player,
+      [handler]: { omniscient: true, state: receive, prompt: () => {} },
+    };
+    const expected = {
+      dirtyEntities: { [entity[entityId]]: { ...entity } },
+      executed: undefined,
+    };
+
+    await service.informPlayer(replayPlayer, [entity]);
+    entity.volatileNumber = 9;
+
+    expect(visibility).not.toHaveBeenCalled();
+    expect(receive).toHaveBeenLastCalledWith([expected]);
   });
 
   describe('clone', () => {

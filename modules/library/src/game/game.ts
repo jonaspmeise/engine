@@ -12,6 +12,7 @@ import {
   Logger,
   NO_OP_LOGGER,
   PlayerInterfaceCallback,
+  Snapshot,
 } from './game.types';
 import { QueryableRuntime } from './queryable-runtime';
 import { EntityService } from '../services/entity/entity-service';
@@ -35,6 +36,7 @@ import {
   getHook,
   LifecycleType,
 } from '../components/lifecyclehooks';
+import { SeededRng } from './seeded-rng';
 
 export abstract class Game<
   PARAMETERS extends GameParameters | undefined = undefined,
@@ -61,7 +63,8 @@ export abstract class Game<
   // TODO: ... handle drivers (for MTCS / replays).
   // TODO: Should parameters be serialized within the game, or be discarded after initializing?
 
-  // TODO: Seed, randomize method, ... for deterministic behavior and testing.
+  private readonly _rng: SeededRng;
+  public readonly seed: number;
 
   /**
    * Creates a new game instance and starts it.
@@ -78,6 +81,9 @@ export abstract class Game<
       ...DEFAULT_GAME_CONFIG.logger,
       ...config.logger,
     };
+
+    this.seed = config.seed ?? randomSeed();
+    this._rng = config.rng ?? new SeededRng(this.seed);
 
     this._entityService =
       config.services?.entityService ??
@@ -783,10 +789,39 @@ export abstract class Game<
 
     return new (ClonedGame as any)(undefined, {
       ...config,
+      seed: this.seed,
+      rng: this._rng.clone(),
       services: {
         graphService: clonedGraphService,
         stateService: clonedStateService,
       },
     }) as this;
   }
+
+  public random(): number {
+    return this._rng.random();
+  }
+
+  public randomInt(n: number): number {
+    return this._rng.randomInt(n);
+  }
+
+  /** A full-state projection for a viewer, without registering another player. */
+  public projectSnapshot(observer: PlayerEntity | 'omniscient'): Snapshot {
+    return {
+      dirtyEntities: Object.fromEntries(this.entities().map((entity) => [
+        entity[entityId],
+        observer === 'omniscient' ? { ...entity } : { ...entity.visibility(observer) },
+      ])),
+    };
+  }
+}
+
+function randomSeed(): number {
+  const bytes = new Uint32Array(1);
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    globalThis.crypto.getRandomValues(bytes);
+    return bytes[0]!;
+  }
+  return Math.floor(Math.random() * 0x100000000) >>> 0;
 }

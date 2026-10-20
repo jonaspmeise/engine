@@ -41,6 +41,19 @@ class OrderProbeClient extends Client<HTMLElement, ProbeActions> {
 }
 
 describe('Client.feedSnapshots ordering', () => {
+  test('reset abandons queued animations and paints the landing state without replaying actions', async () => {
+    const client = new OrderProbeClient(document.createElement('div'), {}, new TestPlayerEntity(1));
+    const stale = client.feedSnapshots([{ dirtyEntities: {}, executed: new SlowAction() }]);
+    const queued = client.feedSnapshots([{ dirtyEntities: {}, executed: new FastAction() }]);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    client.resetEntities();
+    await client.feedSnapshots([{ dirtyEntities: {}, executed: new FastAction() }]);
+    expect(client.processed).toEqual([]);
+    await Promise.all([stale, queued]);
+    expect(client.processed).toEqual([]);
+    await client.feedSnapshots([{ dirtyEntities: {}, executed: new FastAction() }]);
+    expect(client.processed).toEqual(['FAST']);
+  });
   // Snapshot batches must process strictly in arrival order even when fed
   // concurrently: a slow animation in an earlier batch (e.g. a card being
   // played) has to finish before a later batch's effects render/animate —

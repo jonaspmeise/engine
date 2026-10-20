@@ -18,3 +18,4 @@ export * from './game/queryable-runtime';
 export * from './services/entity/entity-service';
 export * from './services/entity/entity-service.types';
 export * from './components/players';
+export { SeededRng } from './game/seeded-rng';

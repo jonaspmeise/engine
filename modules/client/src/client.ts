@@ -29,7 +29,8 @@ export abstract class Client<
   // TODO: How to represent game state in the client? We only need Entities and Choices...
   private _state: ClientState;
 
-  protected readonly _logger: Logger = DEFAULT_GAME_CONFIG.logger;
+  protected readonly _logger: Logger = { ...DEFAULT_GAME_CONFIG.logger };
+  public captureDebugHistory = true;
   private readonly _entityClassMapping: EntityClassMapping;
   private readonly _debug: DebugService;
   private _choices: EnhancedChoice<Action<string, any, any>>[] = [];
@@ -58,7 +59,7 @@ export abstract class Client<
   constructor(
     private readonly renderTarget: TARGET_ELEMENT,
     entityClassMapping: EntityClassMapping,
-    protected readonly player: PLAYER_TYPE,
+    protected player: PLAYER_TYPE,
     logger?: Partial<Logger>,
   ) {
     Object.assign(this._logger, logger);
@@ -78,11 +79,27 @@ export abstract class Client<
     (window as any).client = this;
   }
 
-  /**
-   * Resets the client to its initial state, clearing all internal state and the render target.
-   * Fires a 'game:reset' event on the render target so external code can reinitialise the game.
-   */
+  public dispose(): void {
+    this.resetEntities();
+    this._debug.dispose();
+  }
+
+  /** Change the viewing seat without registering a game participant. */
+  public setPlayer(player: PLAYER_TYPE): void {
+    this.player = player;
+  }
+
+  public resetEntities(): void {
+    this.abandonSnapshotQueue();
+    this._state.snapshots = [];
+    this._state.entityHandler = new ClientEntityHandler(this._entityClassMapping, this._logger);
+    this._choices = [];
+    this._debug.clear();
+  }
+
+  /** Reset the client and notify the host that a new game is requested. */
   public clear(): void {
+    this.abandonSnapshotQueue();
     this._state = {
       snapshots: [],
       entityHandler: new ClientEntityHandler(
@@ -165,28 +182,56 @@ export abstract class Client<
   // second feed would apply and animate ahead of a still-animating earlier
   // batch (e.g. an effect rendering before the card-play animation finishes).
   private _snapshotQueue: Promise<void> = Promise.resolve();
+  private _feedGeneration = 0;
+  private _skipAnimationsOnce = false;
+
+  /** Drop in-flight snapshot animation so a reconstruct/rewind is not blocked. */
+  private abandonSnapshotQueue(): void {
+    this._feedGeneration += 1;
+    this._snapshotQueue = Promise.resolve();
+    this._skipAnimationsOnce = true;
+  }
 
   public feedSnapshots(snapshots: Snapshot[]): Promise<void> {
-    const run = this._snapshotQueue.then(() =>
-      this._processSnapshots(snapshots),
-    );
+    const generation = this._feedGeneration;
+    const run = this._snapshotQueue.then(() => {
+      if (generation !== this._feedGeneration) {
+        return;
+      }
+      return this._processSnapshots(snapshots, generation);
+    });
     // Keep the queue alive after a failed batch; the failure still reaches
     // this call's own returned promise.
     this._snapshotQueue = run.catch(() => {});
     return run;
   }
 
-  private async _processSnapshots(snapshots: Snapshot[]): Promise<void> {
+  private async _processSnapshots(
+    snapshots: Snapshot[],
+    generation: number,
+  ): Promise<void> {
+    if (generation !== this._feedGeneration) {
+      return;
+    }
+    const skipAnimations = this._skipAnimationsOnce;
+    this._skipAnimationsOnce = false;
     this._logger.debug('Client is fed with snapshots...', snapshots);
 
-    // Erase prior highlights!
-    await this.eraseHighlights();
+    if (skipAnimations !== true) {
+      await this.eraseHighlights();
+      if (generation !== this._feedGeneration) {
+        return;
+      }
+    }
 
     for (const snapshot of snapshots) {
+      if (generation !== this._feedGeneration) {
+        return;
+      }
       this._state.snapshots.push(snapshot);
 
       // Record debug history eagerly before the entity handler applies the delta.
-      this._debug.recordSnapshot(snapshot);
+      if (this.captureDebugHistory) this._debug.recordSnapshot(snapshot);
 
       // Feed the snapshot into our entity service!
       for (const [id, entityDelta] of Object.entries(snapshot.dirtyEntities)) {
@@ -194,7 +239,7 @@ export abstract class Client<
         this._state.entityHandler.apply(id, entityDelta);
       }
 
-      if (snapshot.executed !== undefined) {
+      if (snapshot.executed !== undefined && skipAnimations !== true) {
         this._logger.debug(
           `Animating executed choice (before)...`,
           snapshot.executed,
@@ -204,12 +249,18 @@ export abstract class Client<
         ]?.animateBefore?.(
           snapshot.executed as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
         );
+        if (generation !== this._feedGeneration) {
+          return;
+        }
         await this.animateBefore(snapshot.executed as ACTIONS);
+        if (generation !== this._feedGeneration) {
+          return;
+        }
       }
 
       this.render(this.renderTarget, this._state.entityHandler);
 
-      if (snapshot.executed !== undefined) {
+      if (snapshot.executed !== undefined && skipAnimations !== true) {
         this._logger.debug(
           `Animating executed choice (after)...`,
           snapshot.executed,
@@ -217,11 +268,17 @@ export abstract class Client<
         await new Promise<void>((resolve) =>
           requestAnimationFrame(() => resolve()),
         );
+        if (generation !== this._feedGeneration) {
+          return;
+        }
         await this.choiceTypeMapping[
           snapshot.executed.$type as ACTIONS['$type']
         ]?.animateAfter?.(
           snapshot.executed as Extract<ACTIONS, { $type: ACTIONS['$type'] }>,
         );
+        if (generation !== this._feedGeneration) {
+          return;
+        }
         await this.animateAfter(snapshot.executed as ACTIONS);
       }
     }

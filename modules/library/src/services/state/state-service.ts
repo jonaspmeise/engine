@@ -314,7 +314,9 @@ export class StateService {
         dirtyEntities: Object.fromEntries(
           Array.from(fullState, (entity) => [
             entity[entityId],
-            entity.visibility(player),
+            player[handler]?.omniscient === true
+              ? { ...entity }
+              : entity.visibility(player),
           ]),
         ),
         executed: undefined,
@@ -352,7 +354,11 @@ export class StateService {
       dirtyEntities: Object.fromEntries(
         Object.entries(snapshot.dirtyEntities).map(([id, entity]) => [
           id,
-          entity == null ? null : entity.visibility(player),
+          entity == null
+            ? null
+            : player[handler]?.omniscient === true
+              ? entity
+              : entity.visibility(player),
         ]),
       ),
       executed: inFlight.includes(snapshot) ? undefined : snapshot.executed,

@@ -21,6 +21,14 @@ type ChoiceEntry = {
  */
 export class DebugService {
   private _active = false;
+  private readonly listeners = new AbortController();
+
+  public dispose(): void {
+    this.listeners.abort();
+    this._panel?.remove();
+    this._tooltip?.remove();
+    this.clear();
+  }
   private _history: HistoryEntry[] = [];
   private _choices: ChoiceEntry[] = [];
   private _panel: HTMLElement | null = null;
@@ -88,7 +96,7 @@ export class DebugService {
         e.preventDefault();
         this._toggle();
       }
-    });
+    }, { signal: this.listeners.signal });
 
     document.addEventListener('contextmenu', (e) => {
       if (!this._active) {
@@ -100,9 +108,9 @@ export class DebugService {
         e.preventDefault();
         this._showTooltip(entity, e.clientX, e.clientY);
       }
-    });
+    }, { signal: this.listeners.signal });
 
-    document.addEventListener('click', () => this._hideTooltip());
+    document.addEventListener('click', () => this._hideTooltip(), {signal: this.listeners.signal});
   }
 
   // ── Toggle ────────────────────────────────────────────────────────────────

@@ -12,4 +12,6 @@ export interface ModifiableRuntime extends GraphRuntime {
   spawnEntity(entity: Entity): void;
   end(parameters: Partial<GameEndParameters>): void;
   flush: EntityFlushCallback;
+  random(): number;
+  randomInt(n: number): number;
 }
