@@ -81,6 +81,7 @@ describe('StateService', () => {
     const receive = mock(() => {});
     const replayPlayer: PlayerEntity = {
       ...player,
+      visibility: player.visibility,
       [handler]: { omniscient: true, state: receive, prompt: () => {} },
     };
     const expected = {
